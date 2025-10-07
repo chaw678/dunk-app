@@ -70,15 +70,15 @@ import { useRouter, useRoute } from 'vue-router'
 import { Grid2x2, Trophy, Users, Globe, ChartLine, LogIn } from 'lucide-vue-next'
 import { defineProps, defineEmits } from 'vue'
 
-const props = defineProps({
+ const props = defineProps({
   collapsed: { type: Boolean, default: false }
 })
-const emit = defineEmits(['update:collapsed'])
+ const emit = defineEmits(['update:collapsed'])
 
 const router = useRouter()
 const goLogin = () => router.push('/login')
 
-function toggle() {
+ function toggle() {
   emit('update:collapsed', !props.collapsed)
 }
 </script>
@@ -109,8 +109,8 @@ function toggle() {
   left: 0;
   top: 0;
   height: 100vh;
-  width: var(--sidebar-width);
-  max-width: 92vw;
+  /* width: var(--sidebar-width); */
+  /* max-width: 92vw; */
   z-index: 80;
   display: flex;
   align-items: stretch;

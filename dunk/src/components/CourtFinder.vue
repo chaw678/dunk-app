@@ -1,6 +1,6 @@
 <template>
   <div class="page-bg">
-    <div class="card">
+    <div class="card container-fluid">
       <h1 class="card-title">Court Finder</h1>
       <p class="card-desc">Locate basketball courts, check availability, and see user ratings.</p>
       <div class="card-section">
@@ -13,6 +13,22 @@
 </template>
 
 <script setup>
+axios.get('https://api.openweathermap.org/data/2.5/weather',
+  {
+    params: {
+      lat: '1.3521',
+      lon: '103.8198',
+      appid: '1dde52004c554a965d0b1c8f3f67c35f'
+  }}
+)
+
+  .then(response => {
+    console.log(response.data);
+    // put a loaded boolean flag here to false. when loading and manipulation of data is done, set it to true and use v-if to show the div
+  })
+  .catch(error => {
+    console.error('Error fetching court data:', error);
+  });
 </script>
 
 <style>
@@ -26,7 +42,7 @@ body {
 <style scoped>
 .page-bg {
   min-height: 100vh;
-  padding: 40px 0;
+  /* padding: 40px 0; */
   background: transparent;
   display: flex;
   justify-content: center;
@@ -39,8 +55,8 @@ body {
   box-shadow: 0 2px 16px rgba(0,0,0,0.22), 0 1.5px 3px rgba(36,45,55,0.16);
   padding: 32px 38px 44px 38px;
   color: #dde3ea;
-  max-width: 900px;
-  width: 90vw;
+  /* max-width: 900px; */
+  /* width: 90vw; */
 }
 
 .card-title {

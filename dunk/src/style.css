@@ -10,6 +10,8 @@
   /* Sidebar width variables (used by main content calculations) */
   --sidebar-width: 300px;
   --sidebar-collapsed-width: 72px;
+  /* Topbar height so main content can avoid overlapping the fixed topbar */
+  --topbar-height: 72px;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -59,8 +61,8 @@ html, body, #app {
   padding: 28px 34px;
   color: #dde3ea;
   max-width: 1400px;
-  /* card width: 85vw minus sidebar width (desktop) */
-  width: clamp(320px, calc(85vw - var(--sidebar-width)), 1400px);
+  /* card width: 85vw minus the current sidebar width (uses --sidebar-current-width set on main) */
+  width: clamp(320px, calc(85vw - var(--sidebar-current-width, var(--sidebar-width))), 1400px);
 }
 
 /* When main content has `.collapsed` (sidebar collapsed), make the card wider */
@@ -69,7 +71,7 @@ html, body, #app {
 }
 
 /* Left-align card inside main content (not centered) */
-.main-content { display: flex; justify-content: flex-start; align-items: flex-start; box-sizing: border-box }
+.main-content { justify-content: flex-start; align-items: flex-start; box-sizing: border-box }
 
 .card-title {
   text-align: left;
