@@ -1,10 +1,45 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { Trophy, Star, Users, Cake } from 'lucide-vue-next'
 import { loginWithGoogle, logout, onUserStateChanged, saveUserToDatabase } from '../firebase/auth.js'
 
 const user = ref(null)
 const error = ref('')
+
+const photoSrc = computed(() => {
+  // prefer provider photoURL, otherwise generate a seed-based avatar
+  const u = user.value
+  if (u && u.photoURL) return u.photoURL
+  // derive a username from the email local-part when available
+  const username = (u && (u.email ? u.email.split('@')[0] : (u.displayName || u.uid))) || 'anon'
+  return `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(username)}`
+})
+
+const imgErrored = ref(false)
+
+function initials(name) {
+  if (!name) return 'A'
+  return name.split(' ').map(s => s[0]).slice(0,2).join('').toUpperCase()
+}
+
+function onImgError(e) {
+  // If the image fails (eg 429), try the seeded avatar API first, then fall back to initials
+  try {
+  const u = user.value
+  const username = (u && (u.email ? u.email.split('@')[0] : (u.displayName || u.uid))) || 'anon'
+  const fallback = `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(username)}`
+    const img = e && e.target
+    if (!img) return
+    // avoid infinite loop: if already set to fallback, show initials
+    if (img.src && img.src.includes('avatar.iran.liara.run')) {
+      imgErrored.value = true
+    } else {
+      img.src = fallback
+    }
+  } catch (err) {
+    imgErrored.value = true
+  }
+}
 
 onMounted(() => {
   onUserStateChanged(async (currentUser) => {
@@ -64,9 +99,11 @@ async function handleLogout() {
       </div>
       <!-- Avatar, name, email -->
       <div class="d-flex flex-column align-items-center mb-3">
-        <div style="width:100px;height:100px;border-radius:50%;border:5px solid #FFAD1D;overflow:hidden;">
-          <img :src="user.photoURL || 'https://via.placeholder.com/100x100?text=Avatar'"
-            style="width:100%;height:100%;object-fit:cover;" alt="Profile"/>
+        <div style="width:100px;height:100px;border-radius:50%;border:5px solid #FFAD1D;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+          <img v-if="!imgErrored" :src="photoSrc" @error="onImgError" style="width:100%;height:100%;object-fit:cover;" alt="Profile"/>
+          <div v-else style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1f262b;color:#fff;font-weight:700;border-radius:50%;">
+            {{ initials(user && user.displayName) }}
+          </div>
         </div>
         <h3 class="fw-bold mb-0 mt-2" style="font-size:1.7rem;">{{ user.displayName || 'Anonymous' }}</h3>
         <div style="color:#9CA3AF;font-size:1.1rem;">{{ user.email }}</div>
