@@ -11,4 +11,4 @@
 <style scoped>
 .page { padding: 24px; color: #fff }
 </style>
-}
+

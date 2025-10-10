@@ -11,46 +11,55 @@
                 </div>
             </div>
 
-            <div class="tabs">
-                <button :class="['tab', { active: selectedTab === 'all' }]" @click="selectedTab = 'all'">All
-                    Matches</button>
-                <button :class="['tab', { active: selectedTab === 'my' }]" @click="selectedTab = 'my'">My
-                    Matches</button>
+            <div class="tabs mb-3">
+                <div class="btn-group" role="group" aria-label="Match tabs">
+                    <button :class="['btn btn-sm', selectedTab === 'all' ? 'btn-dark' : 'btn-outline-secondary']" @click="selectedTab = 'all'">All Matches</button>
+                    <button :class="['btn btn-sm', selectedTab === 'my' ? 'btn-dark' : 'btn-outline-secondary']" @click="selectedTab = 'my'">My Matches</button>
+                </div>
             </div>
 
-            <div class="matches-grid">
-                <router-link v-for="match in filteredMatches" :key="match.id" :to="`/matches/${match.id}`"
-                    class="match-card">
-                    <div class="match-left">
-                        <h2 class="match-title">{{ match.title }}</h2>
-                        <div class="match-sub">{{ match.location }}</div>
-                        <div class="match-meta">{{ match.time }}</div>
-                        <div class="badges">
-                            <span class="pill">{{ match.level }}</span>
-                            <span class="pill yellow">{{ match.visibility }}</span>
-                        </div>
+            <div class="row g-3 matches-grid">
+                <div class="col-12 col-md-6 col-xl-4" v-for="match in filteredMatches" :key="match.id">
+                    <router-link :to="`/matches/${match.id}`" class="card match-card h-100 text-reset text-decoration-none">
+                        <div class="card-body d-flex flex-column h-100 p-4">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h3 class="match-title mb-1">{{ match.title }}</h3>
+                                    <div class="match-sub small">{{ match.location }}</div>
+                                </div>
+                                <div class="text-end text-warning fw-bold small">
+                                    <i class="bi bi-people-fill me-1"></i> {{ match.players.length }}/{{ match.maxPlayers }}
+                                </div>
+                            </div>
 
-                        <div class="avatars">
-                            <template v-for="(name, i) in visiblePlayers(match.players)" :key="i">
-                                <span class="avatar-initial">{{ initials(name) }}</span>
-                            </template>
-                            <span v-if="match.players.length > maxAvatars" class="avatar extra">+{{ match.players.length
-                                - maxAvatars }}</span>
-                        </div>
-                    </div>
+                            <div class="match-meta mb-3">{{ match.time }}</div>
 
-                    <div class="match-right">
-                        <div class="players"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                                fill="currentColor" viewBox="0 0 16 16">
-                                <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3z" />
-                                <path fill-rule="evenodd" d="M8 8a3 3 0 100-6 3 3 0 000 6z" />
-                            </svg> {{ match.players.length }}/{{ match.maxPlayers }}</div>
-                        <div>
-                            <button class="join">Join Game</button>
-                            <button class="view">View Players</button>
+                            <div class="mb-3">
+                                <span class="badge bg-secondary me-2">{{ match.level }}</span>
+                                <span class="badge bg-warning text-dark">{{ match.visibility }}</span>
+                            </div>
+
+                            <div class="avatars mb-3">
+                                <div class="avatar-stack me-2">
+                                    <template v-for="(name, i) in visiblePlayers(match.players)" :key="i">
+                                        <span class="avatar-initial">{{ initials(name) }}</span>
+                                    </template>
+                                    <span v-if="match.players.length > maxAvatars" class="avatar extra">+{{ match.players.length - maxAvatars }}</span>
+                                </div>
+                            </div>
+
+                            <div class="mt-auto d-flex justify-content-between align-items-center">
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                    <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                </div>
+                                <div>
+                                    <button class="btn btn-link text-white-50 small">View</button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </router-link>
+                    </router-link>
+                </div>
             </div>
         </div>
     </div>
@@ -104,17 +113,17 @@ console.log('Fetched matches:', matches.value)
 
 
 //use an input data field, add event listener to push to firebase
-pushDataToFirebase('matches', {
-    id: 3,
-    title: '3v3 King of the Court',
-    location: 'Jurong West Rooftop Court',
-    time: 'Sat, 2:00 PM',
-    level: 'Intermediate',
-    visibility: 'Public',
-    players: ['Liam Moon', 'Maya Noor', 'Nate Owen', 'Omar Park', 'Pia Quinn'],
-    maxPlayers: 6,
-    owner: 'alice'
-})
+// pushDataToFirebase('matches', {
+//     id: 3,
+//     title: '3v3 King of the Court',
+//     location: 'Jurong West Rooftop Court',
+//     time: 'Sat, 2:00 PM',
+//     level: 'Intermediate',
+//     visibility: 'Public',
+//     players: ['Liam Moon', 'Maya Noor', 'Nate Owen', 'Omar Park', 'Pia Quinn'],
+//     maxPlayers: 6,
+//     owner: 'alice'
+// })
 
 const selectedTab = ref('all')
 
@@ -139,6 +148,8 @@ function initials(name) {
 <style scoped>
 .large-card {
     padding: 28px;
+    border:1px solid #22272e;
+    background-color: transparent;
 }
 
 .page-header {
@@ -191,28 +202,16 @@ function initials(name) {
     }
 }
 
+
 .match-card {
-    padding: 22px;
-    background: #181c23;
-    border-radius: 10px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    height: 100%;
-    color: #ffffff;
-    text-decoration: none
+    background: linear-gradient(180deg,#0f1418 0%, #0d1114 100%);
+    border: 1px solid rgba(255,154,60,0.06);
+    border-radius: 12px;
+    color: #fff;
 }
+.match-card .card-body { padding: 28px; }
+.match-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.45); transform: translateY(-6px); transition: all 180ms ease }
 
-.match-card:hover {
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
-    transform: translateY(-4px);
-    transition: all 160ms ease
-}
-
-.match-card:visited,
-.match-card:link {
-    color: inherit
-}
 
 .match-left {
     margin-bottom: 14px
@@ -258,35 +257,13 @@ function initials(name) {
     color: #ffb14d
 }
 
-.avatars {
-    margin-top: 12px;
-    display: flex;
-    gap: 8px;
-    align-items: center
-}
 
-.avatar-initial {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: #2c323a;
-    color: #fff;
-    font-weight: 700
-}
+.avatars { margin-top: 12px }
+.avatar-stack { display:flex; align-items:center }
+.avatar-stack .avatar-initial { width:38px; height:38px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#1f262b; color:#fff; font-weight:700; border:2px solid rgba(0,0,0,0.4); margin-left:-10px }
+.avatar-stack .avatar-initial:first-child { margin-left:0 }
+.avatar-stack .avatar.extra { margin-left:8px; background:#2b2f33; width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border-radius:50% }
 
-.avatar.extra {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    background: #2b2f33;
-    color: #fff
-}
 
 .players {
     color: #ffb14d;
@@ -296,19 +273,8 @@ function initials(name) {
     gap: 6px
 }
 
-.join {
-    background: #ff9a3c;
-    color: #111;
-    padding: 10px 14px;
-    border-radius: 8px;
-    border: none
-}
-
-.view {
-    background: transparent;
-    color: #d7e3f6;
-    border: none
-}
+.join { background: #ff9a3c; color:#111 }
+.view { color: rgba(255,255,255,0.7) }
 
 @media (min-width: 768px) {
     .match-card {

@@ -1,117 +1,142 @@
-
 <script setup>
-import { ref } from 'vue'
-import { loginWithGoogle, saveUserToDatabase } from '../firebase/auth.js'
+import { ref, onMounted } from 'vue'
+import { Trophy, Star, Users, Cake } from 'lucide-vue-next'
+import { loginWithGoogle, logout, onUserStateChanged, saveUserToDatabase } from '../firebase/auth.js'
 
-// form state
-const email = ref('')
-const password = ref('')
+const user = ref(null)
 const error = ref('')
 
-async function handleSubmit() {
-  error.value = ''
-  if (!email.value || !email.value.includes('@')) {
-    error.value = 'Please enter a valid email.'
-    return
-  }
-  if (!password.value || password.value.length < 6) {
-    error.value = 'Password must be at least 6 characters.'
-    return
-  }
-
-  
-}
+onMounted(() => {
+  onUserStateChanged(async (currentUser) => {
+    user.value = currentUser
+    if (currentUser && currentUser.uid) await saveUserToDatabase(currentUser)
+  })
+})
 
 async function handleGoogleSignIn() {
   error.value = ''
   try {
-    // loginWithGoogle returns a UserCredential
     const result = await loginWithGoogle()
-    const user = result.user
-    console.log(result)
-
-    if (user && user.uid) {
-      // save the user to your DB (pass the Firebase User object)
-      await saveUserToDatabase(user)
-      alert('Signed in with Google!')
-    } else {
-      error.value = 'No user returned from Google sign-in'
-    }
-
+    user.value = result.user
+    await saveUserToDatabase(result.user)
+    alert('Signed in with Google!')
   } catch (e) {
     error.value = 'Google sign-in failed'
     console.error(e)
   }
 }
-
-// async function handleGoogleSignIn() {
-//   error.value = ''
-//   try {
-//     await loginWithGoogle() 
-//     await saveUserToDatabase()
-//     alert('Signed in with Google!')
-    
-//   } catch (e) {
-//     error.value = 'Google sign-in failed'
-//     console.error(e)
-//   }
-// }
-
-
+async function handleLogout() {
+  try {
+    await logout()
+    user.value = null
+    alert('Logged out.')
+  } catch (e) {
+    error.value = 'Logout failed'
+    console.error(e)
+  }
+}
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-[#0d0f13]">
-    <form @submit.prevent="handleSubmit" class="bg-[#111318] w-full max-w-md p-8 rounded-2xl border border-gray-800 shadow-lg">
-      <h2 class="text-2xl font-semibold mb-2 text-white">Login</h2>
-      <p class="text-gray-400 mb-8 text-sm text-center">Enter your credentials to sign in.</p>
+  <div class="container-fluid min-vh-100 bg-transparent d-flex align-items-center justify-content-center px-2" style="background: transparent;">
+    <!-- Login UI -->
+    <div v-if="!user" class="mx-auto" style="max-width:350px;">
+      <button @click="handleGoogleSignIn" type="button"
+        class="btn btn-outline-warning w-100 py-3 d-flex align-items-center justify-content-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M4.2 14.2c2.8-5.2 8.3-8.4 14.3-7.4" />
+          <path d="m11.3 21.8-1.9-2.8c-2.4-3.6-3.2-8.3-.7-12.4" />
+          <path d="M21.8 12.7c-2.4 4.5-8.2 6.8-13.4 5" />
+        </svg>
+        <span class="fs-5 fw-semibold">Sign in with Google</span>
+      </button>
+      <p v-if="error" class="mt-2 text-danger small text-center">{{ error }}</p>
+    </div>
 
-      <div class="mb-5">
-        <label for="email" class="block text-sm font-medium mb-1 text-gray-300">Email</label>
-        <input
-          id="email"
-          type="email"
-          v-model="email"
-          placeholder="your@email.com"
-          class="w-full bg-[#1a1d24] border border-gray-700 rounded-lg px-3 py-2 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-100"
-          required
-        />
+    <!-- Profile screen -->
+    <div v-else class="w-100 mx-auto text-white" style="max-width:700px;">
+      <!-- Header -->
+      <div class="mb-3">
+        <h2 class="fw-bold text-warning mb-0" style="font-size:2.25rem;">My Profile</h2>
+        <div class="mb-1 text-secondary" style="font-size:1.1rem;">View and manage your personal information.</div>
       </div>
-
-      <div class="mb-8">
-        <label for="password" class="block text-sm font-medium mb-1 text-gray-300">Password</label>
-        <input
-          id="password"
-          type="password"
-          v-model="password"
-          placeholder="********"
-          class="w-full bg-[#1a1d24] border border-gray-700 rounded-lg px-3 py-2 text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-100"
-          required
-        />
+      <!-- Avatar, name, email -->
+      <div class="d-flex flex-column align-items-center mb-3">
+        <div style="width:100px;height:100px;border-radius:50%;border:5px solid #FFAD1D;overflow:hidden;">
+          <img :src="user.photoURL || 'https://via.placeholder.com/100x100?text=Avatar'"
+            style="width:100%;height:100%;object-fit:cover;" alt="Profile"/>
+        </div>
+        <h3 class="fw-bold mb-0 mt-2" style="font-size:1.7rem;">{{ user.displayName || 'Anonymous' }}</h3>
+        <div style="color:#9CA3AF;font-size:1.1rem;">{{ user.email }}</div>
       </div>
+      <!-- Stats grid using flexbox for equal height cards with border -->
+      <div class="row gx-3 gy-3 text-center mb-4">
+  <div class="col-6 col-md-3 d-flex">
+    <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
+      <!-- Icon (Ranking) -->
+      <Trophy :color="'#FFAD1D'" :size="32" class="mb-2" />
+      <span class="fw-medium">Ranking</span>
+      <span class="badge bg-purple text-white mt-1" style="font-size:0.92rem;">Professional</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 d-flex">
+    <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
+      <Star :color="'#FFAD1D'" :size="32" class="mb-2" />
+      <span class="fw-medium">Score</span>
+      <div class="fs-4 fw-semibold text-warning mt-1">1250</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 d-flex">
+    <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
+      <Users :color="'#FFAD1D'" :size="32" class="mb-2" />
+      <span class="fw-medium">Gender</span>
+      <span class="fw-semibold text-warning mt-1">Male</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 d-flex">
+    <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
+      <Cake :color="'#FFAD1D'" :size="32" class="mb-2" />
+      <span class="fw-medium">Age</span>
+      <span class="fs-4 fw-semibold text-warning mt-1">28</span>
+    </div>
+  </div>
+</div>
 
-<button
-  type="submit"
-  class="w-full bg-orange-500 text-white py-2.5 rounded-lg font-semibold hover:bg-orange-600 transition-colors"
->
-  Sign In
-</button>
-
-<button
-  type="button"
-  class="w-full flex items-center justify-center gap-2 border border-gray-700 py-2.5 mt-6 rounded-lg hover:bg-[#1a1d24] transition-colors"
-  @click="handleGoogleSignIn"
->
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512" class="h-4 w-4 fill-white">
-    <path
-      d="M488 261.8C488 403.3 391.2 512 248 512 111 512 0 401 0 264S111 16 248 16a230 230 0 01158 61l-64 61a138 138 0 00-94-36c-79 0-144 66-144 146s65 146 144 146c69 0 114-39 123-93H248v-74h240c2 13 4 26 4 40z"
-    />
-  </svg>
-  <span class="text-sm font-medium text-gray-200">Google</span>
-</button>
-
-      <p v-if="error" class="mt-4 text-center text-red-500 text-sm">{{ error }}</p>
-    </form>
+      <!-- Following & Followers -->
+      <div class="row gx-3 justify-content-center mb-3">
+        <div class="col-6 col-md-4">
+          <button type="button" class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
+            style="background:#181A20;">
+            <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
+            Following (3)
+          </button>
+        </div>
+        <div class="col-6 col-md-4">
+          <button type="button" class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
+            style="background:#181A20;">
+            <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
+            Followers (6)
+          </button>
+        </div>
+      </div>
+      <!-- Logout button -->
+      <div class="mt-4 px-3 mb-2">
+        <button @click="handleLogout" type="button" class="btn btn-danger w-100 rounded-pill fs-5">
+          Log Out
+        </button>
+        <p v-if="error" class="mt-2 text-danger small text-center">{{ error }}</p>
+      </div>
+    </div>
   </div>
 </template>
 
+<style>
+.bg-purple { background-color: #7133e2 !important; }
+.border-gray-600 { border-color: #50575e !important; }
+.profile-stat-card {
+  min-height: 140px;
+  background: transparent !important;
+}
+</style>

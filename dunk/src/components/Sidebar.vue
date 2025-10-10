@@ -33,32 +33,20 @@
             <span class="label" v-show="!collapsed">Matches</span>
           </router-link>
 
-          <router-link class="nav-item" to="/teams">
-            <span class="icon" aria-hidden="true"><Users /></span>
-            <span class="label" v-show="!collapsed">Users</span>
-          </router-link>
 
-          <router-link class="nav-item" to="/news">
-            <span class="icon" aria-hidden="true"><Globe /></span>
-            <span class="label" v-show="!collapsed">Global News</span>
-          </router-link>
-
-          <router-link class="nav-item" to="/skills">
-            <span class="icon" aria-hidden="true"><ChartLine /></span>
-            <span class="label" v-show="!collapsed">Skills Challenge</span>
+          <router-link class="nav-item" to="/forum">
+            <span class="icon" aria-hidden="true"><MessageCircle /></span>
+            <span class="label" v-show="!collapsed">Forum</span>
           </router-link>
         </nav>
 
         <div class="spacer"></div>
 
         <div class="bottom">
-          <button class="login-btn" @click="goLogin">
-            <span class="login-icon"></span>
-            <span class="login-label" v-show="!collapsed">Login  <LogIn />
-</span>
-          </button>
-
- 
+          <router-link class="nav-item" to="/login">
+            <span class="icon" aria-hidden="true"><Users /></span>
+            <span class="label" v-show="!collapsed">Profile</span>
+          </router-link>
         </div>
       </div>
     </aside>
@@ -67,7 +55,7 @@
 
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
-import { Grid2x2, Trophy, Users, Globe, ChartLine, LogIn } from 'lucide-vue-next'
+import { Grid2x2, Trophy, Users, MessageCircle } from 'lucide-vue-next'
 import { defineProps, defineEmits } from 'vue'
 
  const props = defineProps({

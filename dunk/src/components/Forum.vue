@@ -1,7 +1,7 @@
 <template>
   <div class="page">
-    <h1>Skills Challenge</h1>
-    <p>Placeholder Skills page.</p>
+    <h1>Forum</h1>
+    <p>Placeholder Forum page.</p>
   </div>
 </template>
 

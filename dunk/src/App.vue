@@ -24,9 +24,7 @@
           </div>
           <div class="top-title">Dunk+</div>
         </div>
-        <div class="top-actions">
-          <button class="create-btn">＋ Create Match</button>
-        </div>
+        
       </div>
     </header>
 
