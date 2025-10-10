@@ -1,7 +1,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { loginWithGoogle } from '../firebase/auth.js'
+import { loginWithGoogle, saveUserToDatabase } from '../firebase/auth.js'
 
 // form state
 const email = ref('')
@@ -19,22 +19,45 @@ async function handleSubmit() {
     return
   }
 
-  // Placeholder behaviour — replace with real auth call if desired
-  alert('Signed in (placeholder)')
-  email.value = ''
-  password.value = ''
+  
 }
 
 async function handleGoogleSignIn() {
   error.value = ''
   try {
-    await loginWithGoogle()
-    alert('Signed in with Google!')
+    // loginWithGoogle returns a UserCredential
+    const result = await loginWithGoogle()
+    const user = result.user
+    console.log(result)
+
+    if (user && user.uid) {
+      // save the user to your DB (pass the Firebase User object)
+      await saveUserToDatabase(user)
+      alert('Signed in with Google!')
+    } else {
+      error.value = 'No user returned from Google sign-in'
+    }
+
   } catch (e) {
     error.value = 'Google sign-in failed'
     console.error(e)
   }
 }
+
+// async function handleGoogleSignIn() {
+//   error.value = ''
+//   try {
+//     await loginWithGoogle() 
+//     await saveUserToDatabase()
+//     alert('Signed in with Google!')
+    
+//   } catch (e) {
+//     error.value = 'Google sign-in failed'
+//     console.error(e)
+//   }
+// }
+
+
 </script>
 
 <template>

@@ -8,6 +8,31 @@ import {
   onAuthStateChanged
 } from 'firebase/auth'
 
+import { getDatabase, ref, push, set } from 'firebase/database';
+
+export async function saveUserToDatabase(user) {
+  const db = getDatabase();
+  const userRef = ref(db, 'users/' + user.uid);
+  
+  // Define user data to save (customize as needed)
+  const userData = {
+    name: user.displayName || '',
+    email: user.email || '',
+    uid: user.uid,
+    skill: '',
+    age: null,
+    gender: '',
+    bio: '',
+    match_ids: {},
+    following: {},
+    followers: {}
+  };
+
+  return set(userRef, userData);
+}
+
+
+
 // Sign in using Google popup
 export async function loginWithGoogle() {
   const provider = new GoogleAuthProvider()
