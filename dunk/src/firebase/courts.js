@@ -1,4 +1,5 @@
 import { getDatabase, ref, push, set, update, remove, get, child } from 'firebase/database'
+import { getUserName } from './firebase'
 
 export async function saveCourtToDatabase(court) {
 
@@ -33,12 +34,23 @@ export async function saveCourtToDatabase(court) {
   const data = {
     courtname: court.courtname || '',
     courtaddress: court.courtaddress || '',
-    coordinates: {lat: court.coordinates.lat || 0, lng: court.coordinates.lng || 0},
+    coordinates: {lat: court.coordinates?.lat || (Array.isArray(court.coordinates) ? Number(court.coordinates[0]) : 0), lng: court.coordinates?.lng || (Array.isArray(court.coordinates) ? Number(court.coordinates[1]) : 0)},
     region: court.region || '',
     indoor: court.indoor || false,
     outdoor: court.outdoor || false,
     createdBy: court.createdBy || '',
+    createdByName: '',
     matches: court.matches || '',
+  }
+
+  // If createdBy is a uid, resolve the user's name via the central helper
+  if (court.createdBy) {
+    try {
+      const name = await getUserName(court.createdBy)
+      data.createdByName = name || ''
+    } catch (err) {
+      console.warn('Failed to resolve createdBy name for uid', court.createdBy, err)
+    }
   }
 
   await set(courtRef, data)

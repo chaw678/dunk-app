@@ -63,6 +63,29 @@ export async function getDataFromFirebase(table) {
     }
 }
 
+/**
+ * Resolve a user's display name / username from their uid in Realtime Database.
+ * Returns the best available string (username, name, displayName, or email local-part) or null.
+ */
+export async function getUserName(uid) {
+    if (!uid) return null
+    try {
+        const dbRef = ref(db)
+        const snap = await get(child(dbRef, `users/${uid}`))
+        if (!snap || !snap.exists()) return null
+        const u = snap.val()
+        // prefer username, then name, then displayName, then email local-part
+        if (u.username) return u.username
+        if (u.name) return u.name
+        if (u.displayName) return u.displayName
+        if (u.email) return u.email.split('@')[0]
+        return null
+    } catch (err) {
+        console.error('getUserName error', err)
+        return null
+    }
+}
+
 export async function pushDataToFirebase(path, data) {
     // instructions
     // data: input in only the json data don't put a key/id

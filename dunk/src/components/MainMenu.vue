@@ -12,51 +12,7 @@
   </div>
 </template>
 
-<script setup>
-import { ref } from 'vue'
-import { saveCourtToDatabase } from '../firebase/courts.js'
 
-const loading = ref(false)
-const result = ref(null)
-const error = ref('')
-
-const testCourt = {
-  courtname: 'Test Court from UI',
-  courtaddress: '123 Test Ave',
-  coordinates: {lat: 51.5074, lng: -0.1278},
-  region: 'Test Region',
-  indoor: true,
-  outdoor: false,
-  createdBy: 'LwERFvDs7SamHI9OfuPJ2VPZLFO2'
-}
-
-saveCourtToDatabase(testCourt);
-
-// async function addTestCourt() {
-//   error.value = ''
-//   result.value = null
-//   loading.value = true
-//   try {
-
-//     const payload = {
-//       courtname: 'Test Court from UI',
-//       courtaddress: '123 Test Ave',
-//       coordinates: {lat: 51.5074, lng: -0.1278},
-//       region: 'Test Region',
-//       indoor: true,
-//       outdoor: false,
-//       createdBy: 'LwERFvDs7SamHI9OfuPJ2VPZLFO2'
-//     }
-//     const res = await saveCourtToDatabase(payload)
-//     result.value = res
-//   } catch (e) {
-//     console.error(e)
-//     error.value = e?.message || String(e)
-//   } finally {
-//     loading.value = false
-//   }
-// }
-</script>
 
 <style scoped>
 .page { padding: 24px; color: #fff }

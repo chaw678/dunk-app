@@ -12,23 +12,57 @@
   </div>
 </template>
 
-<script setup>
-axios.get('https://api.openweathermap.org/data/2.5/weather',
-  {
-    params: {
-      lat: '1.3521',
-      lon: '103.8198',
-      appid: '1dde52004c554a965d0b1c8f3f67c35f'
-  }}
-)
 
-  .then(response => {
-    console.log(response.data);
-    // put a loaded boolean flag here to false. when loading and manipulation of data is done, set it to true and use v-if to show the div
-  })
-  .catch(error => {
-    console.error('Error fetching court data:', error);
-  });
+<script setup>
+import { ref } from 'vue'
+import { saveCourtToDatabase } from '../firebase/courts.js'
+
+const loading = ref(false)
+const result = ref(null)
+const error = ref('')
+
+// const testCourt = {
+//   courtname: 'Test Court from UI',
+//   courtaddress: '123 Test Ave',
+//   coordinates: {lat: 51.5074, lng: -0.1278},
+//   region: 'Test Region',
+//   indoor: true,
+//   outdoor: false,
+//   createdBy: 'LwERFvDs7SamHI9OfuPJ2VPZLFO2'
+// }
+
+;(async () => {
+  loading.value = true
+  try {
+    const res = await saveCourtToDatabase(testCourt)
+    result.value = res
+    console.log('Court saved:', res)
+  } catch (e) {
+    error.value = e && e.message ? e.message : String(e)
+    console.error('Failed to save court', e)
+  } finally {
+    loading.value = false
+  }
+})()
+
+
+
+// axios.get('https://api.openweathermap.org/data/2.5/weather',
+//   {
+//     params: {
+//       lat: '1.3521',
+//       lon: '103.8198',
+//       appid: '1dde52004c554a965d0b1c8f3f67c35f'
+//   }}
+// )
+
+//   .then(response => {
+//     console.log(response.data);
+//     // put a loaded boolean flag here to false. when loading and manipulation of data is done, set it to true and use v-if to show the div
+//   })
+//   .catch(error => {
+//     console.error('Error fetching court data:', error);
+//   });
 </script>
 
 <style>
