@@ -43,8 +43,12 @@ function onImgError(e) {
 
 onMounted(() => {
   onUserStateChanged(async (currentUser) => {
-    user.value = currentUser
-    if (currentUser && currentUser.uid) await saveUserToDatabase(currentUser)
+    try {
+      user.value = currentUser
+      if (currentUser && currentUser.uid) await saveUserToDatabase(currentUser)
+    } catch (e) {
+      console.error('Error in onUserStateChanged handler', e)
+    }
   })
 })
 
