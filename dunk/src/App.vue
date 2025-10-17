@@ -20,6 +20,7 @@
               <path d="M4.2 14.2c2.8-5.2 8.3-8.4 14.3-7.4" />
               <path d="m11.3 21.8-1.9-2.8c-2.4-3.6-3.2-8.3-.7-12.4" />
               <path d="M21.8 12.7c-2.4 4.5-8.2 6.8-13.4 5" />
+              
             </svg>
           </div>
           <div class="top-title">Dunk+</div>
@@ -38,6 +39,7 @@
 </template>
 
 <script setup>
+
 import { ref } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 
