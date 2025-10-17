@@ -13,26 +13,13 @@
         </p>
 
         <!-- Search Bar -->
-        <div class="search-bar">
-          <input
-            type="text"
-            v-model="searchQuery"
-            placeholder="Search courts or regions..."
-            class="search-input"
-            @focus="showSuggestions = true"
-            @blur="hideSuggestions"
-          />
-          <ul v-if="filteredSuggestions.length && showSuggestions" class="suggestion-list">
-            <li
-              v-for="(suggestion, index) in filteredSuggestions"
-              :key="index"
-              @mousedown.prevent="selectSuggestion(suggestion)"
-              class="suggestion-item"
-            >
-              {{ suggestion }}
-            </li>
-          </ul>
-        </div>
+       <input
+          type="text"
+          ref="autocompleteInput"
+          v-model="searchQuery"
+          placeholder="Search courts or regions..."
+          class="search-input"
+        />
 
         <!-- Region Filter -->
         <div class="region-filter">
@@ -44,6 +31,7 @@
           >
             {{ region }}
           </button>
+          
         </div>
 
         <!-- Map Section -->
@@ -73,26 +61,270 @@
   @close="showAddMatchModal = false"
 />
 
+<AddCourtModal
+  v-if="showAddCourtModal"
+  :coordinates="newCourtCoords"
+  @close="showAddCourtModal = false"
+  @refreshCourts="loadCourtsFromFirebase"
+/>
+
 </template>
 
 
 <script setup>
-axios.get('https://api.openweathermap.org/data/2.5/weather',
-  {
-    params: {
-      lat: '1.3521',
-      lon: '103.8198',
-      appid: '1dde52004c554a965d0b1c8f3f67c35f'
-  }}
-)
+import { getDataFromFirebase } from '../firebase/firebase'
+import { onMounted, ref, watch, computed } from 'vue'
+import AddMatchModal from './AddMatchModal.vue'
+const showAddMatchModal = ref(false)
+import AddCourtModal from './AddCourtModal.vue'
 
-  .then(response => {
-    console.log(response.data);
-    // put a loaded boolean flag here to false. when loading and manipulation of data is done, set it to true and use v-if to show the div
+
+const autocompleteInput = ref(null)
+const isDroppingPin = ref(false)
+const firebaseCourts = ref([])
+
+const loadCourtsFromFirebase = async () => {
+  const data = await getDataFromFirebase('courts')
+  if (data) {
+    // Convert object to array with IDs
+    firebaseCourts.value = Object.entries(data).map(([id, court]) => ({
+      id,
+      ...court
+    }))
+    addMarkers(firebaseCourts.value)
+  }
+}
+
+onMounted(() => {
+  // ✅ Initialize map first
+  map.value = new google.maps.Map(document.getElementById('map'), {
+    center: { lat: 1.3521, lng: 103.8198 },
+    zoom: 12,
+    mapId: 'dunk-map'
   })
-  .catch(error => {
-    console.error('Error fetching court data:', error);
-  });
+
+  loadCourtsFromFirebase()
+
+
+  // ✅ Then attach map click listener
+  map.value.addListener('click', (event) => {
+    if (isDroppingPin.value) {
+      const latLng = event.latLng
+      newCourtCoords.value = {
+        lat: latLng.lat(),
+        lon: latLng.lng()
+      }
+
+      showAddCourtModal.value = true
+      isDroppingPin.value = false
+      map.value.setOptions({ draggableCursor: null })
+    } else {
+      const currentZoom = map.value.getZoom()
+      const newZoom = Math.min(currentZoom + 1, 20)
+      map.value.setZoom(newZoom)
+      map.value.panTo(event.latLng)
+    }
+  })
+
+  // ✅ Now safely initialize autocomplete
+  const autocomplete = new google.maps.places.Autocomplete(autocompleteInput.value, {
+    types: ['geocode'],
+    componentRestrictions: { country: 'sg' }
+  })
+
+  autocomplete.addListener('place_changed', () => {
+    const place = autocomplete.getPlace()
+    if (place.geometry) {
+      const location = place.geometry.location
+      map.value.setCenter(location)
+      map.value.setZoom(15)
+
+      new google.maps.Marker({
+        position: location,
+        map: map.value,
+        title: place.name
+      })
+
+      searchQuery.value = place.formatted_address
+    }
+  })
+})
+
+
+const handleAddMatch = () => {
+  showAddMatchModal.value = true
+}
+
+const map = ref(null)
+const markers = ref([])
+const searchQuery = ref('')
+const selectedRegion = ref('all')
+const showSuggestions = ref(false)
+const selectedCourt = ref(null)
+
+const showAddCourtModal = ref(false)
+const newCourtCoords = ref({ lat: null, lon: null })
+
+const handleAddCourt = () => {
+  isDroppingPin.value = true
+  map.value.setOptions({ draggableCursor: 'url("https://maps.gstatic.com/mapfiles/ms2/micons/red-pushpin.png"), auto' })
+}
+
+
+const regions = ['all', 'north', 'south', 'east', 'west', 'central', 'northeast']
+
+const courts = [
+  { name: 'Singapore Sports Hub', lat: 1.3048, lon: 103.8740, region: 'central', keywords: ['kallang', 'sports hub'] },
+  { name: 'Bishan Park Court', lat: 1.3622, lon: 103.8345, region: 'central', keywords: ['bishan', 'bishan park'] },
+  { name: 'Tampines Street 81 Court', lat: 1.3521, lon: 103.9440, region: 'east', keywords: ['tampines'] },
+  { name: 'Jurong West Court', lat: 1.3399, lon: 103.7058, region: 'west', keywords: ['jurong', 'jurong west'] },
+  { name: 'Yishun Street 22 Court', lat: 1.4304, lon: 103.8358, region: 'north', keywords: ['yishun'] }
+]
+
+const courtNames = courts.map(court => court.name)
+
+const filteredSuggestions = computed(() => {
+  const query = searchQuery.value.toLowerCase().trim()
+  if (!query) return []
+  return courtNames.filter(name => name.toLowerCase().includes(query))
+})
+
+const selectSuggestion = (suggestion) => {
+  searchQuery.value = suggestion
+  showSuggestions.value = false
+  selectedCourt.value = courts.find(court => court.name === suggestion)
+}
+
+const hideSuggestions = () => {
+  setTimeout(() => {
+    showSuggestions.value = false
+  }, 100)
+}
+
+
+const addMarkers = (filteredCourts) => {
+  // Clear existing markers
+  markers.value.forEach(marker => marker.setMap(null))
+  markers.value = []
+
+  filteredCourts.forEach(court => {
+    const marker = new google.maps.Marker({
+      position: { lat: court.lat, lng: court.lon },
+      map: map.value,
+      title: court.name
+    })
+
+    const infoWindow = new google.maps.InfoWindow({
+      content: `
+        <div style="font-family: Arial; font-size: 14px;">
+          <strong>${court.name}</strong><br/>
+          <em>Region:</em> ${court.region}<br/>
+          <em>Coordinates:</em> ${court.lat?.toFixed(4) ?? 'N/A'}, ${court.lon?.toFixed(4) ?? 'N/A'}<br/>
+          <em>Availability:</em> Coming soon<br/>
+          <em>User Rating:</em> ★★★★☆
+        </div>
+      `
+    })
+
+
+    // Show info on hover
+    marker.addListener('mouseover', () => {
+      infoWindow.open(map.value, marker)
+    })
+
+    // Optional: close info when mouse leaves
+    marker.addListener('mouseout', () => {
+      infoWindow.close()
+    })
+
+    // Also show info on click
+    marker.addListener('click', () => {
+      infoWindow.open(map.value, marker)
+      selectedCourt.value = court
+    })
+
+    markers.value.push(marker)
+  })
+}
+
+const applyFilters = () => {
+  const query = searchQuery.value.toLowerCase().trim()
+  const region = selectedRegion.value.toLowerCase().trim()
+
+  // Only proceed if a specific region is selected
+  if (!region || region === 'all') {
+    markers.value.forEach(marker => marker.setMap(null))
+    markers.value = []
+    return
+  }
+
+  let filtered = courts.filter(court =>
+    court.region.toLowerCase() === region
+  )
+
+  if (query) {
+    filtered = filtered.filter(court =>
+      court.name.toLowerCase().includes(query) ||
+      court.region.toLowerCase().includes(query) ||
+      (court.keywords && court.keywords.some(k => k.includes(query)))
+    )
+  }
+
+  addMarkers(filtered)
+}
+
+const filterByRegion = (region) => {
+  if (selectedRegion.value === region) {
+    // Deselect region
+    selectedRegion.value = ''
+  } else {
+    // Select new region
+    selectedRegion.value = region
+  }
+
+  // Always apply filters after region change
+  applyFilters()
+}
+
+watch(searchQuery, () => {
+  if (selectedRegion.value !== 'all') {
+    applyFilters()
+  } else {
+    // Clear markers if no region is selected
+    markers.value.forEach(marker => marker.setMap(null))
+    markers.value = []
+  }
+})
+
+onMounted(() => {
+  map.value = new google.maps.Map(document.getElementById('map'), {
+    center: { lat: 1.3521, lng: 103.8198 },
+    zoom: 12,
+    mapId: 'dunk-map'
+  })
+
+  // ✅ Add listener only after map is initialized
+  map.value.addListener('click', (event) => {
+    if (isDroppingPin.value) {
+      const latLng = event.latLng
+      newCourtCoords.value = {
+        lat: latLng.lat(),
+        lon: latLng.lng()
+      }
+
+      showAddCourtModal.value = true
+      isDroppingPin.value = false
+      map.value.setOptions({ draggableCursor: null })
+    } else {
+      const currentZoom = map.value.getZoom()
+      const newZoom = Math.min(currentZoom + 1, 20)
+      map.value.setZoom(newZoom)
+      map.value.panTo(event.latLng)
+    }
+  })
+})
+
+
 </script>
 
 <style scoped>
