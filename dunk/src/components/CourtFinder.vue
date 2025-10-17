@@ -1,4 +1,74 @@
+<template>
+  <div class="page-bg">
+    <div class="content-wrapper">
+      <!-- Main Card -->
+      <div class="card container-fluid">
+        <div class="header-row">
+          <h1 class="card-title">Court Finder</h1>
+          <button class="add-court-btn" @click="handleAddCourt">Add Court</button>
+        </div>
 
+        <p class="card-desc">
+          Locate basketball courts, check availability, and see user ratings.
+        </p>
+
+        <!-- Search Bar -->
+       <input
+          type="text"
+          ref="autocompleteInput"
+          v-model="searchQuery"
+          placeholder="Search courts or regions..."
+          class="search-input"
+        />
+
+        <!-- Region Filter -->
+        <div class="region-filter">
+          <button
+            v-for="region in regions"
+            :key="region"
+            :class="['region-btn', selectedRegion === region ? 'active' : '']"
+            @click="filterByRegion(region)"
+          >
+            {{ region }}
+          </button>
+          
+        </div>
+
+        <!-- Map Section -->
+        <div class="card-section">
+          <h2 class="section-title">Map</h2>
+          <p class="section-desc">Interactive map of basketball courts in Singapore.</p>
+          <div id="map" class="map-container"></div>
+        </div>
+
+        <div class="floating-icon">N</div>
+      </div>
+
+      <!-- Selected Court Card -->
+      <div v-if="selectedCourt" class="court-card">
+        <h3 class="court-name">{{ selectedCourt.name }}</h3>
+        <p><strong>Region:</strong> {{ selectedCourt.region }}</p>
+        <p><strong>Coordinates:</strong> {{ selectedCourt.lat }}, {{ selectedCourt.lon }}</p>
+        <p><strong>Availability:</strong> Coming soon</p>
+        <p><strong>User Rating:</strong> ★★★★☆</p>
+       <button class="add-match-btn" @click="handleAddMatch">Add Match</button>
+      </div>
+    </div>
+  </div>
+<AddMatchModal
+  v-if="showAddMatchModal"
+  :courtName="selectedCourt?.name"
+  @close="showAddMatchModal = false"
+/>
+
+<AddCourtModal
+  v-if="showAddCourtModal"
+  :coordinates="newCourtCoords"
+  @close="showAddCourtModal = false"
+  @refreshCourts="loadCourtsFromFirebase"
+/>
+
+</template>
 
 
 <script setup>
@@ -68,7 +138,6 @@ onMounted(() => {
       const location = place.geometry.location
       map.value.setCenter(location)
       map.value.setZoom(15)
-
       new google.maps.Marker({
         position: location,
         map: map.value,
@@ -182,7 +251,7 @@ const applyFilters = () => {
   const region = selectedRegion.value.toLowerCase().trim()
 
   // Only proceed if a specific region is selected
-  if (!region || region === 'all') {
+  if (!region === 'all') {
     markers.value.forEach(marker => marker.setMap(null))
     markers.value = []
     return
@@ -194,7 +263,7 @@ const applyFilters = () => {
 
   if (query) {
     filtered = filtered.filter(court =>
-      court.name.toLowerCase().includes(query) ||
+      court.name.toLowerCase().includes(query) ,
       court.region.toLowerCase().includes(query) ||
       (court.keywords && court.keywords.some(k => k.includes(query)))
     )
@@ -215,7 +284,6 @@ const filterByRegion = (region) => {
   // Always apply filters after region change
   applyFilters()
 }
-
 watch(searchQuery, () => {
   if (selectedRegion.value !== 'all') {
     applyFilters()
@@ -257,192 +325,122 @@ onMounted(() => {
 
 </script>
 
-<template>
-  <div class="page-bg">
-    <div class="content-wrapper">
-      <!-- Main Card -->
-      <div class="card container-fluid">
-        <div class="header-row">
-          <h1 class="card-title">Court Finder</h1>
-          <button class="add-court-btn" @click="handleAddCourt">Add Court</button>
-        </div>
-
-        <p class="card-desc">
-          Locate basketball courts, check availability, and see user ratings.
-        </p>
-
-        <!-- Search Bar -->
-        <input
-          type="text"
-          ref="autocompleteInput"
-          v-model="searchQuery"
-          placeholder="Search courts or regions..."
-          class="search-input"
-        />
-
-        <!-- Region Filter -->
-        <div class="region-filter">
-          <button
-            v-for="region in regions"
-            :key="region"
-            :class="['region-btn', selectedRegion === region ? 'active' : '']"
-            @click="filterByRegion(region)"
-          >
-            {{ region }}
-          </button>
-        </div>
-
-        <!-- Map Section -->
-        <div class="card-section">
-          <h2 class="section-title">Map</h2>
-          <p class="section-desc">Interactive map of basketball courts in Singapore.</p>
-          <div id="map" class="map-container"></div>
-        </div>
-
-        <div class="floating-icon" title="New court">+</div>
-
-        <!-- Selected Court Card -->
-        <div v-if="selectedCourt" class="court-card">
-          <h3 class="court-name">{{ selectedCourt.name }}</h3>
-          <p><strong>Region:</strong> {{ selectedCourt.region }}</p>
-          <p><strong>Coordinates:</strong> {{ selectedCourt.lat }}, {{ selectedCourt.lon }}</p>
-          <p><strong>Availability:</strong> Coming soon</p>
-          <p><strong>User Rating:</strong> ★★★★☆</p>
-          <button class="add-match-btn" @click="handleAddMatch">Add Match</button>
-        </div>
-      </div>
-    </div>
-
-    <AddMatchModal
-      v-if="showAddMatchModal"
-      :courtName="selectedCourt?.name"
-      @close="showAddMatchModal = false"
-    />
-
-    <AddCourtModal
-      v-if="showAddCourtModal"
-      :coordinates="newCourtCoords"
-      @close="showAddCourtModal = false"
-      @refreshCourts="loadCourtsFromFirebase"
-    />
-  </div>
-</template>
-
-
-<script setup>
-axios.get('https://api.openweathermap.org/data/2.5/weather',
-  {
-    params: {
-      lat: '1.3521',
-      lon: '103.8198',
-      appid: '1dde52004c554a965d0b1c8f3f67c35f'
-  }}
-)
-
-  .then(response => {
-    console.log(response.data);
-    // put a loaded boolean flag here to false. when loading and manipulation of data is done, set it to true and use v-if to show the div
-  })
-  .catch(error => {
-    console.error('Error fetching court data:', error);
-  });
-</script>
-
 <style scoped>
+
+.court-card {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background-color: #2c323a;
+  padding: 24px 32px;
+  border-radius: 0;
+  color: #dde3ea;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  margin-top: 24px;
+}
+
+.court-name {
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: orange;
+}
+
+
+.content-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.clear-btn {
+  margin-top: 10px;
+  background-color: #ffa733;
+  color: #181c23;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
 .page-bg {
   min-height: 100vh;
-  background: #000000; /* flat, dark-neutral background */
+  background: transparent;
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
-  color: #e6eef8;
-  padding: 48px 8px 24px 8px;
 }
 
-.content-wrapper {
-  width: 100%;
-  max-width: 1200px;
-  padding: 0;
-}
-
-.card,
-.main-card {
-  background: #20242b;
-  border-radius: 14px;
-  border: 1.5px solid rgba(60, 66, 82, 0.47);
-  box-shadow: 0 2px 8px rgba(20, 20, 20, 0.1);
-  padding: 36px 40px;
-  margin-bottom: 30px;
+.card {
+  background: #181c23;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.22), 0 1.5px 3px rgba(36, 45, 55, 0.16);
+  padding: 32px 38px 44px 38px;
+  color: #dde3ea;
   position: relative;
 }
 
 .header-row {
   display: flex;
-  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid rgba(120,130,140,0.14);
+  margin-bottom: 8px;
 }
 
 .card-title {
-  font-size: 2.5rem;
+  font-size: 2.4rem;
   font-weight: 900;
-  color: #ffa733;
+  color: orange;
   letter-spacing: -1px;
   margin: 0;
 }
 
 .add-court-btn {
-  background: #ffa733;
+  background-color: orange;
   color: #181c23;
-  font-weight: 700;
-  font-size: 1rem;
-  padding: 11px 22px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 6px 12px;
   border: none;
-  border-radius: 7px;
-  margin-left: 16px;
+  border-radius: 6px;
   cursor: pointer;
-  box-shadow: 0 2px 14px rgba(255, 167, 51, 0.14);
-  transition: background 0.3s, box-shadow 0.3s;
+  transition: background 0.3s ease;
 }
-.add-court-btn:hover,
-.add-court-btn:focus {
-  background: #ffb751;
-  box-shadow: 0 4px 18px rgba(255, 183, 81, 0.32);
+
+.add-court-btn:hover {
+  background-color: #ffa733;
 }
 
 .card-desc {
-  font-size: 1.16rem;
-  color: #a7adba;
-  margin: 18px 0 20px 0;
-  font-weight: 500;
+  font-size: 1.18rem;
+  color: #a2aec3;
+  margin-bottom: 16px;
+  margin-top: 4px;
+  letter-spacing: 0.1px;
+}
+
+.search-bar {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
 }
 
 .search-input {
-  display: block;
   width: 100%;
-  max-width: 390px;
-  margin: 0 auto 26px auto;
-  padding: 12px 16px;
-  border-radius: 10px;
-  border: 1.5px solid #3b4252;
-  background: #22262d;
-  color: #e6eef8;
-  font-size: 1.08rem;
-  box-shadow: 0 1px 3px rgba(80,80,100,0.07);
-  transition: border-color 0.2s;
+  max-width: 300px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+  background-color: #2c323a;
+  color: #dde3ea;
+  font-size: 0.95rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
+
 .search-input::placeholder {
-  color: #7e8899;
-  opacity: 0.72;
-}
-.search-input:focus {
-  outline: none;
-  border-color: #ffa733;
-  background: #262b33;
+  color: #999fa8;
 }
 
 .region-filter {
@@ -450,160 +448,130 @@ axios.get('https://api.openweathermap.org/data/2.5/weather',
   flex-wrap: wrap;
   gap: 10px;
   justify-content: center;
-  margin-bottom: 14px;
+  margin-bottom: 24px;
 }
+
 .region-btn {
-  background: #252a31;
-  color: #e6eef8;
+  background-color: #2c323a;
+  color: #dde3ea;
   border: none;
-  border-radius: 20px;
-  font-size: 0.97rem;
-  font-weight: 600;
-  padding: 8px 18px;
-  margin-bottom: 4px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.9rem;
   cursor: pointer;
-  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
-  box-shadow: 0 1px 4px rgba(40,45,50,0.04);
+  transition: background 0.3s ease;
 }
+
 .region-btn:hover {
-  background: #353b44;
+  background-color: #3a404a;
 }
+
 .region-btn.active {
-  background: #ff9a3c;
+  background-color: orange;
   color: #181c23;
-  box-shadow: 0 2.5px 14px rgba(255,154,60,0.26);
+  font-weight: bold;
 }
 
 .card-section {
-  margin-top: 32px;
-  background: #232830;
+  margin-top: 20px;
+  background: #181d22;
   border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 1px 5px rgba(30,30,40,0.14);
+  padding: 24px 18px;
 }
 
 .section-title {
-  font-size: 1.38rem;
-  font-weight: 700;
+  font-size: 1.45rem;
+  color: white;
   margin-bottom: 6px;
-  color: #ffd59a;
-  letter-spacing: -0.6px;
+  font-weight: 700;
 }
 
 .section-desc {
-  font-size: 1.03rem;
-  color: #b1b6c9;
-  margin-bottom: 20px;
+  font-size: 1rem;
+  color: #b7bdc9;
+  margin-bottom: 24px;
 }
 
 .map-container {
-  height: 370px;
+  height: 400px;
   width: 100%;
-  border-radius: 8px;
-  background: #38414c;
-  box-shadow: 0 4px 13px rgba(0,0,0,0.09);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.map-container > div,
-.map-container iframe {
-  width: 100%;
-  height: 100%;
-  border-radius: 8px;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
 }
 
 .floating-icon {
   position: absolute;
-  bottom: 36px;
-  right: 36px;
-  background: #22262d;
-  color: #fff;
+  bottom: 20px;
+  left: 20px;
+  background-color: #2c323a;
+  color: white;
+  font-weight: bold;
+  font-size: 1.1rem;
+  border-radius: 50%;
   width: 42px;
   height: 42px;
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
-  font-weight: 700;
-  box-shadow: 0 1.5px 6px rgba(30,30,50,0.19);
-  cursor: pointer;
-  transition: background 0.2s;
-  z-index: 1;
-}
-.floating-icon:hover {
-  background: #ff9a3c;
-  color: #181c23;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
-/* Selected Court Card - keeps content cleanly separated below the map */
-.court-card {
-  background-color: #232830;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.23);
+.suggestion-list {
+  position: absolute;
+  background-color: #2c323a;
   color: #dde3ea;
-  font-weight: 600;
-  padding: 22px 32px;
-  margin-top: 38px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  max-width: 300px;
+  width: 100%;
+  z-index: 10;
+  top: 100%;
+  left: 0;
 }
 
-.court-name {
-  font-size: 1.22rem;
-  color: #ff9a3c;
-  margin-bottom: 8px;
+.suggestion-item {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.suggestion-item:hover {
+  background-color: #3a404a;
+}
+
+@media (max-width: 768px) {
+  .map-container {
+    height: 300px;
+  }
+
+  .card-title {
+    font-size: 1.8rem;
+  }
+
+  .add-court-btn {
+    font-size: 0.8rem;
+    padding: 5px 10px;
+  }
+
+  .search-input {
+    font-size: 0.85rem;
+    padding: 6px 10px;
+  }
 }
 
 .add-match-btn {
-  margin-top: 14px;
+  margin-top: 10px;
   background-color: #ffa733;
   color: #181c23;
   border: none;
-  padding: 7px 16px;
-  border-radius: 10px;
+  padding: 6px 12px;
+  border-radius: 6px;
   cursor: pointer;
-  font-weight: 700;
-  transition: background-color 0.21s;
+  font-weight: bold;
 }
-.add-match-btn:hover {
-  background-color: #ffd59a;
-  color: #232830;
-}
-
-/* Responsive */
-@media (max-width: 900px) {
-  .card, .main-card {
-    padding: 20px 10px 60px 10px;
-  }
-  .header-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-    padding-bottom: 8px;
-  }
-  .add-court-btn {
-    margin-left: 0;
-    align-self: flex-end;
-  }
-  .section-title {
-    font-size: 1.12rem;
-  }
-  .court-card {
-    padding: 16px;
-  }
-}
-
-@media (max-width: 600px) {
-  .card, .main-card {
-    padding: 10px 2px 50px 2px;
-  }
-  .card-title {
-    font-size: 2rem;
-  }
-  .map-container {
-    height: 230px;
-  }
-}
-
-
 </style>
+
+  
