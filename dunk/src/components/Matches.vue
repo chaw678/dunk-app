@@ -7,7 +7,7 @@
                     <p class="matches-desc">Create and join public or private basketball games.</p>
                 </div>
                 <div>
-                    <button class="btn-create-match"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
+                    <button class="btn-create-match" @click="showAddMatchModal = true"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
                 </div>
             </div>
 
@@ -63,11 +63,16 @@
             </div>
         </div>
     </div>
+
+    <!-- render modal inside template so Vue can mount it -->
+    <AddMatchModal v-if="showAddMatchModal" :courtList="courts" @close="showAddMatchModal = false" @created="(async () => { await loadMatches(); showAddMatchModal=false })()" />
+
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { getDataFromFirebase, pushDataToFirebase } from '../firebase/firebase'
+import AddMatchModal from './AddMatchModal.vue'
 
 const maxAvatars = 6
 
@@ -108,24 +113,37 @@ const maxAvatars = 6
 //   }
 // ])
 const matches = ref([])
+const courts = ref([])
+const showAddMatchModal = ref(false)
 
 onMounted(async () => {
+    await loadMatches()
+    await loadCourts()
+})
+
+async function loadMatches() {
     try {
         const data = await getDataFromFirebase('matches')
-        // normalize to array: Realtime DB often returns an object map
-        if (!data) {
-            matches.value = []
-        } else if (Array.isArray(data)) {
-            matches.value = data
-        } else {
-            matches.value = Object.entries(data).map(([id, v]) => ({ id, ...v }))
-        }
-        // console.log('Fetched matches:', matches.value)
+        if (!data) matches.value = []
+        else if (Array.isArray(data)) matches.value = data
+        else matches.value = Object.entries(data).map(([id, v]) => ({ id, ...v }))
     } catch (err) {
         console.error('Failed to load matches', err)
         matches.value = []
     }
-})
+}
+
+async function loadCourts() {
+    try {
+        const cdata = await getDataFromFirebase('courts')
+        if (!cdata) courts.value = []
+        else if (Array.isArray(cdata)) courts.value = cdata
+        else courts.value = Object.entries(cdata).map(([id, v]) => ({ id, ...v }))
+    } catch (e) {
+        courts.value = []
+        console.warn('Failed to load courts', e)
+    }
+}
 
 
 //use an input data field, add event listener to push to firebase
