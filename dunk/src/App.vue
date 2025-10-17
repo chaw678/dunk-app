@@ -96,9 +96,12 @@ main {
   display: flex;
   align-items: center;
   z-index: 70;
-  padding: 0 24px;
-  background: transparent;
-  transition: left 0.25s ease;
+  padding: 0 32px;
+  background: linear-gradient(90deg, rgba(11, 11, 11, 0.9) 70%, rgba(0,0,0,0.4) 100%);
+  box-shadow: 0 2px 16px 0 rgba(12, 18, 28, 0.14);
+  backdrop-filter: blur(8px);
+  transition: left 0.25s cubic-bezier(0.4,0,0.2,1);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
 .topbar-inner {
@@ -140,6 +143,13 @@ main {
   padding: 10px 16px;
   border-radius: 8px;
   border: none
+}
+
+.brand-left {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-left: -8px;
 }
 
 @media (max-width:720px) {

@@ -1,18 +1,6 @@
-
-
 <template>
   <div>
-    <!-- Toggle Button: always visible -->
-    <button
-      class="toggle-btn"
-      @click="toggle"
-      aria-controls="app-sidebar"
-      :aria-expanded="String(!props.collapsed)"
-    >
-      {{ props.collapsed ? '☰' : '✕' }}
-    </button>
-
-    <!-- Sidebar -->
+    <!-- Sidebar with only toggle button at top -->
     <aside
       id="app-sidebar"
       class="sidebar"
@@ -20,21 +8,28 @@
       :aria-hidden="false"
     >
       <div class="sidebar-inner">
-        <!-- brand removed: logo and app name are shown in the topbar (App.vue) -->
+        <!-- Toggle Button: top left, alone -->
+        <div class="sidebar-header">
+          <button
+            class="toggle-btn"
+            @click="toggle"
+            aria-controls="app-sidebar"
+            :aria-expanded="String(!props.collapsed)"
+          >
+            {{ props.collapsed ? '☰' : '✕' }}
+          </button>
+        </div>
 
         <nav class="nav-list" role="navigation" aria-label="Main">
-          <router-link class="nav-item" to="/court-finder">
+          <router-link class="nav-item" to="/court-finder" active-class="router-link-active">
             <span class="icon" aria-hidden="true"><Grid2x2 /></span>
             <span class="label" v-show="!collapsed">Court Finder</span>
           </router-link>
-
-          <router-link class="nav-item" to="/matches">
+          <router-link class="nav-item" to="/matches" active-class="router-link-active">
             <span class="icon" aria-hidden="true"><Trophy /></span>
             <span class="label" v-show="!collapsed">Matches</span>
           </router-link>
-
-
-          <router-link class="nav-item" to="/forum">
+          <router-link class="nav-item" to="/forum" active-class="router-link-active">
             <span class="icon" aria-hidden="true"><MessageCircle /></span>
             <span class="label" v-show="!collapsed">Forum</span>
           </router-link>
@@ -43,7 +38,7 @@
         <div class="spacer"></div>
 
         <div class="bottom">
-          <router-link class="nav-item" to="/login">
+          <router-link class="nav-item" to="/login" active-class="router-link-active">
             <span class="icon" aria-hidden="true"><Users /></span>
             <span class="label" v-show="!collapsed">Profile</span>
           </router-link>
@@ -58,15 +53,15 @@ import { useRouter, useRoute } from 'vue-router'
 import { Grid2x2, Trophy, Users, MessageCircle } from 'lucide-vue-next'
 import { defineProps, defineEmits } from 'vue'
 
- const props = defineProps({
+const props = defineProps({
   collapsed: { type: Boolean, default: false }
 })
- const emit = defineEmits(['update:collapsed'])
+const emit = defineEmits(['update:collapsed'])
 
 const router = useRouter()
 const goLogin = () => router.push('/login')
 
- function toggle() {
+function toggle() {
   emit('update:collapsed', !props.collapsed)
 }
 </script>
@@ -75,84 +70,68 @@ const goLogin = () => router.push('/login')
 :root {
   --sidebar-width: 300px;
   --sidebar-collapsed-width: 72px;
+  --main-dark: #091a28;
+  --main-dark-gradient: linear-gradient(180deg, #071022 0%, #0b1118 100%);
+  --main-orange: #ff9a3c;
+  --main-yellow: #ffd59a;
 }
 
-.toggle-btn {
-  position: fixed;
-  left: 12px;
-  top: 12px;
-  z-index: 90;
-  background: transparent;
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 8px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 18px;
-  backdrop-filter: blur(4px);
-}
 
+
+/* sidebar outer */
 .sidebar {
   position: fixed;
   left: 0;
   top: 0;
   height: 100vh;
-  /* width: var(--sidebar-width); */
-  /* max-width: 92vw; */
+  width: var(--sidebar-width);
   z-index: 80;
   display: flex;
   align-items: stretch;
   transition: width 0.3s ease;
+  background: var(--main-dark);
+  border-right: 2px solid rgba(255, 255, 255, 0.07); /* <--- added */
 }
+
 
 .sidebar.collapsed {
   width: var(--sidebar-collapsed-width);
 }
 
+/* sidebar interior */
 .sidebar-inner {
   width: 100%;
-  background: linear-gradient(180deg, #071022 0%, #0b1118 100%);
+  background: var(--main-dark-gradient);
   color: #e6eef8;
   display: flex;
   flex-direction: column;
-  padding: 20px 18px;
-  transition: padding 0.3s ease;
+  padding: 0 18px 0 18px;
+  height: 100%;
 }
 
-.sidebar.collapsed .sidebar-inner {
-  padding: 20px 8px;
-}
-
-.brand {
+/* Top: just the toggle button now */
+.sidebar-header {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
-  justify-content: flex-start; /* default left align */
-
-  /* Add this to reverse logo and text order */
-  flex-direction: row-reverse;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 24px 0 20px 0;
+  margin-bottom: 8px;
 }
 
-.logo {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
+.toggle-btn {
+  position: static;
+  background: transparent;
+  color: var(--main-yellow);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 20px;
+  backdrop-filter: blur(4px);
+  margin-left: 0;
 }
 
-.brand-text {
-  font-weight: 700;
-  font-size: 18px;
-  color: #ffd59a;
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-.brand-text .plus {
-  color: #ff9a3c;
-  margin-left: 4px;
-}
-
+/* nav items */
 .nav-list {
   display: flex;
   flex-direction: column;
@@ -164,12 +143,13 @@ const goLogin = () => router.push('/login')
   gap: 12px;
   align-items: center;
   padding: 12px 10px;
-  color: #d7e3f6;
+  color: #e6eef8;
   text-decoration: none;
   border-radius: 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: background 0.2s, color 0.2s;
 }
 
 .nav-item .icon {
@@ -178,19 +158,16 @@ const goLogin = () => router.push('/login')
   font-size: 16px;
   opacity: 0.95;
   flex-shrink: 0;
+  margin-left: -6px;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 154, 60, 0.06); /* Soft orange */
 }
 
 .router-link-active {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 154, 60, 0.12),
-    rgba(255, 154, 60, 0.06)
-  );
-  color: #fff;
+  background: linear-gradient(90deg, rgba(255,154,60,0.22), rgba(255,154,60,0.11));
+  color: var(--main-yellow);
 }
 
 .spacer {
@@ -201,45 +178,7 @@ const goLogin = () => router.push('/login')
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.login-btn {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  background: transparent;
-  border: none;
-  color: #d7e3f6;
-  cursor: pointer;
-  padding: 8px 10px;
-  border-radius: 8px;
-  white-space: nowrap;
-}
-
-.login-btn:hover {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.issue-badge {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 74, 74, 0.12);
-  color: #fff;
-  padding: 6px 10px;
-  border-radius: 20px;
-  font-size: 13px;
-}
-
-.badge-letter {
-  background: #ff4a4a;
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  font-weight: 700;
+  padding: 20px 0;
+  font-size: 16px;
 }
 </style>
