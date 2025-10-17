@@ -40,6 +40,13 @@ body {
   color: #e6eef8;
 }
 
+/* Make sure the entire page (including html and #app) is black */
+html, body, #app {
+  background: #000 !important;
+  color: #e6eef8 !important;
+  height: 100%;
+}
+
 /* App-wide backgrounds and main layout */
 html, body, #app {
   background: #000; /* full app black */
