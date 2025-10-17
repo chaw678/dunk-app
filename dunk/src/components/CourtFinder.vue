@@ -77,22 +77,70 @@
 
 
 <script setup>
-axios.get('https://api.openweathermap.org/data/2.5/weather',
-  {
-    params: {
-      lat: '1.3521',
-      lon: '103.8198',
-      appid: '1dde52004c554a965d0b1c8f3f67c35f'
-  }}
-)
+import { ref, computed, onMounted } from 'vue'
+import AddMatchModal from './AddMatchModal.vue'
 
-  .then(response => {
-    console.log(response.data);
-    // put a loaded boolean flag here to false. when loading and manipulation of data is done, set it to true and use v-if to show the div
-  })
-  .catch(error => {
-    console.error('Error fetching court data:', error);
-  });
+// sample courts; you can replace with a DB call in onMounted
+const courts = ref([
+  { name: 'Singapore Sports Hub', region: 'Central', lat: 1.2986, lon: 103.8636 },
+  { name: 'Bishan ActiveSG Court', region: 'Central', lat: 1.3521, lon: 103.8519 },
+  { name: 'Tampines Street 81 Court', region: 'East', lat: 1.3500, lon: 103.9540 },
+  { name: 'Jurong West Court', region: 'West', lat: 1.3470, lon: 103.7060 },
+  { name: 'Yishun Street 22 Court', region: 'North', lat: 1.4290, lon: 103.8350 }
+])
+
+const searchQuery = ref('')
+const showSuggestions = ref(false)
+const selectedRegion = ref('')
+const selectedCourt = ref(null)
+const showAddMatchModal = ref(false)
+
+const regions = computed(() => {
+  const s = new Set(courts.value.map(c => c.region || ''))
+  return Array.from(s)
+})
+
+const filteredSuggestions = computed(() => {
+  const q = (searchQuery.value || '').trim().toLowerCase()
+  if (!q) return []
+  return courts.value
+    .filter(c => (c.name || '').toLowerCase().includes(q) || (c.region || '').toLowerCase().includes(q))
+    .map(c => c.name)
+})
+
+function hideSuggestions() {
+  // small delay to allow click handlers on suggestions to run
+  setTimeout(() => (showSuggestions.value = false), 120)
+}
+
+function selectSuggestion(suggestion) {
+  searchQuery.value = suggestion
+  const c = courts.value.find(x => x.name === suggestion)
+  selectedCourt.value = c || null
+  showSuggestions.value = false
+}
+
+function filterByRegion(region) {
+  if (selectedRegion.value === region) selectedRegion.value = ''
+  else selectedRegion.value = region
+}
+
+function handleAddMatch() {
+  if (!selectedCourt.value) {
+    alert('Please select a court first')
+    return
+  }
+  showAddMatchModal.value = true
+}
+
+function handleAddCourt() {
+  const name = prompt('Enter new court name')
+  if (!name) return
+  courts.value.unshift({ name, region: '', lat: 0, lon: 0 })
+  alert('Court added locally — persist to DB as needed')
+}
+
+
 </script>
 
 <style scoped>

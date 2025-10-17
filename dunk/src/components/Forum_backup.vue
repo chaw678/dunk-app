@@ -101,8 +101,8 @@
             </div>
             <div class="mt-3 d-flex gap-3 align-items-center">
               <div class="text-muted like-area">
-                <button :class="['btn btn-sm btn-link p-0 like-btn', file.liked ? 'liked' : 'not-liked']" @click.stop.prevent="toggleLike(file)" :aria-pressed="file.liked">
-                  <i :class="['bi', file.liked ? 'bi-heart-fill text-danger' : 'bi-heart', 'like-icon']" aria-hidden="true"></i>
+                <button class="btn btn-sm btn-link p-0 like-btn" @click.stop.prevent="toggleLike(file)" :aria-pressed="file.liked">
+                  <i :class="file.liked ? 'bi bi-heart-fill text-danger' : 'bi bi-heart'" aria-hidden="true" style="font-size:18px;line-height:1"></i>
                 </button>
                 <span class="ms-2">{{ file.likes || 0 }}</span>
               </div>
@@ -886,27 +886,6 @@ onUnmounted(() => {
 .avatar { width: 36px; height: 36px; overflow: hidden }
 .like-btn { color: inherit }
 .like-area { display:inline-flex; align-items:center; gap:6px }
-
-/* Like button visual states: only show the heart icon (no surrounding box) */
-.like-btn.not-liked { background: transparent; border: none; padding: 0; color: #fff; }
-.like-btn.not-liked .like-icon { font-size: 18px; color: #fff; }
-.like-btn.not-liked:hover .like-icon { transform: scale(1.06); }
-.like-btn.liked { background: transparent; border: none; padding: 0; }
-.like-btn.liked .like-icon { font-size: 18px; color: #e44b5a; }
-.like-btn .like-icon { transition: transform 140ms ease, color 140ms ease; display: inline-block; }
-
-/* subtle pulse animation when a heart is liked */
-@keyframes like-pulse {
-  0% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(228,75,90,0)); }
-  35% { transform: scale(1.35); filter: drop-shadow(0 10px 16px rgba(228,75,90,0.16)); }
-  65% { transform: scale(1.12); filter: drop-shadow(0 6px 10px rgba(228,75,90,0.12)); }
-  100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(228,75,90,0)); }
-}
-.like-btn.liked .like-icon {
-  animation: like-pulse 520ms cubic-bezier(.17,.84,.38,1);
-  transform-origin: center;
-  font-size: 22px; /* slightly larger heart when liked */
-}
 
 .comments-panel { margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 8px }
 .comment-item { background: transparent }
