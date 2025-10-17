@@ -1,26 +1,26 @@
 <template>
     <div class="page-bg">
         <div class="card large-card">
-            <div class="page-header">
+            <div class="page-header matches-header">
                 <div>
-                    <h1 class="card-title">Match Organizer</h1>
-                    <p class="card-desc">Create and join public or private basketball games.</p>
+                    <h1 class="matches-title">Match Organizer</h1>
+                    <p class="matches-desc">Create and join public or private basketball games.</p>
                 </div>
                 <div>
-                    <button class="create-btn big">＋ Create Match</button>
+                    <button class="btn-create-match"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
                 </div>
             </div>
 
             <div class="tabs mb-3">
-                <div class="btn-group" role="group" aria-label="Match tabs">
-                    <button :class="['btn btn-sm', selectedTab === 'all' ? 'btn-dark' : 'btn-outline-secondary']" @click="selectedTab = 'all'">All Matches</button>
-                    <button :class="['btn btn-sm', selectedTab === 'my' ? 'btn-dark' : 'btn-outline-secondary']" @click="selectedTab = 'my'">My Matches</button>
+                <div class="tabs-pill" role="tablist" aria-label="Match tabs">
+                    <button :class="['tab-pill', selectedTab === 'all' ? 'active' : '']" @click="selectedTab = 'all'">All Matches</button>
+                    <button :class="['tab-pill', selectedTab === 'my' ? 'active' : '']" @click="selectedTab = 'my'">My Matches</button>
                 </div>
             </div>
 
             <div class="row g-3 matches-grid">
-                <div class="col-12 col-md-6 col-xl-4" v-for="match in filteredMatches" :key="match.id">
-                    <router-link :to="`/matches/${match.id}`" class="card match-card h-100 text-reset text-decoration-none">
+                <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in filteredMatches" :key="match?.id || idx">
+                    <router-link v-if="match" :to="match && match.id ? `/matches/${match.id}` : '#'" class="card match-card h-100 text-reset text-decoration-none">
                         <div class="card-body d-flex flex-column h-100 p-4">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
@@ -28,7 +28,7 @@
                                     <div class="match-sub small">{{ match.location }}</div>
                                 </div>
                                 <div class="text-end text-warning fw-bold small">
-                                    <i class="bi bi-people-fill me-1"></i> {{ match.players.length }}/{{ match.maxPlayers }}
+                                    <i class="bi bi-people-fill me-1"></i> {{ (match.players || []).length }}/{{ match.maxPlayers || 0 }}
                                 </div>
                             </div>
 
@@ -41,10 +41,10 @@
 
                             <div class="avatars mb-3">
                                 <div class="avatar-stack me-2">
-                                    <template v-for="(name, i) in visiblePlayers(match.players)" :key="i">
+                                    <template v-for="(name, i) in visiblePlayers(match.players || [])" :key="i">
                                         <span class="avatar-initial">{{ initials(name) }}</span>
                                     </template>
-                                    <span v-if="match.players.length > maxAvatars" class="avatar extra">+{{ match.players.length - maxAvatars }}</span>
+                                    <span v-if="(match.players || []).length > maxAvatars" class="avatar extra">+{{ (match.players || []).length - maxAvatars }}</span>
                                 </div>
                             </div>
 
@@ -66,7 +66,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { getDataFromFirebase, pushDataToFirebase } from '../firebase/firebase'
 
 const maxAvatars = 6
@@ -108,8 +108,24 @@ const maxAvatars = 6
 //   }
 // ])
 const matches = ref([])
-matches.value = getDataFromFirebase('matches')
-console.log('Fetched matches:', matches.value)
+
+onMounted(async () => {
+    try {
+        const data = await getDataFromFirebase('matches')
+        // normalize to array: Realtime DB often returns an object map
+        if (!data) {
+            matches.value = []
+        } else if (Array.isArray(data)) {
+            matches.value = data
+        } else {
+            matches.value = Object.entries(data).map(([id, v]) => ({ id, ...v }))
+        }
+        // console.log('Fetched matches:', matches.value)
+    } catch (err) {
+        console.error('Failed to load matches', err)
+        matches.value = []
+    }
+})
 
 
 //use an input data field, add event listener to push to firebase
@@ -158,6 +174,27 @@ function initials(name) {
     align-items: center;
     gap: 20px
 }
+
+.matches-header { align-items: flex-start }
+.matches-title { color: #ff9a3c; font-size: 48px; margin: 0; font-weight: 800 }
+.matches-desc { color: #9fb0bf; margin-top: 8px; font-size: 18px }
+
+.btn-create-match {
+    background: #ff9a3c;
+    color: #111;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+.btn-create-match .icon-circle { background: rgba(0,0,0,0.08); padding: 6px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center }
+
+.tabs-pill { display: inline-flex; gap: 0; background: rgba(255,255,255,0.02); padding: 6px; border-radius: 10px }
+.tab-pill { background: transparent; border: none; color: #9fb0bf; padding: 10px 18px; border-radius: 10px; cursor: pointer }
+.tab-pill.active { background: #0b1220; color: #fff }
 
 .tabs {
     margin-top: 18px;
