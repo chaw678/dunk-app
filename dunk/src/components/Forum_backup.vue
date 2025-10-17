@@ -106,12 +106,7 @@
                 </button>
                 <span class="ms-2">{{ file.likes || 0 }}</span>
               </div>
-              <div>
-                <button class="btn btn-sm btn-link p-0 comment-toggle" @click.stop.prevent="toggleComments(file)" :aria-expanded="file._showComments">
-                  <i class="bi bi-chat"></i>
-                  <span class="ms-2">{{ file.commentsCount || 0 }}</span>
-                </button>
-              </div>
+              <div class="text-muted"><i class="bi bi-chat"></i> {{ file.commentsCount || 0 }}</div>
               <div class="ms-auto d-flex align-items-center gap-2">
                 <button v-if="isMine(file)" class="btn btn-sm btn-link text-danger" @click.stop.prevent="confirmDelete(file)" :title="`Delete ${file.name || file.title}`" aria-label="Delete post">
                   <i class="bi bi-trash"></i>
@@ -120,21 +115,14 @@
                 <button v-if="isMine(file)" class="btn btn-sm btn-link text-primary" @click.stop.prevent="openEdit(file)"><i class="bi bi-pencil"></i></button>
               </div>
             </div>
-            <!-- inline comments panel (collapsible) -->
-            <div class="comments-panel mt-2" v-if="file._showComments">
-              <div class="d-flex gap-2 mb-3">
-                <input type="text" class="form-control" v-model="file._newComment" placeholder="Add a comment..." @keydown.enter.prevent="submitComment(file)" />
-                <button class="btn btn-create" @click="submitComment(file)">Comment</button>
-              </div>
-
-              <div v-for="(c, cid) in file.comments" :key="cid" class="comment-item mb-3">
+            <!-- inline comments panel -->
+            <div class="comments-panel mt-2">
+              <div v-for="(c, cid) in file.comments" :key="cid" class="comment-item mb-2">
                 <div class="d-flex align-items-start justify-content-between small gap-2">
                   <div class="comment-left d-flex align-items-start gap-2">
                     <div class="comment-avatar"><img :src="c.avatar || avatarForName(c.authorName)" alt="avatar" /></div>
                     <div>
                       <div><strong>{{ c.authorName || c.author || 'Anon' }}</strong> <span class="text-muted">• {{ displayDate(c.createdAt) }}</span></div>
-                      <div class="mt-2 comment-body">{{ c.text }}</div>
-                      <div class="mt-2"><a href="#" class="reply-link" @click.prevent="startReply(file, cid)">Reply</a></div>
                     </div>
                   </div>
                   <div>
@@ -149,47 +137,15 @@
                     </div>
                   </div>
                 </div>
-
-                <!-- reply input (appears when replying to this comment) -->
-                <div v-if="file._replyTarget === cid" class="reply-input mt-2 d-flex gap-2 align-items-start">
-                  <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
-                  <input type="text" class="form-control" v-model="file._replyText" placeholder="Replying to {{ c.authorName || c.author || 'Anon' }}..." @keydown.enter.prevent="submitReply(file, cid)" />
-                  <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
+                <div v-if="file._editingComment === cid" class="comment-body">
+                  <input class="form-control comment-edit-input" v-model="file._editingText" />
+                  <div class="mt-1"><button class="btn btn-primary btn-sm" @click="saveEditComment(file, cid)">Save</button> <button class="btn btn-secondary btn-sm" @click="cancelEditComment(file)">Cancel</button></div>
                 </div>
-
-                <!-- replies list -->
-                <div class="comment-replies mt-3" v-if="c.replies && Object.keys(c.replies).length">
-                  <div v-for="(r, rid) in c.replies" :key="rid" class="reply-item d-flex align-items-start mb-2">
-                    <div class="reply-avatar"><img :src="r.avatar || avatarForName(r.authorName)" alt="avatar"/></div>
-                    <div class="reply-bubble" style="flex:1; position:relative">
-                      <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                          <strong>{{ r.authorName || r.author || 'Anon' }}</strong>
-                          <span class="text-muted">• {{ displayDate(r.createdAt) }}</span>
-                        </div>
-                        <div>
-                          <div v-if="isReplyOwner(r)" class="dropdown dropend">
-                            <button class="btn btn-sm btn-link comment-menu-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="More">
-                              <i class="bi bi-three-dots-vertical"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                              <li><button class="dropdown-item" @click.stop.prevent="startEditReply(file, cid, rid)">Edit</button></li>
-                              <li><button class="dropdown-item text-danger" @click.stop.prevent="deleteReply(file, cid, rid)">Delete</button></li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div class="mt-1" v-if="!(file._editingReply === rid)">{{ r.text }}</div>
-                      <div v-else class="mt-1">
-                        <input class="form-control comment-edit-input" v-model="file._editingReplyText" />
-                        <div class="mt-1"><button class="btn btn-primary btn-sm" @click="saveEditReply(file, cid, rid)">Save</button> <button class="btn btn-secondary btn-sm" @click="cancelEditReply(file)">Cancel</button></div>
-                      </div>
-
-                      <div class="mt-2"><a href="#" class="reply-link" @click.prevent="startReply(file, cid, rid)">Reply</a></div>
-                    </div>
-                  </div>
-                </div>
+                <div v-else class="comment-body">{{ c.text }}</div>
+              </div>
+              <div class="d-flex gap-2 mt-2">
+                <input type="text" class="form-control" v-model="file._newComment" placeholder="Write a comment..." @keydown.enter.prevent="submitComment(file)" />
+                <button class="btn btn-primary" @click="submitComment(file)">Comment</button>
               </div>
             </div>
             
@@ -285,8 +241,6 @@ async function loadUploads() {
             if (!c) continue
             c.authorName = c.authorName || c.author || 'Anon'
             c.avatar = c.avatar || avatarForName(c.authorName)
-            // ensure replies object exists
-            c.replies = c.replies || {}
           }
         } catch (e) {}
         f.likes = Object.keys(f.likedBy || {}).length
@@ -376,49 +330,9 @@ async function submitComment(file) {
     file.comments[key] = comment
     file.commentsCount = Object.keys(file.comments).length
     file._newComment = ''
-      // ensure UI shows comments after posting
-      file._showComments = true
   } catch (err) {
     console.error('Failed to submit comment', err)
     alert('Failed to submit comment')
-  }
-}
-
-function toggleComments(file) {
-  if (!file) return
-  file._showComments = !file._showComments
-}
-
-function startReply(file, cid, rid = null) {
-  if (!file) return
-  file._replyTarget = cid
-  file._replyText = ''
-}
-
-async function submitReply(file, cid) {
-  if (!file || !file.id || !file.comments || !file.comments[cid]) return
-  const text = (file._replyText || '').trim()
-  if (!text) return
-  if (!currentUserId.value) { alert('Please sign in to reply'); return }
-  const reply = {
-    author: currentUserId.value,
-    authorName: currentUserName.value || 'Anon',
-    text,
-    createdAt: Date.now()
-  }
-  try {
-    // push reply under forumUploads/{postId}/comments/{cid}/replies
-    await pushDataToFirebase(`forumUploads/${file.id}/comments/${cid}/replies`, reply)
-    // update local
-    if (!file.comments[cid].replies) file.comments[cid].replies = {}
-    const rk = 'r_' + Date.now()
-    reply.avatar = avatarForName(reply.authorName)
-    file.comments[cid].replies[rk] = reply
-    file._replyText = ''
-    file._replyTarget = null
-  } catch (err) {
-    console.error('Failed to submit reply', err)
-    alert('Failed to submit reply')
   }
 }
 
@@ -497,54 +411,6 @@ function isCommentOwner(c) {
   const uid = currentUserId.value
   if (!uid) return false
   return Boolean(c.author === uid || c.authorId === uid || c.uid === uid || c.createdBy === uid)
-}
-
-function isReplyOwner(r) {
-  if (!r) return false
-  const uid = currentUserId.value
-  if (!uid) return false
-  return Boolean(r.author === uid || r.authorId === uid || r.uid === uid || r.createdBy === uid)
-}
-
-function startEditReply(file, cid, rid) {
-  if (!file || !file.comments || !file.comments[cid] || !file.comments[cid].replies || !file.comments[cid].replies[rid]) return
-  if (!isReplyOwner(file.comments[cid].replies[rid])) return
-  file._editingReply = rid
-  file._editingReplyText = file.comments[cid].replies[rid].text
-}
-
-function cancelEditReply(file) {
-  if (!file) return
-  file._editingReply = null
-  file._editingReplyText = ''
-}
-
-async function saveEditReply(file, cid, rid) {
-  if (!file || !file.id || !file.comments || !file.comments[cid] || !file.comments[cid].replies || !file.comments[cid].replies[rid]) return
-  if (!file._editingReplyText) return
-  try {
-    // overwrite the reply object at nested path
-    // Build object path: forumUploads/{postId}/comments/{cid}/replies/{rid}
-    await overwriteDataToFirebase(rid, `forumUploads/${file.id}/comments/${cid}/replies`, { ...file.comments[cid].replies[rid], text: file._editingReplyText, editedAt: Date.now() })
-    file.comments[cid].replies[rid].text = file._editingReplyText
-    file.comments[cid].replies[rid].editedAt = Date.now()
-    cancelEditReply(file)
-  } catch (err) {
-    console.error('Failed to save reply edit', err)
-    alert('Failed to save reply')
-  }
-}
-
-async function deleteReply(file, cid, rid) {
-  if (!file || !file.id || !file.comments || !file.comments[cid] || !file.comments[cid].replies || !file.comments[cid].replies[rid]) return
-  if (!isReplyOwner(file.comments[cid].replies[rid])) return
-  try {
-    await deleteDataFromFirebase(`forumUploads/${file.id}/comments/${cid}/replies/${rid}`)
-    delete file.comments[cid].replies[rid]
-  } catch (err) {
-    console.error('Failed to delete reply', err)
-    alert('Failed to delete reply')
-  }
 }
 
 function updateCaptionClamps() {
@@ -1223,19 +1089,4 @@ input.comment-edit-input:-webkit-autofill:focus {
 
 /* Reduce filename size to prevent wrapping over actions */
 .upload-card .fw-bold { font-size: 1rem; line-height: 1.2; }
-
-/* Comments and replies styling */
-.comments-panel { border-top: 1px solid rgba(255,255,255,0.03); padding-top: 12px }
-.comment-item { display: block }
-.comment-avatar img, .reply-avatar img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover }
-.comment-left { align-items: flex-start }
-.comment-body { margin-top: 6px; color: #e6eef8 }
-.reply-link { color: #ff9a3c; font-weight: 600; text-decoration: none }
-.reply-input .reply-avatar img { width: 36px; height: 36px }
-.reply-input .form-control { border-radius: 8px }
-.comment-replies { margin-left: 64px; border-left: 2px solid rgba(255,255,255,0.02); padding-left: 16px }
-.reply-item { gap: 10px }
-.reply-bubble { background: #2b3238; padding: 12px 14px; border-radius: 8px; color: #e6eef8; width: 100% }
-.reply-avatar { margin-right: 10px }
-.comment-toggle { color: #cfe6ff; background: transparent; border: none }
 </style>

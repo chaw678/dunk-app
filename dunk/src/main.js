@@ -3,6 +3,7 @@ import router from './route/routes.js' // for routing
 import './style.css' 
 import App from './App.vue' 
 import 'bootstrap/dist/css/bootstrap.min.css'
+import { handleRedirectResult } from './firebase/auth'
 
 const app = createApp(App) 
 // Temporary: show runtime errors on the page to avoid a white screen
@@ -53,4 +54,12 @@ window.addEventListener('unhandledrejection', (ev) => {
 	showErrorOverlay('Unhandled promise rejection:\n' + msg)
 })
 
-app.use(router).mount('#app')
+;(async () => {
+	try {
+		const redirect = await handleRedirectResult()
+		if (redirect) console.log('Firebase redirect sign-in completed')
+	} catch (e) {
+		console.warn('Redirect handling failed', e)
+	}
+	app.use(router).mount('#app')
+})()
