@@ -50,8 +50,13 @@
 
                             <div class="mt-auto d-flex justify-content-between align-items-center">
                                 <div class="btn-group">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                    <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                    <template v-if="isJoined(match)">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                        <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                    </template>
+                                    <template v-else>
+                                        <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!canJoin(match)" @click.prevent="joinMatch(match)">Join</button>
+                                    </template>
                                 </div>
                                 <div>
                                     <button class="btn btn-link text-white-50 small">View</button>
@@ -71,7 +76,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getDataFromFirebase, pushDataToFirebase } from '../firebase/firebase'
+import { getDataFromFirebase, pushDataToFirebase, overwriteDataToFirebase } from '../firebase/firebase'
+import { onUserStateChanged } from '../firebase/auth'
+import { getDataFromFirebase as getDb } from '../firebase/firebase'
 import AddMatchModal from './AddMatchModal.vue'
 
 const maxAvatars = 6
@@ -115,10 +122,26 @@ const maxAvatars = 6
 const matches = ref([])
 const courts = ref([])
 const showAddMatchModal = ref(false)
+const currentUser = ref(null)
+const currentUserProfile = ref({ skill: 'Open', gender: 'All' })
 
 onMounted(async () => {
     await loadMatches()
     await loadCourts()
+    // listen for auth state and load user profile
+    onUserStateChanged(async (u) => {
+        currentUser.value = u
+        if (!u) return
+        // load profile from Realtime DB
+        try {
+            const users = await getDataFromFirebase('users')
+            if (users && users[u.uid]) {
+                currentUserProfile.value = users[u.uid]
+            }
+        } catch (e) {
+            console.warn('Failed to load user profile', e)
+        }
+    })
 })
 
 async function loadMatches() {
@@ -163,12 +186,75 @@ const selectedTab = ref('all')
 
 const filteredMatches = computed(() => {
     if (selectedTab.value === 'all') return matches.value
-    // simple demo: 'my' matches where owner === 'alice'
-    return matches.value.filter(m => m.owner === 'alice')
+    // 'my' matches: matches the current user owns or has joined
+    if (!currentUser.value) return []
+    return matches.value.filter(m => {
+        const uid = currentUser.value && currentUser.value.uid
+        const joined = m && m.joinedBy && uid && Boolean(m.joinedBy[uid])
+        const ownerMatch = m && (m.owner === uid || m.owner === currentUserProfile.value.name || m.owner === (currentUser.value.displayName || ''))
+        return joined || ownerMatch
+    })
 })
 
 function visiblePlayers(arr) {
     return arr.slice(0, maxAvatars)
+}
+
+const skillOrder = ['Open', 'Beginner', 'Intermediate', 'Professional']
+
+function skillRank(skill) {
+    const idx = skillOrder.indexOf(skill)
+    return idx === -1 ? 0 : idx
+}
+
+function canJoin(match) {
+    if (!currentUser.value) return false
+    const userSkill = currentUserProfile.value.skill || 'Open'
+    const matchSkill = match.type || 'Open'
+    // user can join if their skill rank >= match required rank
+    return skillRank(userSkill) >= skillRank(matchSkill)
+}
+
+async function joinMatch(match) {
+    if (!currentUser.value) { alert('Please sign in to join'); return }
+    if (!canJoin(match)) { alert('Your skill level is below the match requirement'); return }
+    const uid = currentUser.value.uid
+    match.players = match.players || []
+    match.joinedBy = match.joinedBy || {}
+    if (match.joinedBy[uid]) return // already joined
+    match.players.push(currentUserProfile.value.name || currentUser.value.displayName || uid)
+    match.joinedBy[uid] = true
+    // persist
+    if (match.id) {
+        try {
+            await overwriteDataToFirebase(match.id, 'matches', match)
+        } catch (e) {
+            console.error('Failed to join match', e)
+            alert('Failed to join — try again')
+        }
+    }
+}
+
+async function leaveMatch(match) {
+    if (!currentUser.value) { alert('Please sign in'); return }
+    const uid = currentUser.value.uid
+    match.joinedBy = match.joinedBy || {}
+    if (!match.joinedBy[uid]) return
+    delete match.joinedBy[uid]
+    match.players = (match.players || []).filter(p => p !== (currentUserProfile.value.name || currentUser.value.displayName || uid))
+    if (match.id) {
+        try {
+            await overwriteDataToFirebase(match.id, 'matches', match)
+        } catch (e) {
+            console.error('Failed to leave match', e)
+            alert('Failed to leave — try again')
+        }
+    }
+}
+
+function isJoined(match) {
+    if (!currentUser.value) return false
+    return Boolean(match && match.joinedBy && match.joinedBy[currentUser.value.uid])
 }
 
 function initials(name) {
@@ -236,25 +322,7 @@ function initials(name) {
 /* responsive grid using Bootstrap-like breakpoints */
 .matches-grid {
     margin-top: 20px;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 18px
-}
-
-@media (min-width: 768px) {
-
-    /* md */
-    .matches-grid {
-        grid-template-columns: repeat(2, 1fr)
-    }
-}
-
-@media (min-width: 992px) {
-
-    /* lg */
-    .matches-grid {
-        grid-template-columns: repeat(3, 1fr)
-    }
+    /* use Bootstrap row/col for layout — do not override with CSS grid */
 }
 
 
@@ -264,7 +332,19 @@ function initials(name) {
     border-radius: 12px;
     color: #fff;
 }
-.match-card .card-body { padding: 28px; }
+.match-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 340px;
+}
+.match-card {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.match-card .card-body { padding: 20px; display:flex; flex-direction:column; gap:12px; flex:1 }
+.match-card .card-body { box-sizing: border-box }
 .match-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.45); transform: translateY(-6px); transition: all 180ms ease }
 
 
@@ -282,12 +362,22 @@ function initials(name) {
 .match-title {
     margin: 0;
     color: #fff;
-    font-size: 1.6rem
+    font-size: 1.25rem;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .match-sub {
     color: #cbd6df;
-    margin-top: 6px
+    margin-top: 6px;
+    font-size: 0.95rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .match-meta {
@@ -315,9 +405,9 @@ function initials(name) {
 
 .avatars { margin-top: 12px }
 .avatar-stack { display:flex; align-items:center }
-.avatar-stack .avatar-initial { width:38px; height:38px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#1f262b; color:#fff; font-weight:700; border:2px solid rgba(0,0,0,0.4); margin-left:-10px }
+.avatar-stack .avatar-initial { width:36px; height:36px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#1f262b; color:#fff; font-weight:700; border:2px solid rgba(0,0,0,0.6); margin-left:-12px; font-size:0.85rem }
 .avatar-stack .avatar-initial:first-child { margin-left:0 }
-.avatar-stack .avatar.extra { margin-left:8px; background:#2b2f33; width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border-radius:50% }
+.avatar-stack .avatar.extra { margin-left:8px; background:#2b2f33; width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; font-size:0.85rem }
 
 
 .players {
@@ -331,6 +421,16 @@ function initials(name) {
 .join { background: #ff9a3c; color:#111 }
 .view { color: rgba(255,255,255,0.7) }
 
+.btn-join {
+    background: #ff9a3c;
+    color: #111;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-weight: 700;
+    border: none;
+}
+.btn-join[disabled] { opacity: 0.45; cursor: not-allowed }
+
 @media (min-width: 768px) {
     .match-card {
         flex-direction: column
@@ -339,5 +439,16 @@ function initials(name) {
     .match-right {
         align-items: flex-end
     }
+}
+
+/* Ensure bootstrap column wrappers become flex containers so children stretch to full height/width */
+.matches-grid [class*="col-"] {
+    display: flex;
+    align-items: stretch;
+}
+
+/* Prevent container overflow from accidental wide children */
+.large-card, .matches-grid {
+    overflow: hidden;
 }
 </style>

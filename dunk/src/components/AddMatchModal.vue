@@ -9,6 +9,13 @@
         <label>Match Title</label>
         <input type="text" v-model="matchTitle" placeholder="e.g., Weekend Hoops" />
 
+        <label>Gender</label>
+        <div class="gender-options">
+          <label><input type="radio" value="All" v-model="gender"/> All</label>
+          <label><input type="radio" value="Female" v-model="gender"/> Female</label>
+          <label><input type="radio" value="Male" v-model="gender"/> Male</label>
+        </div>
+
         <label>Court</label>
         <div v-if="courtList && courtList.length">
           <select v-model="selectedCourt">
@@ -31,7 +38,7 @@
           <option value="Open">Open</option>
           <option value="Beginner">Beginner</option>
           <option value="Intermediate">Intermediate</option>
-          <option value="Advanced">Advanced</option>
+          <option value="Professional">Professional</option>
         </select>
 
         <button type="submit" class="create-btn">Create Match</button>
@@ -52,6 +59,7 @@ const selectedCourt = ref(props.courtName || '')
 const matchDate = ref('')
 const matchTime = ref('')
 const matchType = ref('Open')
+const gender = ref('All')
 
 
 const emit = defineEmits(['close'])
@@ -67,6 +75,9 @@ const createMatch = async () => {
     date: matchDate.value,
     time: matchTime.value,
     type: matchType.value,
+    gender: gender.value,
+    players: [],
+    joinedBy: {},
     createdAt: new Date().toISOString()
     
   }
@@ -137,6 +148,27 @@ form {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.gender-options {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.gender-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.02);
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  color: #dde3ea;
+}
+.gender-options input[type="radio"] {
+  width: 16px;
+  height: 16px;
 }
 
 label {
