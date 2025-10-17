@@ -161,9 +161,31 @@
                 <div class="comment-replies mt-3" v-if="c.replies && Object.keys(c.replies).length">
                   <div v-for="(r, rid) in c.replies" :key="rid" class="reply-item d-flex align-items-start mb-2">
                     <div class="reply-avatar"><img :src="r.avatar || avatarForName(r.authorName)" alt="avatar"/></div>
-                    <div class="reply-bubble">
-                      <div><strong>{{ r.authorName || r.author || 'Anon' }}</strong> <span class="text-muted">• {{ displayDate(r.createdAt) }}</span></div>
-                      <div class="mt-1">{{ r.text }}</div>
+                    <div class="reply-bubble" style="flex:1; position:relative">
+                      <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                          <strong>{{ r.authorName || r.author || 'Anon' }}</strong>
+                          <span class="text-muted">• {{ displayDate(r.createdAt) }}</span>
+                        </div>
+                        <div>
+                          <div v-if="isReplyOwner(r)" class="dropdown dropend">
+                            <button class="btn btn-sm btn-link comment-menu-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="More">
+                              <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                              <li><button class="dropdown-item" @click.stop.prevent="startEditReply(file, cid, rid)">Edit</button></li>
+                              <li><button class="dropdown-item text-danger" @click.stop.prevent="deleteReply(file, cid, rid)">Delete</button></li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="mt-1" v-if="!(file._editingReply === rid)">{{ r.text }}</div>
+                      <div v-else class="mt-1">
+                        <input class="form-control comment-edit-input" v-model="file._editingReplyText" />
+                        <div class="mt-1"><button class="btn btn-primary btn-sm" @click="saveEditReply(file, cid, rid)">Save</button> <button class="btn btn-secondary btn-sm" @click="cancelEditReply(file)">Cancel</button></div>
+                      </div>
+
                       <div class="mt-2"><a href="#" class="reply-link" @click.prevent="startReply(file, cid, rid)">Reply</a></div>
                     </div>
                   </div>
@@ -475,6 +497,54 @@ function isCommentOwner(c) {
   const uid = currentUserId.value
   if (!uid) return false
   return Boolean(c.author === uid || c.authorId === uid || c.uid === uid || c.createdBy === uid)
+}
+
+function isReplyOwner(r) {
+  if (!r) return false
+  const uid = currentUserId.value
+  if (!uid) return false
+  return Boolean(r.author === uid || r.authorId === uid || r.uid === uid || r.createdBy === uid)
+}
+
+function startEditReply(file, cid, rid) {
+  if (!file || !file.comments || !file.comments[cid] || !file.comments[cid].replies || !file.comments[cid].replies[rid]) return
+  if (!isReplyOwner(file.comments[cid].replies[rid])) return
+  file._editingReply = rid
+  file._editingReplyText = file.comments[cid].replies[rid].text
+}
+
+function cancelEditReply(file) {
+  if (!file) return
+  file._editingReply = null
+  file._editingReplyText = ''
+}
+
+async function saveEditReply(file, cid, rid) {
+  if (!file || !file.id || !file.comments || !file.comments[cid] || !file.comments[cid].replies || !file.comments[cid].replies[rid]) return
+  if (!file._editingReplyText) return
+  try {
+    // overwrite the reply object at nested path
+    // Build object path: forumUploads/{postId}/comments/{cid}/replies/{rid}
+    await overwriteDataToFirebase(rid, `forumUploads/${file.id}/comments/${cid}/replies`, { ...file.comments[cid].replies[rid], text: file._editingReplyText, editedAt: Date.now() })
+    file.comments[cid].replies[rid].text = file._editingReplyText
+    file.comments[cid].replies[rid].editedAt = Date.now()
+    cancelEditReply(file)
+  } catch (err) {
+    console.error('Failed to save reply edit', err)
+    alert('Failed to save reply')
+  }
+}
+
+async function deleteReply(file, cid, rid) {
+  if (!file || !file.id || !file.comments || !file.comments[cid] || !file.comments[cid].replies || !file.comments[cid].replies[rid]) return
+  if (!isReplyOwner(file.comments[cid].replies[rid])) return
+  try {
+    await deleteDataFromFirebase(`forumUploads/${file.id}/comments/${cid}/replies/${rid}`)
+    delete file.comments[cid].replies[rid]
+  } catch (err) {
+    console.error('Failed to delete reply', err)
+    alert('Failed to delete reply')
+  }
 }
 
 function updateCaptionClamps() {
