@@ -8,8 +8,16 @@
         <label>Court Name</label>
         <input type="text" v-model="courtName" placeholder="e.g., Sunset Park Court" />
 
-        <label>Indoor Court</label>
-        <input type="checkbox" v-model="isIndoor" />
+        <div class="indoor-row">
+          <label class="indoor-label" for="indoor-checkbox">Indoor Court</label>
+          <input
+            id="indoor-checkbox"
+            type="checkbox"
+            v-model="isIndoor"
+            class="indoor-checkbox"
+          />
+        </div>
+
 
         <label>Region</label>
         <select v-model="region">
@@ -47,21 +55,38 @@ const closeModal = () => {
   emit('close')
 }
 
+function getRegionByLatLng(lat, lng) {
+  // Based on Singapore region clusters; adjust boundaries if needed
+  if (lat > 1.433 && lng < 103.92) return 'north';         // Yishun/Woodlands area
+  if (lat < 1.300 && lng > 103.84) return 'south';         // Sentosa/Harbourfront, Southern islands
+  if (lat < 1.370 && lng > 103.90) return 'east';          // Tampines/Bedok/Changi
+  if (lat < 1.390 && lng < 103.78) return 'west';          // Jurong/Bukit Batok
+  if (lat > 1.350 && lat < 1.39 && lng > 103.80 && lng < 103.90) return 'central'; // Bishan/Novena/Orchard/Toa Payoh
+  if (lat >= 1.36 && lat <= 1.438 && lng >= 103.85 && lng <= 104.0) return 'northeast'; // Hougang, Sengkang, Punggol
+  return '';
+}
+
+
 // Reverse geocode to get address from coordinates
 onMounted(() => {
   if (props.coordinates?.lat && props.coordinates?.lon) {
-    const geocoder = new google.maps.Geocoder()
-    const latlng = { lat: props.coordinates.lat, lng: props.coordinates.lon }
-
+    const lat = props.coordinates.lat;
+    const lng = props.coordinates.lon;
+    // Set region automatically!
+    region.value = getRegionByLatLng(lat, lng);
+    // ... existing reverse geocode logic ...
+    const geocoder = new google.maps.Geocoder();
+    const latlng = { lat, lng };
     geocoder.geocode({ location: latlng }, (results, status) => {
       if (status === 'OK' && results[0]) {
-        courtAddress.value = results[0].formatted_address
+        courtAddress.value = results[0].formatted_address;
       } else {
-        courtAddress.value = 'Unknown address'
+        courtAddress.value = 'Unknown address';
       }
-    })
+    });
   }
-})
+});
+
 
 const createCourt = async () => {
   if (!courtName.value.trim() || !region.value) {
@@ -162,4 +187,29 @@ select {
 .create-btn:hover {
   background-color: #ffa733;
 }
+
+.indoor-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.indoor-label {
+  font-weight: bold;
+  font-size: 0.97rem;
+  margin-bottom: 0;
+}
+
+.indoor-checkbox {
+  width: 22px;
+  height: 22px;
+  accent-color: orange;
+  cursor: pointer;
+}
+
+.indoor-checkbox:focus {
+  outline: 2px solid #ffa733;
+}
+
 </style>
