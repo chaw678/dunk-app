@@ -1,0 +1,126 @@
+{
+  "North": {
+    "Indoor": [
+      { "name": "Khatib Indoor Basketball Court", "address": "200 Yishun Ring Road, Singapore 768688" },
+      { "name": "MPC@Khatib", "address": "Yishun Avenue 2, Singapore 760846" }
+    ],
+    "Outdoor": [
+      { "name": "Yew Tee Community Club", "address": "20 Chua Chu Kang Street 52, Singapore 689286" },
+      { "name": "Nee Soon East Park Basketball Court", "address": "Yishun Ave 6, Singapore 760321" },
+      { "name": "SG Basketball @ Turf City", "address": "220 Turf Club Road, Singapore 287995" },
+      { "name": "Vista Park Basketball Court", "address": "Blk 441 Yishun Ave 11, Singapore 760441" },
+      { "name": "Sport-In-Precinct @ Wellington Circle", "address": "Wellington Circle, Singapore 751293" },
+      { "name": "Block 211A Punggol Walk Court", "address": "211A Punggol Walk, Singapore 821211" },
+      { "name": "Keat Hong Community Club", "address": "2 Choa Chu Kang Loop, Singapore 689687" },
+      { "name": "Bukit Panjang Community Club", "address": "10 Jelebu Road, Singapore 677743" },
+      { "name": "Bukit Panjang Hawker Centre Court", "address": "Blk 628 Bukit Panjang Ring Road, Singapore 671628" },
+      { "name": "Ang Mo Kio Street 53 Courts", "address": "10 Ang Mo Kio Street 53, Singapore 569206" },
+      { "name": "Yishun Park", "address": "Yishun Ave 1, Singapore 768760" },
+      { "name": "Cactus Anytime Sport Centre", "address": "653Y Woodlands Ave 8, Singapore 731653" }
+    ]
+  },
+  "South": {
+    "Indoor": [
+      { "name": "OCBC Arena Outdoor Basketball Court", "address": "5 Stadium Drive, Singapore 397631" },
+      { "name": "Queenstown Community Centre Basketball Court", "address": "365 Commonwealth Ave, Singapore 149732" },
+      { "name": "Keat Hong Community Club", "address": "2 Choa Chu Kang Loop, Singapore 689687" },
+      { "name": "Goodman Arts Centre Basketball Court", "address": "90 Goodman Road, Singapore 439053" }
+    ],
+    "Outdoor": [
+      { "name": "Chinatown Complex Basketball Court", "address": "335 Smith Street, Singapore 050335" },
+      { "name": "Telok Blangah Drive Block 45 Basketball Court", "address": "45 Telok Blangah Drive, Singapore 100045" },
+      { "name": "Sentosa Siloso Beach Court", "address": "Siloso Beach Walk, Sentosa, Singapore 099000" },
+      { "name": "Tanjong Pagar Basketball Court", "address": "Behind Duxton Plain Park, 1 Tanjong Pagar Plaza, Singapore 082001" },
+      { "name": "Pinnacle@Duxton Court", "address": "1 Cantonment Road, Singapore 080001" },
+      { "name": "Zion Road Basketball Court", "address": "Blk 23 Zion Road, Singapore 247763" },
+      { "name": "Bukit Merah Community Club", "address": "34 Jalan Bukit Merah, Singapore 150034" },
+      { "name": "Maxwell Food Centre Basketball Court", "address": "1 Kadayanallur Street, Singapore 069184" },
+      { "name": "Telok Blangah Basketball Court", "address": "Blk 267 Telok Blangah Drive, Singapore 100267" },
+      { "name": "Palawan Beach Basketball Court", "address": "Palawan Beach Road, Singapore 099203" }
+    ]
+  },
+  "East": {
+    "Indoor": [
+      { "name": "ActiveSG Pasir Ris Sport Centre", "address": "120 Pasir Ris Central, Singapore 519640" },
+      { "name": "Our Tampines Hub ActiveSG Community Auditorium", "address": "1 Tampines Walk, Singapore 528523" },
+      { "name": "SAFRA Tampines", "address": "1/A Tampines Street 92, Singapore 528882" },
+      { "name": "SUTD Sports and Recreation Centre", "address": "61 Changi South Ave 1, Singapore 486000" }
+    ],
+    "Outdoor": [
+      { "name": "Bedok Community Centre Basketball Court", "address": "850 New Upper Changi Road, Singapore 467352" },
+      { "name": "Pasir Ris Park Basketball Courts", "address": "Pasir Ris Central, Singapore 519639" },
+      { "name": "Brontosaur Park Basketball Court", "address": "766 Pasir Ris Street 71, Singapore 510766" },
+      { "name": "Pasir Ris Town Park Court", "address": "Pasir Ris Drive 10, Singapore 519542" },
+      { "name": "Basketball Court @ Pasir Ris Elias", "address": "604 Elias Rd, Block 604, Singapore 510604" },
+      { "name": "Basketball Court @ Pasir Ris Blk 134", "address": "134 Pasir Ris Street 21, Singapore 510134" },
+      { "name": "Basketball Court @ Coral Meridian", "address": "561 Pasir Ris Street 51, Singapore 510561" },
+      { "name": "Eunos Spring Basketball Court", "address": "Eunos Crescent, Singapore 400809" },
+      { "name": "Katong Community Centre Basketball Court", "address": "51 Singapore Rd, Singapore 439230" },
+      { "name": "Tampines Block 201 Basketball Court", "address": "201 Tampines Street 21, Singapore 521201" },
+      { "name": "Basketball Court @ Tampines Blk 170", "address": "170 Tampines St 23, Singapore 529339" },
+      { "name": "Basketball Court @ Tampines Blk 492B", "address": "492B Tampines Ave 9, Block 492B, Singapore 520492" },
+      { "name": "Basketball Courts @ Tampines GreenEdge", "address": "495 Tampines Street 43, Singapore 523495" },
+      { "name": "Basketball Court (A) @ Tampines Blk 497", "address": "497B Tampines Street 45, Singapore 521497" },
+      { "name": "Sheltered Basketball Court @ Tampines Blk 842", "address": "842 Tampines St 82, Singapore 520842" },
+      { "name": "Basketball Court @ TCP", "address": "Tampines St 82, Singapore" },
+      { "name": "Basketball Court @ Tampines North CC", "address": "2 Tampines Street 41, #01-03 Tampines North Community Club, Singapore 529204" },
+      { "name": "Basketball Court @ Tampines Blk 342", "address": "Tampines Street 33, Block 342, Singapore 520342" },
+      { "name": "Bedok North Block 116", "address": "116 Bedok North Road, Singapore 460116" },
+      { "name": "Marine Parade Community Club Court", "address": "278 Marine Parade Road, Singapore 449282" },
+      { "name": "Siglap Community Club Court", "address": "151 Bedok South Road, Singapore 460151" },
+      { "name": "East Coast Park Skatepark Basketball Court", "address": "East Coast Park, Singapore 449874" },
+      { "name": "Upper East Coast Walk Basketball Court", "address": "Upper East Coast Walk, Singapore 466967" },
+      { "name": "Simei Central Basketball Court", "address": "124 Simei Street, Singapore 520124" }
+    ]
+  },
+  "West": {
+    "Indoor": [
+      { "name": "Millenia Institute Basketball Court", "address": "60 Bukit Batok West Ave 8, Singapore 658965" },
+      { "name": "Bukit Batok West Sports Hall", "address": "11 Bukit Batok West Ave 8, Singapore 658965" }
+    ],
+    "Outdoor": [
+      { "name": "Jurong West Block 629 Basketball Court", "address": "629 Jurong West Street 65, Singapore 640629" },
+      { "name": "Bukit Batok Sheltered Court (Blk 213)", "address": "213 Bukit Batok Street 21, Singapore 650213" },
+      { "name": "Firefly Park Basketball Court", "address": "Bukit Batok West Ave 8, Singapore 650246" },
+      { "name": "Hong Kah North Community Club Basketball Court", "address": "30 Bukit Batok Street 31, Singapore 659440" },
+      { "name": "play@west Basketball Court", "address": "Bukit Batok West Ave 5, Singapore 650221" },
+      { "name": "Clementi Block 334 Basketball Court", "address": "334 Clementi Avenue 2, Singapore 120334" },
+      { "name": "Jurong East Central Court", "address": "1 Jurong East Central 1, Singapore 609459" },
+      { "name": "Boon Lay Community Centre Court", "address": "45 Boon Lay Avenue, Singapore 649914" },
+      { "name": "Pioneer Mall Basketball Court", "address": "1 Jurong West Central 2, Singapore 648886" },
+      { "name": "West Coast Park Basketball Court", "address": "West Coast Park, Singapore 117930" }
+    ]
+  },
+  "Central": {
+    "Indoor": [
+      { "name": "Cairnhill Community Club Basketball Court", "address": "1 Anthony Road, Singapore 229944" },
+      { "name": "Braddell Heights Community Centre Basketball Court", "address": "50 Serangoon Ave 2, Singapore 554946" },
+      { "name": "Toa Payoh West Community Centre Basketball Court", "address": "200 Lorong 2 Toa Payoh, Singapore 319642" },
+      { "name": "Scholar Basketball Academy Barker Road", "address": "66 Barker Road, Singapore 309928" },
+      { "name": "MOE Evans Sports Hall Basketball Court", "address": "11 Evans Road, Singapore 259360" },
+      { "name": "Dunearn Community Club Court", "address": "4 Balmoral Road, Singapore 259828" },
+      { "name": "Kallang Community Club", "address": "1346 Geylang West Ave 1, Singapore 389767" }
+    ],
+    "Outdoor": [
+      { "name": "Foot Locker Orchard Basketball Court", "address": "313 Orchard Road, Singapore 238895" },
+      { "name": "Mount Emily Basketball Court", "address": "Mount Emily Park, Singapore 239395" },
+      { "name": "Orchard Road Basketball Court", "address": "Orchard Road, Singapore 238863" }
+    ]
+  },
+  "Northeast": {
+    "Indoor": [
+      { "name": "SG Basketball @ KBRC", "address": "70 Hougang Ave 1, Singapore 538719" },
+      { "name": "Dunearn Community Club Court", "address": "4 Balmoral Road, Singapore 259828" },
+      { "name": "Kallang Community Club", "address": "1346 Geylang West Ave 1, Singapore 389767" }
+    ],
+    "Outdoor": [
+      { "name": "Punggol Green Basketball Court", "address": "Sentul Crescent, Singapore 828833" },
+      { "name": "Joo Seng Court", "address": "Joo Seng Road, Singapore 361005" },
+      { "name": "Mayfair Basketball Court", "address": "6 Mayfair Ave, Singapore 286690" },
+      { "name": "Basketball court, Sengkang Ave", "address": "Sengkang Ave, Singapore 545077" },
+      { "name": "Seletar Sports Centre Court", "address": "33 Yishun Industrial Park A, Singapore 768725" },
+      { "name": "Hougang Mall Basketball Court", "address": "90 Hougang Ave 10, Singapore 538766" },
+      { "name": "Sengkang Sports Complex Basketball Court", "address": "57 Anchorvale Link, Singapore 545984" }
+    ]
+  }
+}

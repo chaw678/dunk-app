@@ -26,7 +26,7 @@
           <button
             v-for="region in regions"
             :key="region"
-            :class="['region-btn', selectedRegion === region ? 'active' : '']"
+            :class="['region-btn', selectedRegions.includes(region) ? 'active' : '']"
             @click="filterByRegion(region)"
           >
             {{ region }}
@@ -91,7 +91,8 @@ const loadCourtsFromFirebase = async () => {
       id,
       ...court
     }))
-    addMarkers(firebaseCourts.value)
+    // Apply filters after we load from firebase (so markers respect selected regions / query)
+    applyFilters()
   }
 }
 
@@ -139,11 +140,11 @@ onMounted(() => {
       map.value.setCenter(location)
       map.value.setZoom(15)
 
-      new google.maps.Marker({
-        position: location,
-        map: map.value,
-        title: place.name
-      })
+      // new google.maps.Marker({
+      //   position: location,
+      //   map: map.value,
+      //   title: place.name
+      // })
 
       searchQuery.value = place.formatted_address
     }
@@ -172,6 +173,159 @@ const handleAddCourt = () => {
 
 
 const regions = ['all', 'north', 'south', 'east', 'west', 'central', 'northeast']
+
+// Multi-select support (keep as ref so template unwraps it)
+const selectedRegions = ref(['all'])
+
+const filterByRegion = (region) => {
+  // normalize incoming region to avoid case/whitespace mismatches
+  const r = (region || '').toString().toLowerCase().trim()
+
+  let next = []
+
+  if (r === 'all') {
+    next = ['all']
+  } else {
+    const current = selectedRegions.value.includes('all') ? [] : [...selectedRegions.value.map(x => (x || '').toLowerCase().trim())]
+
+    if (current.includes(r)) {
+      next = current.filter(x => x !== r)
+      if (next.length === 0) next = ['all']
+    } else {
+      next = [...current, r]
+    }
+  }
+
+  // replace whole array to keep reactivity straightforward
+  selectedRegions.value = next
+  applyFilters()
+}
+
+const applyFilters = () => {
+  // If map not ready, clear any existing markers (so UI stays consistent)
+  if (!map.value) {
+    markers.value.forEach(m => m.setMap(null))
+    markers.value = []
+    return
+  }
+
+  const query = (searchQuery.value || '').toLowerCase().trim()
+
+  // start from firebase-loaded courts; fallback to local static list
+  // let base = (firebaseCourts.value && firebaseCourts.value.length) ? firebaseCourts.value.slice() : courts.slice();
+
+  let base = firebaseCourts.value;
+
+  // normalize selected regions and check whether we should filter by region
+  // const normalizedSelected = selectedRegions.value.map(r => (r || '').toLowerCase().trim())
+  // const filterByRegionActive = !normalizedSelected.includes('all')
+
+  // let filtered = base
+
+  // if (filterByRegionActive) {
+  //   const regionsSet = new Set(normalizedSelected.filter(r => r))
+  //   filtered = filtered.filter(c => {
+  //     const r = ((c.region || '') + '').toLowerCase().trim()
+  //     return !!r && regionsSet.has(r)
+  //   })
+  // }
+
+  const normalizedSelected = selectedRegions.value.map(r => (r || '').toLowerCase().trim());
+  const filterByRegionActive = !normalizedSelected.includes('all');
+
+  let filtered = base;
+
+  if (filterByRegionActive) {
+    const regionsSet = new Set(normalizedSelected);
+    filtered = filtered.filter(c => {
+      const r = ((c.region || '') + '').toLowerCase().trim();
+      return regionsSet.has(r);
+    });
+  }
+
+
+
+  // Apply search query on top of region filtering
+  if (query) {
+    filtered = filtered.filter(c => {
+      const name = (c.name || '').toLowerCase()
+      const region = (c.region || '').toLowerCase()
+      const keywords = (c.keywords || []).map(k => (k || '').toLowerCase())
+      return name.includes(query) || region.includes(query) || keywords.some(k => k.includes(query))
+    })
+  }
+
+  // Debugging: log what we filtered so you can confirm behavior in console
+  // Remove or comment out when confirmed working.
+  console.debug('[applyFilters] selectedRegions=', JSON.stringify(selectedRegions.value), 'resultCount=', filtered.length, filtered.map(x => ({ id: x.id, name: x.name, region: x.region })))
+
+  // Debugging: log selected regions and filtered courts
+  console.log('[applyFilters] Selected regions:', selectedRegions.value);
+  console.log('[applyFilters] Filtered courts:', filtered.map(c => ({ name: c.name, region: c.region, lat: c.lat, lon: c.lon })));
+
+  // Update markers (will clear map if filtered is empty)
+  addMarkers(filtered)
+}
+
+const addMarkers = (filteredCourts) => {
+  // Remove ALL map markers from the map
+
+  markers.value.forEach(marker => {
+    marker.setMap(null)
+  })
+  markers.value = []
+
+  if (!filteredCourts || !filteredCourts.length) {
+    console.log('No courts for this region/query. Map cleared.')
+    return
+  }
+
+  filteredCourts.forEach(court => {
+    const lat = parseFloat(court.lat)
+    const lon = parseFloat(court.lon)
+    if (Number.isNaN(lat) || Number.isNaN(lon)) return
+
+    const marker = new google.maps.Marker({
+      position: { lat, lng: lon },
+      map: map.value,
+      title: court.name || ''
+    })
+
+    const infoWindow = new google.maps.InfoWindow({
+      content: `
+        <div style="font-family: Arial; font-size: 14px;">
+          <strong>${court.name ?? ''}</strong><br/>
+          <em>Region:</em> ${court.region ?? ''}<br/>
+          <em>Coordinates:</em> ${isFinite(lat) ? lat.toFixed(4) : 'N/A'}, ${isFinite(lon) ? lon.toFixed(4) : 'N/A'}
+        </div>
+      `
+    })
+
+    marker.addListener('mouseover', () => infoWindow.open(map.value, marker))
+    marker.addListener('mouseout', () => infoWindow.close())
+    marker.addListener('click', () => {
+      infoWindow.open(map.value, marker)
+      selectedCourt.value = court
+    })
+
+    markers.value.push(marker)
+  })
+
+  // Log out exactly how many markers you have now
+  console.log('Current markers:', markers.value.length, markers.value.map(m => m.getTitle()))
+
+    if (window.lastAutoMarker) {
+    window.lastAutoMarker.setMap(null);
+    window.lastAutoMarker = null; 
+    }
+
+}
+
+
+// watch combined sources so filtering always runs when relevant data or UI changes
+watch([selectedRegions, searchQuery, firebaseCourts], () => {
+  applyFilters()
+}, { deep: true, immediate: true })
 
 const courts = [
   { name: 'Singapore Sports Hub', lat: 1.3048, lon: 103.8740, region: 'central', keywords: ['kallang', 'sports hub'] },
@@ -202,99 +356,99 @@ const hideSuggestions = () => {
 }
 
 
-const addMarkers = (filteredCourts) => {
-  // Clear existing markers
-  markers.value.forEach(marker => marker.setMap(null))
-  markers.value = []
+// const addMarkers = (filteredCourts) => {
+//   // Clear existing markers
+//   markers.value.forEach(marker => marker.setMap(null))
+//   markers.value = []
 
-  filteredCourts.forEach(court => {
-    const marker = new google.maps.Marker({
-      position: { lat: court.lat, lng: court.lon },
-      map: map.value,
-      title: court.name
-    })
+//   filteredCourts.forEach(court => {
+//     const marker = new google.maps.Marker({
+//       position: { lat: court.lat, lng: court.lon },
+//       map: map.value,
+//       title: court.name
+//     })
 
-    const infoWindow = new google.maps.InfoWindow({
-      content: `
-        <div style="font-family: Arial; font-size: 14px;">
-          <strong>${court.name}</strong><br/>
-          <em>Region:</em> ${court.region}<br/>
-          <em>Coordinates:</em> ${court.lat?.toFixed(4) ?? 'N/A'}, ${court.lon?.toFixed(4) ?? 'N/A'}<br/>
-          <em>Availability:</em> Coming soon<br/>
-          <em>User Rating:</em> ★★★★☆
-        </div>
-      `
-    })
+//     const infoWindow = new google.maps.InfoWindow({
+//       content: `
+//         <div style="font-family: Arial; font-size: 14px;">
+//           <strong>${court.name}</strong><br/>
+//           <em>Region:</em> ${court.region}<br/>
+//           <em>Coordinates:</em> ${court.lat?.toFixed(4) ?? 'N/A'}, ${court.lon?.toFixed(4) ?? 'N/A'}<br/>
+//           <em>Availability:</em> Coming soon<br/>
+//           <em>User Rating:</em> ★★★★☆
+//         </div>
+//       `
+//     })
 
 
-    // Show info on hover
-    marker.addListener('mouseover', () => {
-      infoWindow.open(map.value, marker)
-    })
+//     // Show info on hover
+//     marker.addListener('mouseover', () => {
+//       infoWindow.open(map.value, marker)
+//     })
 
-    // Optional: close info when mouse leaves
-    marker.addListener('mouseout', () => {
-      infoWindow.close()
-    })
+//     // Optional: close info when mouse leaves
+//     marker.addListener('mouseout', () => {
+//       infoWindow.close()
+//     })
 
-    // Also show info on click
-    marker.addListener('click', () => {
-      infoWindow.open(map.value, marker)
-      selectedCourt.value = court
-    })
+//     // Also show info on click
+//     marker.addListener('click', () => {
+//       infoWindow.open(map.value, marker)
+//       selectedCourt.value = court
+//     })
 
-    markers.value.push(marker)
-  })
-}
+//     markers.value.push(marker)
+//   })
+// }
 
-const applyFilters = () => {
-  const query = searchQuery.value.toLowerCase().trim()
-  const region = selectedRegion.value.toLowerCase().trim()
+// const applyFilters = () => {
+//   const query = searchQuery.value.toLowerCase().trim()
+//   const region = selectedRegion.value.toLowerCase().trim()
 
-  // Only proceed if a specific region is selected
-  if (!region || region === 'all') {
-    markers.value.forEach(marker => marker.setMap(null))
-    markers.value = []
-    return
-  }
+  // // Only proceed if a specific region is selected
+  // if (!region || region === 'all') {
+  //   markers.value.forEach(marker => marker.setMap(null))
+  //   markers.value = []
+  //   return
+  // }
 
-  let filtered = courts.filter(court =>
-    court.region.toLowerCase() === region
-  )
+  // let filtered = courts.filter(court =>
+  //   court.region.toLowerCase() === region
+  // )
 
-  if (query) {
-    filtered = filtered.filter(court =>
-      court.name.toLowerCase().includes(query) ||
-      court.region.toLowerCase().includes(query) ||
-      (court.keywords && court.keywords.some(k => k.includes(query)))
-    )
-  }
+//   if (query) {
+//     filtered = filtered.filter(court =>
+//       court.name.toLowerCase().includes(query) ||
+//       court.region.toLowerCase().includes(query) ||
+//       (court.keywords && court.keywords.some(k => k.includes(query)))
+//     )
+//   }
 
-  addMarkers(filtered)
-}
+//   addMarkers(filtered)
+// }
 
-const filterByRegion = (region) => {
-  if (selectedRegion.value === region) {
-    // Deselect region
-    selectedRegion.value = ''
-  } else {
-    // Select new region
-    selectedRegion.value = region
-  }
+// const filterByRegion = (region) => {
+//   if (selectedRegion.value === region) {
+//     // Deselect region
+//     selectedRegion.value = ''
+//   } else {
+//     // Select new region
+//     selectedRegion.value = region
+//   }
 
-  // Always apply filters after region change
-  applyFilters()
-}
+//   // Always apply filters after region change
+//   applyFilters()
+// }
 
-watch(searchQuery, () => {
-  if (selectedRegion.value !== 'all') {
-    applyFilters()
-  } else {
-    // Clear markers if no region is selected
-    markers.value.forEach(marker => marker.setMap(null))
-    markers.value = []
-  }
-})
+// watch(searchQuery, () => {
+//   if (selectedRegion.value !== 'all') {
+//     applyFilters()
+//   } else {
+//     // Clear markers if no region is selected
+//     markers.value.forEach(marker => marker.setMap(null))
+//     markers.value = []
+//   }
+// })
 
 onMounted(() => {
   map.value = new google.maps.Map(document.getElementById('map'), {
