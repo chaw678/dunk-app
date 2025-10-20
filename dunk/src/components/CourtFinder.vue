@@ -9,13 +9,27 @@
 
         <p class="card-desc">Locate basketball courts, check availability, and see user ratings.</p>
 
-        <input
-          type="text"
-          ref="autocompleteInput"
-          v-model="searchQuery"
-          placeholder="Search courts or regions..."
-          class="search-input"
-        />
+        <div class="search-section">
+  <input
+    type="text"
+    v-model="searchQuery"
+    placeholder="Search courts by keyword..."
+    class="search-input"
+  />
+  <ul v-if="suggestions.length" class="suggestions-list">
+    <li
+      v-for="court in suggestions"
+      :key="court.name"
+      @click="selectSuggestion(court)"
+      class="suggestion-item"
+    >
+      {{ court.name }}
+    </li>
+  </ul>
+  <button class="search-btn" @click="handleSearch">Search</button>
+</div>
+
+
 
         <div class="region-filter">
           <button
@@ -29,7 +43,16 @@
         </div>
 
         <div class="card-section">
-          <h2 class="section-title">Map</h2>
+          <div class="card-section-header">
+            <h2 class="section-title">Map</h2>
+            <button class="pin-btn" @click="activatePinMode" title="Add a new court location">
+              <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="12" fill="#ffa733" stroke="#333" stroke-width="2"/>
+                <rect x="13" y="8" width="6" height="11" rx="3" fill="#ff9500"/>
+                <circle cx="16" cy="23" r="2.6" fill="#fff" stroke="#ff9100" stroke-width="1"/>
+              </svg>
+            </button>
+          </div>
           <p class="section-desc">Interactive map of basketball courts in Singapore.</p>
           <div id="map" class="map-container"></div>
         </div>
@@ -37,49 +60,140 @@
         <div class="floating-icon">N</div>
       </div>
 
-      <div v-if="selectedCourt" class="court-card">
-        <h3 class="court-name">{{ selectedCourt.name }}</h3>
-        <p><strong>Region:</strong> {{ selectedCourt.region }}</p>
-        <p><strong>Coordinates:</strong> {{ selectedCourt.lat }}, {{ selectedCourt.lon }}</p>
-        <p><strong>Availability:</strong> Coming soon</p>
-        <p><strong>User Rating:</strong> ★★★★☆</p>
-        <button class="add-match-btn" @click="handleAddMatch">Add Match</button>
+      <div v-if="matchEventToShow" class="match-event-card">
+        <h2 class="match-event-title">{{ matchEventToShow.title }}</h2>
+        <p><strong>Court:</strong> {{ matchEventToShow.court }}</p>
+        <p><strong>Date:</strong> {{ matchEventToShow.date }}</p>
+        <p><strong>Time:</strong> {{ matchEventToShow.time }}</p>
+        <p><strong>Type:</strong> {{ matchEventToShow.type }}</p>
+        <button class="add-match-btn" @click="openMatchModalFromEventCard">Add Match</button>
       </div>
     </div>
   </div>
 
-  <AddMatchModal
-    v-if="showAddMatchModal"
-    :courtName="selectedCourt?.name"
-    @close="showAddMatchModal = false"
+
+<AddMatchModal
+  v-if="showAddMatchModal"
+  :courtName="selectedCourt?.name"
+  @close="showAddMatchModal = false"
   />
 
-  <AddCourtModal
-    v-if="showAddCourtModal"
-    :coordinates="newCourtCoords"
-    @close="showAddCourtModal = false"
-    @refreshCourts="loadCourtsFromFirebase"
-  />
+<AddCourtModal2
+  v-if="showAddCourtModal2"
+  :coordinates="newCourtCoords"
+  @close="showAddCourtModal2 = false"
+  @refreshCourts="loadCourtsFromFirebase"
+/>
+<AddCourtModal
+  v-if="showAddCourtModal"
+  :coordinates="newCourtCoords"
+  @close="showAddCourtModal = false"
+  @refreshCourts="loadCourtsFromFirebase"
+/>
+
+
 </template>
+
 
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
 import { getDataFromFirebase } from '../firebase/firebase'
-import AddMatchModal from './AddMatchModal.vue'
+import AddCourtModal2 from './AddCourtModal2.vue'
 import AddCourtModal from './AddCourtModal.vue'
+import AddMatchModal from './AddMatchModal.vue'
 
 const map = ref(null)
 const markers = ref([])
 const searchMarker = ref(null)
 const firebaseCourts = ref([])
-const showAddCourtModal = ref(false)
+const showAddCourtModal2 = ref(false)    // For button ("Add Court")
+const showAddCourtModal = ref(false)     // For pin drop
 const showAddMatchModal = ref(false)
 const selectedCourt = ref(null)
 const selectedRegion = ref('all')
 const searchQuery = ref('')
-const isDroppingPin = ref(false)
 const newCourtCoords = ref({ lat: null, lon: null })
 const autocompleteInput = ref(null)
+const isDroppingPin = ref(false)
+const matchEventToShow = ref(null)
+const suggestions = ref([])
+
+watch(searchQuery, updateSuggestions)
+
+function updateSuggestions() {
+  const term = searchQuery.value.toLowerCase().trim()
+  if (!term) {
+    suggestions.value = []
+    console.log('No term, suggestions cleared')
+    return
+  }
+
+  suggestions.value = courts.filter(court =>
+    court.name.toLowerCase().includes(term) ||
+    court.keywords.some(k => k.toLowerCase().includes(term))
+  )
+  console.log('Suggestions updated:', suggestions.value)
+}
+
+function selectSuggestion(court) {
+  searchQuery.value = court.name
+  selectedCourt.value = court
+  suggestions.value = []
+
+  // Zoom map and pan to selected court coordinates
+  if (map.value && court.lat && court.lon) {
+    const position = { lat: court.lat, lng: court.lon }
+    map.value.setCenter(position)
+    map.value.setZoom(16)  // Adjust zoom level as needed
+
+    // Optional: add a marker or highlight on selected court
+    if (searchMarker.value) searchMarker.value.setMap(null)
+    searchMarker.value = new google.maps.Marker({
+      position,
+      map: map.value,
+      title: court.name,
+      icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' }
+    })
+  }
+
+  // Perform search or update markers if needed
+  handleSearch()
+}
+
+
+function handleSearch() {
+  const term = searchQuery.value.toLowerCase().trim()
+  if (!term) return
+
+  const matchedCourts = courts.filter(court =>
+    court.name.toLowerCase().includes(term) ||
+    court.region.toLowerCase().includes(term) ||
+    court.keywords.some(k => k.toLowerCase().includes(term))
+  )
+
+  addMarkers(matchedCourts)
+}
+
+function activatePinMode() {
+  isDroppingPin.value = true;
+  map.value.setOptions({
+    draggableCursor: 'url("https://maps.gstatic.com/mapfiles/ms2/micons/red-pushpin.png"), auto'
+  });
+}
+
+const displayedCourts = computed(() => {
+  const query = searchQuery.value.toLowerCase().trim()
+  const region = selectedRegion.value.toLowerCase()
+  return courts.filter(court =>
+    (region === 'all' || court.region.toLowerCase() === region) &&
+    (
+      !query ||
+      court.name.toLowerCase().includes(query) ||
+      court.region.toLowerCase().includes(query) ||
+      court.keywords.some(k => k.includes(query))
+    )
+  )
+})
 
 const basketballIcon =
   'data:image/svg+xml;charset=UTF-8,' +
@@ -99,24 +213,27 @@ const courts = [
   { name: 'Bishan Park Court', lat: 1.3622, lon: 103.8345, region: 'central', keywords: ['bishan', 'bishan park'] },
   { name: 'Tampines Street 81 Court', lat: 1.3521, lon: 103.944, region: 'east', keywords: ['tampines'] },
   { name: 'Jurong West Court', lat: 1.3399, lon: 103.7058, region: 'west', keywords: ['jurong', 'jurong west'] },
-  { name: 'Yishun Street 22 Court', lat: 1.4304, lon: 103.8358, region: 'north', keywords: ['yishun'] }
-]
-
-const courtNames = courts.map(court => court.name)
-
-const filteredSuggestions = computed(() => {
-  const query = searchQuery.value.toLowerCase().trim()
-  return query ? courtNames.filter(name => name.toLowerCase().includes(query)) : []
-})
+  { name: 'Yishun Street 22 Court', lat: 1.4304, lon: 103.8358, region: 'north', keywords: ['yishun'] },
+  { name: 'Bishan Sports Hall Court', lat: 1.3508, lon: 103.8482, region: 'central', keywords: ['bishan', 'bishan sports hall'] 
+}]
 
 const handleAddCourt = () => {
-  isDroppingPin.value = true
-  map.value.setOptions({
-    draggableCursor: 'url("https://maps.gstatic.com/mapfiles/ms2/micons/red-pushpin.png"), auto'
-  })
+  showAddCourtModal2.value = true; // This opens AddCourtModal2.vue
+}
+function openMatchModalFromEventCard() {
+  if (matchEventToShow.value) {
+    selectedCourt.value = { name: matchEventToShow.value.court }; // this is fine!
+    showAddMatchModal.value = true;
+  }
 }
 
-const handleAddMatch = () => (showAddMatchModal.value = true)
+
+
+
+const handleAddMatch = (court) => {
+  selectedCourt.value = court
+  showAddMatchModal.value = true
+}
 
 const loadCourtsFromFirebase = async () => {
   const data = await getDataFromFirebase('courts')
@@ -129,6 +246,17 @@ const loadCourtsFromFirebase = async () => {
 const addMarkers = courtsList => {
   markers.value.forEach(m => m.setMap(null))
   markers.value = []
+
+function showMatchCard(court) {
+  matchEventToShow.value = {
+    title: 'Create a New Match',
+    court: court.name,
+    date: '',
+    time: '',
+    type: 'Open'
+  }
+  selectedCourt.value = court
+}
 
   courtsList.forEach(court => {
     const marker = new google.maps.Marker({
@@ -148,22 +276,28 @@ const addMarkers = courtsList => {
           <strong>${court.name}</strong><br/>
           <em>Region:</em> ${court.region}<br/>
           <em>Coordinates:</em> ${court.lat.toFixed(4)}, ${court.lon.toFixed(4)}<br/>
-          <em>Availability:</em> Coming soon<br/>
-          <em>User Rating:</em> ★★★★☆
         </div>
       `
     })
 
-    marker.addListener('mouseover', () => infoWindow.open(map.value, marker))
-    marker.addListener('mouseout', () => infoWindow.close())
-    marker.addListener('click', () => {
+    // HOVER → show info window (court info only)
+    marker.addListener('mouseover', () => {
       infoWindow.open(map.value, marker)
-      selectedCourt.value = court
+    })
+    marker.addListener('mouseout', () => {
+      infoWindow.close()
+    })
+
+    // CLICK → show event card at bottom, do NOT open info window here
+    marker.addListener('click', () => {
+      showMatchCard(court)
     })
 
     markers.value.push(marker)
   })
 }
+
+
 
 const applyFilters = () => {
   const query = searchQuery.value.toLowerCase().trim()
@@ -198,16 +332,18 @@ onMounted(() => {
   loadCourtsFromFirebase()
 
   map.value.addListener('click', event => {
-    if (isDroppingPin.value) {
-      newCourtCoords.value = { lat: event.latLng.lat(), lon: event.latLng.lng() }
-      showAddCourtModal.value = true
-      isDroppingPin.value = false
-      map.value.setOptions({ draggableCursor: null })
-    } else {
-      map.value.setZoom(Math.min(map.value.getZoom() + 1, 20))
-      map.value.panTo(event.latLng)
-    }
-  })
+  if (isDroppingPin.value) {
+    newCourtCoords.value = { lat: event.latLng.lat(), lon: event.latLng.lng() }
+    showAddCourtModal.value = true
+    isDroppingPin.value = false
+    map.value.setOptions({ draggableCursor: null })
+  } else {
+    matchEventToShow.value = null // ✅ Clear match card
+    map.value.setZoom(Math.min(map.value.getZoom() + 1, 20))
+    map.value.panTo(event.latLng)
+  }
+})
+
 
   const autocomplete = new google.maps.places.Autocomplete(autocompleteInput.value, {
     types: ['geocode'],
@@ -243,10 +379,58 @@ onMounted(() => {
 </script>
 
 
+
 <style scoped>
+
+.suggestions-list {
+  position: absolute;
+  top: 100%;  /* directly below input */
+  left: 0;
+  width: 100%;
+  background: #262b33;
+  border-radius: 0 0 8px 8px; /* rounded bottom corners */
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+  padding: 0;
+  list-style: none;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 10;
+  margin-top: 0; /* no extra margin needed */
+}
+
+
+.suggestion-item {
+  padding: 10px 15px;
+  cursor: pointer;
+  color: #ddd;
+}
+
+.suggestion-item:hover {
+  background-color: #ffa733;
+  color: #181c23;
+}
+
+
+.match-event-card {
+  margin: 48px auto 0 auto;
+  max-width: 600px;
+  background: #232830;
+  border-radius: 12px;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.25);
+  color: #fff;
+  padding: 28px 36px;
+  font-size: 1.15rem;
+  border: 2px solid #ffa733;
+}
+.match-event-title {
+  color: orange;
+  font-size: 1.5rem;
+  margin-bottom: 12px;
+}
+
 .page-bg {
   min-height: 100vh;
-  background: #000000; 
+  background: #000000;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -316,18 +500,17 @@ onMounted(() => {
 }
 
 .search-input {
-  display: block;
-  width: 100%;
-  max-width: 390px;
-  margin: 0 auto 26px auto;
+  flex: 1;
   padding: 12px 16px;
-  border-radius: 10px;
+  border-radius: 10px 0 0 10px; /* rounded left corners */
   border: 1.5px solid #3b4252;
+  border-right: none; /* remove right border for seamless button */
   background: #22262d;
   color: #e6eef8;
   font-size: 1.08rem;
-  box-shadow: 0 1px 3px rgba(80,80,100,0.07);
+  box-shadow: 0 1px 3px rgba(80, 80, 100, 0.07);
   transition: border-color 0.2s;
+  outline: none;
 }
 .search-input::placeholder {
   color: #7e8899;
@@ -375,6 +558,11 @@ onMounted(() => {
   padding: 20px;
   box-shadow: 0 1px 5px rgba(30,30,40,0.14);
 }
+.card-section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 .section-title {
   font-size: 1.38rem;
   font-weight: 700;
@@ -386,6 +574,22 @@ onMounted(() => {
   font-size: 1.03rem;
   color: #b1b6c9;
   margin-bottom: 20px;
+}
+
+.pin-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  margin-left: 6px;
+  border-radius: 50%;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+}
+.pin-btn:hover, .pin-btn:focus {
+  background: #ffd59a3c;
+  outline: none;
 }
 
 .map-container {
@@ -428,7 +632,7 @@ onMounted(() => {
   color: #181c23;
 }
 
-/* Selected Court Card - keeps content cleanly separated below the map */
+/* Selected Court Card */
 .court-card {
   background-color: #232830;
   border-radius: 10px;
@@ -437,12 +641,15 @@ onMounted(() => {
   font-weight: 600;
   padding: 22px 32px;
   margin-top: 38px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
-
 .court-name {
   font-size: 1.22rem;
-  color: #ff9a3c;
+  font-weight: bold;
   margin-bottom: 8px;
+  color: orange;
 }
 
 .add-match-btn {
@@ -459,6 +666,35 @@ onMounted(() => {
 .add-match-btn:hover {
   background-color: #ffd59a;
   color: #232830;
+}
+.search-section {
+  position: relative;
+  display: flex;
+  align-items: center;
+  max-width: 390px;
+  margin: 0 auto 26px auto;
+}
+
+
+.search-dropdown {
+  flex: 1;
+  padding: 8px;
+  font-size: 16px;
+}
+
+.search-btn {
+  padding: 12px 20px;
+  background-color: #ff9500;
+  color: white;
+  border: none;
+  border-radius: 0 10px 10px 0; /* rounded right corners */
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1rem;
+  transition: background-color 0.3s;
+}
+.search-btn:hover {
+  background-color: #ffb751;
 }
 
 /* Responsive */
@@ -496,24 +732,6 @@ onMounted(() => {
   }
 }
 
-.court-card {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  background-color: #2c323a;
-  padding: 24px 32px;
-  border-radius: 0;
-  color: #dde3ea;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-  margin-top: 24px;
-}
-.court-name {
-  font-size: 1.2rem;
-  font-weight: bold;
-  margin-bottom: 8px;
-  color: orange;
-}
-
 @media (max-width: 768px) {
   .map-container { height: 300px; }
   .card-title { font-size: 1.8rem; }
@@ -521,4 +739,5 @@ onMounted(() => {
   .add-court-btn, .add-match-btn, .clear-btn { font-size: 0.8rem; padding: 5px 10px; }
 }
 </style>
+
   

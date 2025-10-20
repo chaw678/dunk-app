@@ -9,7 +9,7 @@
         <input type="text" v-model="matchTitle" placeholder="e.g., Weekend Hoops" />
 
         <label>Court</label>
-            <p class="court-display">{{ selectedCourt }}</p>
+            <p class="court-display">{{ courtName }}</p>
 
         <label>Date</label>
         <input type="date" v-model="matchDate" />
@@ -34,22 +34,14 @@
 <script setup>
 import { pushDataToFirebase } from '../firebase/firebase'
 import { ref } from 'vue'
+
 const props = defineProps({
   courtName: String
 })
 const matchTitle = ref('')
-const selectedCourt = ref(props.courtName || '')
 const matchDate = ref('')
 const matchTime = ref('')
 const matchType = ref('Open')
-
-const courts = [
-  'Singapore Sports Hub',
-  'Bishan ActiveSG Court',
-  'Tampines Street 81 Court',
-  'Jurong West Court',
-  'Yishun Street 22 Court'
-]
 
 const emit = defineEmits(['close'])
 
@@ -60,12 +52,11 @@ const closeModal = () => {
 const createMatch = async () => {
   const newMatch = {
     title: matchTitle.value,
-    court: selectedCourt.value,
+    court: props.courtName, // Use prop directly!
     date: matchDate.value,
     time: matchTime.value,
     type: matchType.value,
     createdAt: new Date().toISOString()
-    
   }
 
   try {
@@ -77,6 +68,7 @@ const createMatch = async () => {
   }
 }
 </script>
+
 
 <style scoped>
 .modal-overlay {
