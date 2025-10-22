@@ -1,6 +1,7 @@
 <template>
   <div class="modal-overlay" @click.self="closeModal">
     <div class="modal-content">
+      <button class="modal-close" @click="closeModal" aria-label="Close modal">&times;</button>
       <h2 class="modal-title">Create a New Match</h2>
       <p class="modal-desc">Fill in the details below to organize a new game.</p>
 
@@ -8,40 +9,82 @@
         <label>Match Title</label>
         <input type="text" v-model="matchTitle" placeholder="e.g., Weekend Hoops" />
 
-        <label>Court</label>
-            <p class="court-display">{{ courtName }}</p>
+        <label>Gender</label>
+        <div class="gender-options">
+          <label><input type="radio" value="All" v-model="gender"/> All</label>
+          <label><input type="radio" value="Female" v-model="gender"/> Female</label>
+          <label><input type="radio" value="Male" v-model="gender"/> Male</label>
+        </div>
+
+        <label class="d-flex align-items-center">Court
+          <small v-if="courtError" class="text-danger ms-2" style="font-weight:600;font-size:0.9rem;">{{ courtError }}</small>
+          <div v-if="validatingCourt" class="ms-2 spinner-sm" aria-hidden="true">
+            <div class="spinner-border spinner-border-sm text-warning" role="status"><span class="visually-hidden">Validating...</span></div>
+          </div>
+        </label>
+        <div v-if="courtList && courtList.length">
+          <select ref="courtSelectRef" v-model="selectedCourt">
+            <option value="" disabled>Select a court</option>
+            <option v-for="(c, i) in courtList" :key="i" :value="c.name">{{ c.name }}</option>
+          </select>
+        </div>
+        <div v-else>
+          <p class="court-display">{{ selectedCourt }}</p>
+        </div>
 
         <label>Date</label>
         <input type="date" v-model="matchDate" />
 
-        <label>Time</label>
-        <input type="time" v-model="matchTime" />
+        <label class="d-flex align-items-center">Match Timing
+          <small v-if="timingError" class="text-danger ms-2" style="font-weight:600;font-size:0.9rem;">{{ timingError }}</small>
+          <div v-if="checkingOverlap" class="ms-2 spinner-sm" aria-hidden="true">
+            <div class="spinner-border spinner-border-sm text-warning" role="status"><span class="visually-hidden">Checking...</span></div>
+          </div>
+        </label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="time" v-model="startTime" @change="autoFillEnd" />
+          <div style="padding:0 6px;color:#ddd">to</div>
+          <input type="time" v-model="endTime" />
+        </div>
 
         <label>Match Type (Skill Level)</label>
         <select v-model="matchType">
           <option value="Open">Open</option>
           <option value="Beginner">Beginner</option>
           <option value="Intermediate">Intermediate</option>
-          <option value="Advanced">Advanced</option>
+          <option value="Professional">Professional</option>
         </select>
 
-        <button type="submit" class="create-btn">Create Match</button>
+        <label>Number of Players</label>
+        <input type="number" v-model.number="maxPlayers" min="2" max="30" />
+
+  <button type="submit" class="create-btn" :disabled="!canSubmit || validatingCourt || checkingOverlap" :title="!canSubmit ? 'Fill required fields before creating' : (validatingCourt || checkingOverlap ? 'Validating...' : '')">Create Match</button>
       </form>
     </div>
   </div>
 </template>
 
 <script setup>
-import { pushDataToFirebase } from '../firebase/firebase'
-import { ref } from 'vue'
-
+import { pushDataToFirebase, getDataFromFirebase } from '../firebase/firebase'
+import { ref, computed } from 'vue'
 const props = defineProps({
-  courtName: String
+  courtName: String,
+  courtList: { type: Array, default: () => [] }
 })
 const matchTitle = ref('')
 const matchDate = ref('')
 const matchTime = ref('')
+const startTime = ref('')
+const endTime = ref('')
+const timingError = ref('')
+const validatingCourt = ref(false)
+const checkingOverlap = ref(false)
+const maxPlayers = ref(10)
+const courtError = ref('')
+const courtSelectRef = ref(null)
 const matchType = ref('Open')
+const gender = ref('All')
+
 
 const emit = defineEmits(['close'])
 
@@ -49,22 +92,169 @@ const closeModal = () => {
   emit('close')
 }
 
+function autoFillEnd() {
+  try {
+    if (!startTime.value) return
+    // parse startTime HH:MM, add 1 hour
+    const [hh, mm] = startTime.value.split(':').map(Number)
+    const dt = new Date()
+    dt.setHours(hh || 0)
+    dt.setMinutes(mm || 0)
+    dt.setSeconds(0)
+    dt.setMinutes(dt.getMinutes() + 60)
+    const nh = String(dt.getHours()).padStart(2, '0')
+    const nm = String(dt.getMinutes()).padStart(2, '0')
+    endTime.value = `${nh}:${nm}`
+  } catch (e) {}
+}
+
+function parseDateTime(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return null
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const [hh, mm] = timeStr.split(':').map(Number)
+  return new Date(y, m - 1, d, hh || 0, mm || 0, 0)
+}
+
+function rangesOverlap(aStart, aEnd, bStart, bEnd) {
+  if (!aStart || !aEnd || !bStart || !bEnd) return false
+  return aStart < bEnd && bStart < aEnd
+}
+
+function toSingaporeDateTimeISO(dateStr, timeStr) {
+  // parse local date/time (YYYY-MM-DD, HH:MM) and convert to Singapore timezone ISO string
+  if (!dateStr || !timeStr) return null
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const [hh, mm] = timeStr.split(':').map(Number)
+  // create UTC time offset by Singapore timezone (UTC+8) by constructing a Date in UTC
+  // We'll create a Date using Date.UTC then subtract the local timezone offset to normalize, then add +8 hours.
+  const utcMillis = Date.UTC(y, m - 1, d, hh || 0, mm || 0, 0)
+  const sgMillis = utcMillis + (8 * 60 * 60 * 1000)
+  return new Date(sgMillis).toISOString()
+}
+
+async function isTimingOverlap() {
+  timingError.value = ''
+  if (!selectedCourt.value || !matchDate.value || !startTime.value || !endTime.value) return false
+  const newStart = parseDateTime(matchDate.value, startTime.value)
+  const newEnd = parseDateTime(matchDate.value, endTime.value)
+  if (!newStart || !newEnd || newEnd <= newStart) {
+    timingError.value = 'Please provide a valid start and end time'
+    return true
+  }
+
+  try {
+    // matches reorganized by court/date: matches/{courtKey}/{YYYY-MM-DD}/{matchId}
+    const raw = await getDataFromFirebase(`matches/${encodeURIComponent(selectedCourt.value)}/${matchDate.value}`)
+    const data = raw
+    if (!data) return false
+    const matches = Object.entries(data).map(([id, v]) => ({ id, ...v }))
+    for (const m of matches) {
+      if (!m.court || !m.date) continue
+      if (m.court !== selectedCourt.value) continue
+      if (m.date !== matchDate.value) continue
+
+      let existStart = null
+      let existEnd = null
+      if (m.startTime && m.endTime) {
+        existStart = parseDateTime(m.date, m.startTime)
+        existEnd = parseDateTime(m.date, m.endTime)
+      } else if (m.time) {
+        existStart = parseDateTime(m.date, m.time)
+        existEnd = new Date(existStart.getTime())
+      }
+      if (existStart && existEnd) {
+        if (rangesOverlap(newStart, newEnd, existStart, existEnd)) {
+          timingError.value = 'There is already a match scheduled at this timing'
+          return true
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to fetch matches for overlap check', e)
+    return false
+  }
+  return false
+}
+
+const canSubmit = computed(() => {
+  if (!selectedCourt.value) return false
+  if (!matchDate.value) return false
+  if (!startTime.value || !endTime.value) return false
+  const s = parseDateTime(matchDate.value, startTime.value)
+  const e = parseDateTime(matchDate.value, endTime.value)
+  if (!s || !e) return false
+  if (e <= s) return false
+  return true
+})
+
 const createMatch = async () => {
+  // ensure court selected
+  courtError.value = ''
+  if (!selectedCourt.value) {
+    courtError.value = 'Please select a court'
+    try { courtSelectRef.value && courtSelectRef.value.focus() } catch(e){}
+    return
+  }
+
+  // server-side validate court exists in DB
+  try {
+    validatingCourt.value = true
+    const rawCourts = await getDataFromFirebase('courts')
+    let found = false
+    if (rawCourts) {
+      if (Array.isArray(rawCourts)) {
+        found = rawCourts.some(c => (c && (c.name || c.title) === selectedCourt.value))
+      } else {
+        // object map
+        for (const [k, v] of Object.entries(rawCourts)) {
+          if (!v) continue
+          if ((v.name === selectedCourt.value) || (v.title === selectedCourt.value) || (k === selectedCourt.value)) { found = true; break }
+        }
+      }
+    }
+    if (!found) {
+      courtError.value = 'Selected court not found — please pick an available court'
+      try { courtSelectRef.value && courtSelectRef.value.focus() } catch(e){}
+      validatingCourt.value = false
+      return
+    }
+  } catch (err) {
+    console.warn('Failed to validate court list', err)
+    // allow creation to proceed; it will likely fail on DB rules if invalid
+  }
+
+  checkingOverlap.value = true
+  const overlap = await isTimingOverlap()
+  checkingOverlap.value = false
+  if (overlap) return
+
   const newMatch = {
     title: matchTitle.value,
     court: props.courtName, // Use prop directly!
     date: matchDate.value,
-    time: matchTime.value,
+    time: startTime.value || matchTime.value,
+    startTime: startTime.value,
+    endTime: endTime.value,
+    startAtISO: toSingaporeDateTimeISO(matchDate.value, startTime.value),
+    endAtISO: toSingaporeDateTimeISO(matchDate.value, endTime.value),
     type: matchType.value,
+    gender: gender.value,
+    maxPlayers: maxPlayers.value || 10,
+    players: [],
+    joinedBy: {},
     createdAt: new Date().toISOString()
   }
 
   try {
-    await pushDataToFirebase('matches', newMatch)
+    // push under matches/{courtKey}/{YYYY-MM-DD}
+    const courtKey = encodeURIComponent(selectedCourt.value)
+    await pushDataToFirebase(`matches/${courtKey}/${matchDate.value}`, newMatch)
     alert('Match created and saved to Firebase!')
+    // notify parent to refresh list
+    emit('created')
     closeModal()
   } catch (error) {
-    alert('Failed to save match: ' + error.message)
+    alert('Failed to save match: ' + (error && error.message ? error.message : error))
   }
 }
 </script>
@@ -94,6 +284,20 @@ const createMatch = async () => {
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
 }
 
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  background: transparent;
+  border: none;
+  color: #cbd6df;
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.modal-close:hover { color: #fff }
+
 .modal-title {
   font-size: 1.8rem;
   color: orange;
@@ -110,6 +314,27 @@ form {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.gender-options {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.gender-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.02);
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  color: #dde3ea;
+}
+.gender-options input[type="radio"] {
+  width: 16px;
+  height: 16px;
 }
 
 label {

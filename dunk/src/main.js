@@ -61,5 +61,20 @@ window.addEventListener('unhandledrejection', (ev) => {
 	} catch (e) {
 		console.warn('Redirect handling failed', e)
 	}
+	// register a Vue error handler to capture component context for hard-to-find unmount errors
+	app.config.errorHandler = (err, vm, info) => {
+		try {
+			console.error('Vue error:', err, vm, info)
+			const compName = vm && vm.$options && (vm.$options.name || vm.$options._componentTag) ? (vm.$options.name || vm.$options._componentTag) : (vm && vm.$el && vm.$el.tagName) || 'unknown'
+			showErrorOverlay('Vue error:\n' + (err && (err.stack || err.message)) + '\ninfo: ' + info + '\ncomponent: ' + compName)
+		} catch (e) {
+			console.error('Failed to show Vue error overlay', e)
+		}
+	}
+
+	app.config.warnHandler = (msg, vm, trace) => {
+		try { console.warn('Vue warn:', msg, trace); } catch (e) {}
+	}
+
 	app.use(router).mount('#app')
 })()
