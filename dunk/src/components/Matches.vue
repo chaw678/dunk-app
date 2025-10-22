@@ -273,9 +273,20 @@ function visiblePlayers(arr) {
 
 function displayedPlayers(match) {
     if (!match) return []
-    if (match.playersMap && typeof match.playersMap === 'object') {
-        return Object.entries(match.playersMap).map(([uid, name]) => ({ uid, name, avatar: (usersCache.value[uid] && (usersCache.value[uid].photoURL || usersCache.value[uid].avatar)) || seededAvatar(name) }))
+    // Prefer deriving players from joinedBy map (uids) so we always show distinct users
+    if (match.joinedBy && typeof match.joinedBy === 'object') {
+        return Object.keys(match.joinedBy).map(uid => {
+            let name = (match.playersMap && match.playersMap[uid])
+            if (!name && usersCache.value && usersCache.value[uid]) {
+                const u = usersCache.value[uid]
+                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0])
+            }
+            if (!name) name = uid
+            const avatar = (usersCache.value && usersCache.value[uid] && (usersCache.value[uid].photoURL || usersCache.value[uid].avatar)) || seededAvatar(name)
+            return { uid, name, avatar }
+        })
     }
+    // fallback to legacy players array (names only)
     if (Array.isArray(match.players)) return match.players.map(name => ({ name, avatar: seededAvatar(name) }))
     return []
 }
@@ -299,12 +310,10 @@ async function joinMatch(match) {
     if (!currentUser.value) { alert('Please sign in to join'); return }
     if (!canJoin(match)) { alert('Your skill level is below the match requirement'); return }
     const uid = currentUser.value.uid
-    match.players = match.players || []
     match.joinedBy = match.joinedBy || {}
     if (match.joinedBy[uid]) return // already joined
-    // optimistic local update
-    match.players.push(currentUserProfile.value.name || currentUser.value.displayName || uid)
-    match.joinedBy[uid] = true
+    // optimistic local update: mark joinedBy (do not mutate legacy players array)
+    match.joinedBy = { ...(match.joinedBy || {}), [uid]: true }
     // persist only the joinedBy child and a playersMap entry to avoid race conditions and enable display names
     if (match.__dbPath) {
         try {
@@ -326,9 +335,10 @@ async function leaveMatch(match) {
     const uid = currentUser.value.uid
     match.joinedBy = match.joinedBy || {}
     if (!match.joinedBy[uid]) return
-    // optimistic local update
-    delete match.joinedBy[uid]
-    match.players = (match.players || []).filter(p => p !== (currentUserProfile.value.name || currentUser.value.displayName || uid))
+    // optimistic local update: remove from joinedBy; do not mutate legacy players array
+    const copyJoined = { ...(match.joinedBy || {}) }
+    delete copyJoined[uid]
+    match.joinedBy = copyJoined
     if (match.__dbPath) {
         try {
             const parts = match.__dbPath.split('/')
