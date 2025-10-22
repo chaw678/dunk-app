@@ -20,7 +20,7 @@
 
             <div class="row g-3 matches-grid">
                 <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in filteredMatches" :key="match?.id || idx">
-                    <div class="card match-card h-100 text-reset text-decoration-none">
+                    <router-link v-if="match" :to="match && match.id ? `/matches/${match.id}` : '#'" class="card match-card h-100 text-reset text-decoration-none">
                         <div class="card-body d-flex flex-column h-100 p-4">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
@@ -28,24 +28,23 @@
                                     <div class="match-sub small">{{ match.location }}</div>
                                 </div>
                                 <div class="text-end text-warning fw-bold small">
-                                    <i class="bi bi-people-fill me-1"></i> {{ Object.keys(match.joinedBy || {}).length || (match.players || []).length }}/{{ match.maxPlayers || 10 }}
+                                    <i class="bi bi-people-fill me-1"></i> {{ (match.players || []).length }}/{{ match.maxPlayers || 0 }}
                                 </div>
                             </div>
 
-                            <div class="match-meta-row mb-3">
-                                <div class="time-range">{{ formatTimeRange(match) }}</div>
-                                <div class="meta-pill">{{ match.gender || 'All' }}</div>
-                                <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-                                <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+                            <div class="match-meta mb-3">{{ match.time }}</div>
+
+                            <div class="mb-3">
+                                <span class="badge bg-secondary me-2">{{ match.level }}</span>
+                                <span class="badge bg-warning text-dark">{{ match.visibility }}</span>
                             </div>
 
                             <div class="avatars mb-3">
-                                <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
-                                    <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
-                                        <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
-                                        <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
+                                <div class="avatar-stack me-2">
+                                    <template v-for="(name, i) in visiblePlayers(match.players || [])" :key="i">
+                                        <span class="avatar-initial">{{ initials(name) }}</span>
                                     </template>
-                                    <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
+                                    <span v-if="(match.players || []).length > maxAvatars" class="avatar extra">+{{ (match.players || []).length - maxAvatars }}</span>
                                 </div>
                             </div>
 
@@ -59,76 +58,30 @@
                                         <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!canJoin(match)" @click.prevent="joinMatch(match)">Join</button>
                                     </template>
                                 </div>
-                                <div><!-- avatars are clickable; removed View button --></div>
+                                <div>
+                                    <button class="btn btn-link text-white-50 small">View</button>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    </router-link>
                 </div>
             </div>
         </div>
-
-        <!-- render modal inside template so Vue can mount it -->
-        <AddMatchModal v-if="showAddMatchModal" :courtList="courts" @close="showAddMatchModal = false" @created="(async () => { await loadMatches(); showAddMatchModal=false })()" />
-        <JoinedPlayersModal v-if="showPlayersModal" :players="activePlayers" :title="activeTitle" @close="closePlayersModal" />
     </div>
+
+    <!-- render modal inside template so Vue can mount it -->
+    <AddMatchModal v-if="showAddMatchModal" :courtList="courts" @close="showAddMatchModal = false" @created="(async () => { await loadMatches(); showAddMatchModal=false })()" />
+
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getDataFromFirebase, pushDataToFirebase, overwriteDataToFirebase, setChildData, deleteChildData } from '../firebase/firebase'
+import { getDataFromFirebase, pushDataToFirebase, overwriteDataToFirebase } from '../firebase/firebase'
 import { onUserStateChanged } from '../firebase/auth'
+import { getDataFromFirebase as getDb } from '../firebase/firebase'
 import AddMatchModal from './AddMatchModal.vue'
-import JoinedPlayersModal from './JoinedPlayersModal.vue'
+
 const maxAvatars = 6
-const usersCache = ref({})
-
-function seededAvatar(name) {
-    const username = name || 'anon'
-    return `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(username)}`
-}
-
-async function loadUsers() {
-    try {
-        const udata = await getDataFromFirebase('users')
-        usersCache.value = udata || {}
-    } catch (e) {
-        usersCache.value = {}
-    }
-}
-const showPlayersModal = ref(false)
-const activePlayers = ref([])
-const activeTitle = ref('')
-
-function openPlayersModal(match) {
-    const out = []
-    // If match.joinedBy is a map of uid:true, prefer listing by uid
-    if (match && match.joinedBy && typeof match.joinedBy === 'object') {
-        for (const uid of Object.keys(match.joinedBy)) {
-            // prefer playersMap which stores name by uid
-            let name = (match.playersMap && match.playersMap[uid])
-            // fallback to user record in users cache (if available)
-            if (!name && usersCache.value && usersCache.value[uid]) {
-                const u = usersCache.value[uid]
-                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0])
-            }
-            // final fallback to uid
-            if (!name) name = uid
-            const avatar = (usersCache.value && usersCache.value[uid] && (usersCache.value[uid].photoURL || usersCache.value[uid].avatar)) || seededAvatar(name)
-            out.push({ uid, name, avatar })
-        }
-    } else if (Array.isArray(match.players)) {
-        for (const name of match.players) out.push({ name, uid: undefined, avatar: seededAvatar(name) })
-    }
-    activePlayers.value = out
-    activeTitle.value = match.title || 'Players'
-    showPlayersModal.value = true
-}
-
-function closePlayersModal() {
-    showPlayersModal.value = false
-    activePlayers.value = []
-    activeTitle.value = ''
-}
 
 // demo data: players is an array of player names (you'll replace this with Firebase data)
 // const matches = ref([
@@ -173,7 +126,6 @@ const currentUser = ref(null)
 const currentUserProfile = ref({ skill: 'Open', gender: 'All' })
 
 onMounted(async () => {
-    await loadUsers()
     await loadMatches()
     await loadCourts()
     // listen for auth state and load user profile
@@ -195,31 +147,9 @@ onMounted(async () => {
 async function loadMatches() {
     try {
         const data = await getDataFromFirebase('matches')
-        const out = []
-        if (!data) {
-            matches.value = []
-            return
-        }
-        // detect nested structure matches/{court}/{date}/{id}
-        if (typeof data === 'object') {
-            for (const [k1, v1] of Object.entries(data)) {
-                if (!v1) continue
-                // v1 could be { '2025-10-19': { id1: {...}, id2: {...} }, ... }
-                if (typeof v1 === 'object') {
-                    for (const [k2, v2] of Object.entries(v1)) {
-                        if (!v2) continue
-                        // v2 may be an object of matches
-                        if (typeof v2 === 'object') {
-                            for (const [mid, mv] of Object.entries(v2)) {
-                                const copy = { id: mid, __dbPath: `matches/${encodeURIComponent(k1)}/${k2}/${mid}`, ...mv }
-                                out.push(copy)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        matches.value = out
+        if (!data) matches.value = []
+        else if (Array.isArray(data)) matches.value = data
+        else matches.value = Object.entries(data).map(([id, v]) => ({ id, ...v }))
     } catch (err) {
         console.error('Failed to load matches', err)
         matches.value = []
@@ -267,17 +197,7 @@ const filteredMatches = computed(() => {
 })
 
 function visiblePlayers(arr) {
-    if (!arr) return []
     return arr.slice(0, maxAvatars)
-}
-
-function displayedPlayers(match) {
-    if (!match) return []
-    if (match.playersMap && typeof match.playersMap === 'object') {
-        return Object.entries(match.playersMap).map(([uid, name]) => ({ uid, name, avatar: (usersCache.value[uid] && (usersCache.value[uid].photoURL || usersCache.value[uid].avatar)) || seededAvatar(name) }))
-    }
-    if (Array.isArray(match.players)) return match.players.map(name => ({ name, avatar: seededAvatar(name) }))
-    return []
 }
 
 const skillOrder = ['Open', 'Beginner', 'Intermediate', 'Professional']
@@ -302,18 +222,12 @@ async function joinMatch(match) {
     match.players = match.players || []
     match.joinedBy = match.joinedBy || {}
     if (match.joinedBy[uid]) return // already joined
-    // optimistic local update
     match.players.push(currentUserProfile.value.name || currentUser.value.displayName || uid)
     match.joinedBy[uid] = true
-    // persist only the joinedBy child and a playersMap entry to avoid race conditions and enable display names
-    if (match.__dbPath) {
+    // persist
+    if (match.id) {
         try {
-            const parts = match.__dbPath.split('/')
-            const id = parts.pop()
-            const path = parts.join('/')
-            const displayName = currentUserProfile.value.name || currentUser.value.displayName || uid
-            await setChildData(`${path}/${id}/joinedBy`, uid, true)
-            await setChildData(`${path}/${id}/playersMap`, uid, displayName)
+            await overwriteDataToFirebase(match.id, 'matches', match)
         } catch (e) {
             console.error('Failed to join match', e)
             alert('Failed to join — try again')
@@ -326,16 +240,11 @@ async function leaveMatch(match) {
     const uid = currentUser.value.uid
     match.joinedBy = match.joinedBy || {}
     if (!match.joinedBy[uid]) return
-    // optimistic local update
     delete match.joinedBy[uid]
     match.players = (match.players || []).filter(p => p !== (currentUserProfile.value.name || currentUser.value.displayName || uid))
-    if (match.__dbPath) {
+    if (match.id) {
         try {
-            const parts = match.__dbPath.split('/')
-            const id = parts.pop()
-            const path = parts.join('/')
-            await deleteChildData(`${path}/${id}/joinedBy`, uid)
-            await deleteChildData(`${path}/${id}/playersMap`, uid)
+            await overwriteDataToFirebase(match.id, 'matches', match)
         } catch (e) {
             console.error('Failed to leave match', e)
             alert('Failed to leave — try again')
@@ -351,21 +260,6 @@ function isJoined(match) {
 function initials(name) {
     if (!name) return ''
     return name.split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase()
-}
-
-const formatTimeRange = (match) => {
-    // prefer startTime/endTime, fall back to time
-    if (!match) return ''
-    if (match.startTime && match.endTime) return `${match.startTime} — ${match.endTime}`
-    if (match.startAtISO && match.endAtISO) {
-        try {
-            const s = new Date(match.startAtISO)
-            const e = new Date(match.endAtISO)
-            return `${s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — ${e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-        } catch (err) { console.warn('formatTimeRange parse error', err) }
-    }
-    if (match.time) return match.time
-    return ''
 }
 
 // pushDataToFirebase('TEST', 123);
@@ -491,11 +385,6 @@ const formatTimeRange = (match) => {
     color: #cbd6df
 }
 
-.match-meta-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; color:#cbd6df }
-.match-meta-row .time-range { font-weight:600; color:#fff }
-.meta-pill { background: rgba(255,255,255,0.03); padding:6px 10px; border-radius:8px; font-size:0.85rem; color:#cbd6df }
-.meta-pill.badge-type { background: rgba(255,154,60,0.12); color:#ffb26a }
-
 .badges {
     margin-top: 12px
 }
@@ -519,9 +408,6 @@ const formatTimeRange = (match) => {
 .avatar-stack .avatar-initial { width:36px; height:36px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#1f262b; color:#fff; font-weight:700; border:2px solid rgba(0,0,0,0.6); margin-left:-12px; font-size:0.85rem }
 .avatar-stack .avatar-initial:first-child { margin-left:0 }
 .avatar-stack .avatar.extra { margin-left:8px; background:#2b2f33; width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; font-size:0.85rem }
-
-/* image avatar style (match initials look) */
-.avatar-img { width:36px; height:36px; border-radius:50%; object-fit:cover; border:2px solid rgba(0,0,0,0.6); margin-left:-12px }
 
 
 .players {
