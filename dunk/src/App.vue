@@ -45,10 +45,7 @@ const collapsed = ref(false)
   background: black;
   color: #fff;
 }
-@font-face {
-  font-family: SuperShiny;
-  src: url(./assets/SuperShiny.ttf); 
-}
+
 
 .main-content {
   min-width: 0;
@@ -95,11 +92,11 @@ main {
 }
 
 .topbar .top-title{
-  margin-top: 3px;
+
   margin-left: -5px;
-  transform: scale(1.6); /* makes text appear 30% larger */
+  transform: scale(1.2); /* makes text appear 30% larger */
   transform-origin: left center; /* so it doesn’t shift weirdly */
-  font-family: SuperShiny;
+  font-family: 'Saira Semi Condensed', sans-serif;
 }
 
 .brand-left {
