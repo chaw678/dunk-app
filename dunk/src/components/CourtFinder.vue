@@ -298,10 +298,7 @@ if (data) {
   firebaseList = Object.entries(data).map(([id, court]) => ({
     id,
     name: court.name ?? '',
-    // keep original region raw value but also compute a normalized region string
     region: ((court.region ?? '') + '').toString().toLowerCase().trim(),
-    // support comma-separated/multi-region values by creating a normalizedRegions array
-    normalizedRegions: (((court.region ?? '') + '').toString().split(',').map(s => (s || '').toString().toLowerCase().trim()).filter(Boolean)),
     lat: Number(court.lat),
     lon: Number(court.lon),
     keywords: court.keywords ?? [],
@@ -312,7 +309,6 @@ if (data) {
 const localNormalized = courts.map(c => ({
   ...c,
   region: ((c.region ?? '') + '').toString().toLowerCase().trim(),
-  normalizedRegions: (((c.region ?? '') + '').toString().split(',').map(s => (s || '').toString().toLowerCase().trim()).filter(Boolean)),
   lat: Number(c.lat),
   lon: Number(c.lon),
   keywords: c.keywords ?? []
@@ -322,14 +318,6 @@ allCourts.value = [...firebaseList, ...localNormalized];
 console.debug('[loadCourtsFromFirebase] loaded', allCourts.value.length, 'courts', allCourts.value.map(x => ({ name: x.name, region: x.region })));
 applyFilters();
 };
-
-// Helper: return normalized regions array for a court (always lower-case, trimmed)
-function getCourtRegions(court) {
-  if (!court) return []
-  if (Array.isArray(court.normalizedRegions) && court.normalizedRegions.length) return court.normalizedRegions
-  if (court.region) return ((court.region + '').toString().split(',').map(s => (s || '').toString().toLowerCase().trim()).filter(Boolean))
-  return []
-}
 
 
 
@@ -535,9 +523,8 @@ let filtered = (allCourts.value || []).slice();
 if (!activeRegions.includes('all')) {
   const set = new Set(activeRegions.filter(Boolean));
   filtered = filtered.filter(c => {
-    const regions = getCourtRegions(c);
-    if (!regions || !regions.length) return false;
-    return regions.some(rr => set.has(rr));
+    const r = ((c.region ?? '') + '').toString().toLowerCase().trim();
+    return r && set.has(r);
   });
 }
 

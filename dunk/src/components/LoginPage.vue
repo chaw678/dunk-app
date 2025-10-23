@@ -279,6 +279,28 @@ async function handleLogout() {
     console.error(e)
   }
 }
+
+// Match statistics helpers (reads from the realtime user record)
+const statsFromProfile = computed(() => {
+  const s = user.value && (user.value.statistics || user.value.stats) ? (user.value.statistics || user.value.stats) : {}
+  return {
+    open_wins: Number(s.open_wins || 0),
+    intermediate_wins: Number(s.intermediate_wins || 0),
+    professional_wins: Number(s.professional_wins || 0)
+  }
+})
+
+const totalWins = computed(() => {
+  const s = statsFromProfile.value
+  return s.open_wins + s.intermediate_wins + s.professional_wins
+})
+
+function barHeight(value) {
+  const max = Math.max(1, statsFromProfile.value.open_wins, statsFromProfile.value.intermediate_wins, statsFromProfile.value.professional_wins)
+  const pct = value / Math.max(1, max)
+  const px = Math.round(30 + pct * 190)
+  return `${px}px`
+}
 </script>
 
 <template>
@@ -434,6 +456,34 @@ async function handleLogout() {
     </div>
   </div>
 </div>
+
+      <!-- Match Statistics -->
+      <div class="mb-4 px-3">
+        <h5>Match Statistics</h5>
+        <p class="text-muted">You have a total of <span class="text-warning fw-semibold">{{ totalWins }}</span> wins across all skill levels. Here's the breakdown:</p>
+
+        <div class="match-stats-card border rounded-3 p-3 mt-2">
+          <div class="stats-chart d-flex align-items-end justify-content-between">
+            <div class="chart-bar">
+              <div class="bar-fill" :style="{ height: barHeight(statsFromProfile.open_wins) }" aria-hidden="true"></div>
+              <div class="bar-value">{{ statsFromProfile.open_wins }}</div>
+              <div class="bar-label">Open</div>
+            </div>
+
+            <div class="chart-bar">
+              <div class="bar-fill" :style="{ height: barHeight(statsFromProfile.intermediate_wins) }" aria-hidden="true"></div>
+              <div class="bar-value">{{ statsFromProfile.intermediate_wins }}</div>
+              <div class="bar-label">Intermediate</div>
+            </div>
+
+            <div class="chart-bar">
+              <div class="bar-fill" :style="{ height: barHeight(statsFromProfile.professional_wins) }" aria-hidden="true"></div>
+              <div class="bar-value">{{ statsFromProfile.professional_wins }}</div>
+              <div class="bar-label">Professional</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Following & Followers -->
       <div class="row gx-3 justify-content-center mb-3">
@@ -645,6 +695,14 @@ async function handleLogout() {
         color: #FFD75C;
       }
 
+
+      /* Match statistics chart */
+      .match-stats-card { background: #0F1113; border: 1px solid rgba(255,255,255,0.04); }
+      .stats-chart { gap: 18px; }
+      .chart-bar { flex: 1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding:8px }
+      .bar-fill { width: 60%; background: #FFAD1D; border-radius: 6px 6px 0 0; transition: height 300ms ease; }
+      .bar-value { color: #fff; font-weight:700; margin-top:8px }
+      .bar-label { color:#9CA3AF; margin-top:6px; font-size:0.9rem }
 
 
 </style>
