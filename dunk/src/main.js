@@ -4,8 +4,11 @@ import './style.css'
 import App from './App.vue' 
 import 'bootstrap/dist/css/bootstrap.min.css'
 import { handleRedirectResult } from './firebase/auth'
+import popupBus from './utils/popupBus'
 
-const app = createApp(App) 
+const app = createApp(App)
+// expose popup bus as a global property $popup
+app.config.globalProperties.$popup = popupBus
 // Temporary: show runtime errors on the page to avoid a white screen
 function createErrorOverlay() {
 	let el = document.getElementById('__error_overlay__')

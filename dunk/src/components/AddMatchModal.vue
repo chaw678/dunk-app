@@ -1,7 +1,18 @@
 <template>
-  <div class="modal-overlay" @click.self="closeModal">
+  <div>
+    <div v-if="showPopup" class="success-overlay" @click="handlePopupClose">
+      <div class="success-popup">
+        <div class="success-icon" v-if="popupType === 'success'">✓</div>
+        <div class="success-icon" v-else style="background:#e04747">✕</div>
+        <h3>{{ popupType === 'success' ? 'Success!' : 'Error' }}</h3>
+        <p>{{ popupMessage }}</p>
+        <button class="success-btn" @click="handlePopupClose">Close</button>
+      </div>
+    </div>
+
+    <div class="modal-overlay" @click="handleOverlayClick">
     <div class="modal-content">
-      <button class="modal-close" @click="closeModal" aria-label="Close modal">&times;</button>
+      <button class="modal-close" @click.prevent="closeModal" aria-label="Close modal">&times;</button>
       <h2 class="modal-title">Create a New Match</h2>
       <p class="modal-desc">Fill in the details below to organize a new game.</p>
 
@@ -62,11 +73,12 @@
       </form>
     </div>
   </div>
+  </div>
 </template>
 
 <script setup>
 import { pushDataToFirebase, getDataFromFirebase } from '../firebase/firebase'
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 const props = defineProps({
   courtName: String,
   courtList: { type: Array, default: () => [] }
@@ -85,8 +97,31 @@ const courtSelectRef = ref(null)
 const matchType = ref('Open')
 const gender = ref('All')
 const selectedCourt = ref(props.courtName || '')
+const showPopup = ref(false)
+const popupMessage = ref('')
+const popupType = ref('success') // 'success' | 'error'
 
 const emit = defineEmits(['close'])
+
+const handlePopupClose = () => {
+  showPopup.value = false
+  if (popupType.value === 'success') {
+    emit('created')
+    closeModal()
+  }
+}
+// Clear timing error when relevant fields change
+watch([selectedCourt, matchDate, startTime, endTime], () => {
+  timingError.value = ''
+  checkingOverlap.value = false
+})
+
+const handleOverlayClick = (event) => {
+  // Only close if clicking the overlay itself, not its children
+  if (event.target === event.currentTarget) {
+    closeModal()
+  }
+}
 
 const closeModal = () => {
   emit('close')
@@ -134,11 +169,18 @@ function toSingaporeDateTimeISO(dateStr, timeStr) {
 
 async function isTimingOverlap() {
   timingError.value = ''
-  if (!selectedCourt.value || !matchDate.value || !startTime.value || !endTime.value) return false
+  checkingOverlap.value = true // Set to true at start
+
+  if (!selectedCourt.value || !matchDate.value || !startTime.value || !endTime.value) {
+    checkingOverlap.value = false
+    return false
+  }
+  
   const newStart = parseDateTime(matchDate.value, startTime.value)
   const newEnd = parseDateTime(matchDate.value, endTime.value)
   if (!newStart || !newEnd || newEnd <= newStart) {
     timingError.value = 'Please provide a valid start and end time'
+    checkingOverlap.value = false
     return true
   }
 
@@ -165,14 +207,17 @@ async function isTimingOverlap() {
       if (existStart && existEnd) {
         if (rangesOverlap(newStart, newEnd, existStart, existEnd)) {
           timingError.value = 'There is already a match scheduled at this timing'
+          checkingOverlap.value = false
           return true
         }
       }
     }
   } catch (e) {
     console.warn('Failed to fetch matches for overlap check', e)
+    checkingOverlap.value = false
     return false
   }
+  checkingOverlap.value = false // Make sure it's reset before returning
   return false
 }
 
@@ -188,16 +233,19 @@ const canSubmit = computed(() => {
 })
 
 const createMatch = async () => {
-  // ensure court selected
-  courtError.value = ''
-  if (!selectedCourt.value) {
-    courtError.value = 'Please select a court'
-    try { courtSelectRef.value && courtSelectRef.value.focus() } catch(e){}
-    return
-  }
-
-  // server-side validate court exists in DB
   try {
+    // Reset all error states
+    courtError.value = ''
+    timingError.value = ''
+    
+    // ensure court selected
+    if (!selectedCourt.value) {
+      courtError.value = 'Please select a court'
+      try { courtSelectRef.value && courtSelectRef.value.focus() } catch(e){}
+      return
+    }
+
+    // server-side validate court exists in DB
     validatingCourt.value = true
     const rawCourts = await getDataFromFirebase('courts')
     let found = false
@@ -212,49 +260,51 @@ const createMatch = async () => {
         }
       }
     }
+    validatingCourt.value = false
+    
     if (!found) {
       courtError.value = 'Selected court not found — please pick an available court'
       try { courtSelectRef.value && courtSelectRef.value.focus() } catch(e){}
-      validatingCourt.value = false
       return
     }
-  } catch (err) {
-    console.warn('Failed to validate court list', err)
-    // allow creation to proceed; it will likely fail on DB rules if invalid
-  }
 
-  checkingOverlap.value = true
-  const overlap = await isTimingOverlap()
-  checkingOverlap.value = false
-  if (overlap) return
+    // Check for time overlap
+    const overlap = await isTimingOverlap()
+    if (overlap) {
+      return
+    }
 
-  const newMatch = {
-    title: matchTitle.value,
-    court: selectedCourt.value,
-    date: matchDate.value,
-    time: startTime.value || matchTime.value,
-    startTime: startTime.value,
-    endTime: endTime.value,
-    startAtISO: toSingaporeDateTimeISO(matchDate.value, startTime.value),
-    endAtISO: toSingaporeDateTimeISO(matchDate.value, endTime.value),
-    type: matchType.value,
-    gender: gender.value,
-    maxPlayers: maxPlayers.value || 10,
-    players: [],
-    joinedBy: {},
-    createdAt: new Date().toISOString()
-  }
+    const newMatch = {
+      title: matchTitle.value || 'Match at ' + selectedCourt.value,
+      court: selectedCourt.value,
+      date: matchDate.value,
+      time: startTime.value || matchTime.value,
+      startTime: startTime.value,
+      endTime: endTime.value,
+      startAtISO: toSingaporeDateTimeISO(matchDate.value, startTime.value),
+      endAtISO: toSingaporeDateTimeISO(matchDate.value, endTime.value),
+      type: matchType.value,
+      gender: gender.value,
+      maxPlayers: maxPlayers.value || 10,
+      players: [],
+      joinedBy: {},
+      createdAt: new Date().toISOString()
+    }
 
-  try {
     // push under matches/{courtKey}/{YYYY-MM-DD}
     const courtKey = encodeURIComponent(selectedCourt.value)
     await pushDataToFirebase(`matches/${courtKey}/${matchDate.value}`, newMatch)
-    alert('Match created and saved to Firebase!')
-    // notify parent to refresh list
-    emit('created')
-    closeModal()
+    popupType.value = 'success'
+    popupMessage.value = 'Match created and saved successfully.'
+    showPopup.value = true
   } catch (error) {
-    alert('Failed to save match: ' + (error && error.message ? error.message : error))
+    console.error('Failed to save match:', error)
+    popupType.value = 'error'
+    popupMessage.value = 'Failed to save match: ' + (error && error.message ? error.message : String(error))
+    showPopup.value = true
+    // Reset loading states in case of error
+    validatingCourt.value = false
+    checkingOverlap.value = false
   }
 }
 </script>
@@ -271,17 +321,24 @@ const createMatch = async () => {
   display: flex;
   justify-content: center;
   align-items: center;
+  /* allow overlay to scroll when content is taller than viewport */
+  overflow-y: auto;
+  padding: 20px 12px;
   z-index: 1000;
 }
 
 .modal-content {
   background-color: #2c323a;
-  padding: 32px;
+  padding: 28px;
   border-radius: 12px;
   width: 100%;
-  max-width: 480px;
+  max-width: 520px;
   color: #dde3ea;
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
+  /* ensure modal content never exceeds viewport height; make it scroll internally */
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
 }
 
 .modal-close {
@@ -365,5 +422,83 @@ select {
 
 .create-btn:hover {
   background-color: #ffa733;
+}
+
+.success-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(24, 28, 35, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1100;
+}
+
+.success-popup {
+  background-color: #2c323a;
+  padding: 28px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 520px;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-sizing: border-box;
+  /* Make sure popup never exceeds viewport height and becomes scrollable instead */
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.success-icon {
+  width: 60px;
+  height: 60px;
+  background: #4CAF50;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  font-size: 32px;
+  color: white;
+}
+
+.success-popup h3 {
+  color: orange;
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.success-popup p {
+  color: #dde3ea;
+  margin-bottom: 24px;
+}
+
+.success-btn {
+  background-color: orange;
+  color: #181c23;
+  font-weight: bold;
+  padding: 10px 28px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.success-btn:hover {
+  background-color: #ffa733;
+}
+
+/* Responsive tweaks so popup is usable on small screens */
+@media (max-width: 520px) {
+  .success-popup {
+    padding: 16px;
+    max-width: 92vw;
+    max-height: calc(100vh - 32px);
+  }
+  .success-icon { width: 48px; height:48px; font-size:22px; margin-bottom:12px }
+  .success-popup p { margin-bottom: 16px }
+  .success-btn { display:block; width:100%; padding:10px 12px }
 }
 </style>
