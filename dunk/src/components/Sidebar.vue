@@ -76,8 +76,6 @@ function toggle() {
   --main-yellow: #ffd59a;
 }
 
-
-
 /* sidebar outer */
 .sidebar {
   position: fixed;
@@ -90,9 +88,8 @@ function toggle() {
   align-items: stretch;
   transition: width 0.3s ease;
   background: var(--main-dark);
-  border-right: 2px solid rgba(255, 255, 255, 0.07); /* <--- added */
+  border-right: 2px solid rgba(255, 255, 255, 0.07);
 }
-
 
 .sidebar.collapsed {
   width: var(--sidebar-collapsed-width);
@@ -162,7 +159,7 @@ function toggle() {
 }
 
 .nav-item:hover {
-  background: rgba(255, 154, 60, 0.06); /* Soft orange */
+  background: rgba(255, 154, 60, 0.06);
 }
 
 .router-link-active {
@@ -180,5 +177,32 @@ function toggle() {
   gap: 12px;
   padding: 20px 0;
   font-size: 16px;
+}
+
+/* Responsive: Ensure sidebar stays visible on small screens */
+@media (max-width: 720px) {
+  .sidebar {
+    /* Keep sidebar visible - don't hide it */
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  /* Optional: Auto-collapse on mobile for more space */
+  .sidebar:not(.collapsed) {
+    width: var(--sidebar-width);
+  }
+}
+
+/* Extra small screens - you might want it collapsed by default */
+@media (max-width: 480px) {
+  /* Sidebar stays visible but you can adjust width if needed */
+  .sidebar {
+    width: var(--sidebar-collapsed-width);
+  }
+  
+  .sidebar:not(.collapsed) {
+    width: var(--sidebar-width);
+  }
 }
 </style>

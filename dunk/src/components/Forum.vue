@@ -965,13 +965,64 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.page { padding: 24px; color: black; }
+.page {
+  padding: 32px;
+  background: #181c23;
+  color: #eaf0f6;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+}
 
-.forum-header { padding: 6px 0 12px 0 }
-.forum-header-inner { display:flex; justify-content:space-between; align-items:center }
-.forum-title { color: #ff9a3c; font-weight:800; font-size:1.6rem; margin:0 }
-.forum-sub { color: #9fb0bf; margin-top:6px }
-.forum-tabs .tabs-container { display:inline-flex; gap:8px; background: rgba(255,255,255,0.02); padding:6px; border-radius:12px }
+/* Card and message containers */
+.forum-item .card {
+  background: #232830;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(18,24,34,0.11);
+  padding: 18px;
+  margin-bottom: 22px;
+  border: none;
+  transition: box-shadow 0.18s;
+}
+.forum-item .card:hover {
+  box-shadow: 0 4px 16px rgba(33, 33, 33, 0.14);
+}
+/* Header styles */
+.forum-header {
+  padding: 6px 0 12px 0;
+}
+.forum-header-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.forum-title {
+  color: #ff9a3c;
+  font-weight: 800;
+  font-size: 1.6rem;
+  margin: 0;
+}
+.forum-sub {
+  color: #9fb0bf;
+  margin-top: 6px;
+}
+
+/* Tabs container */
+.forum-tabs .tabs-container {
+  display: inline-flex;
+  gap: 8px;
+  background: rgba(255,255,255,0.02);
+  padding: 6px;
+  border-radius: 12px;
+}
+
+
+/* User row */
+.forum-message-row, .comment-item, .reply-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
 .tab-btn {
   background: transparent;
   border: none;
@@ -992,6 +1043,8 @@ onUnmounted(() => {
   transform: translateY(-2px);
 }
 .tab-btn:focus { outline: none }
+
+/* File image styling */
 .file-thumb {
   width: auto;
   max-width: 84%;
@@ -1023,8 +1076,15 @@ onUnmounted(() => {
   font-size: 1.6rem;
 }
 
-/* thumbnail overlay */
-.thumb-wrap { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer }
+/* Thumbnail overlay on hover */
+.thumb-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
 .thumb-overlay {
   position: absolute;
   inset: 0;
@@ -1037,14 +1097,14 @@ onUnmounted(() => {
   border-radius: 10px;
 }
 .thumb-wrap:hover .thumb-overlay { opacity: 1 }
-.eye-icon { color: white; width: 36px; height: 36px }
+.eye-icon { color: white; width: 36px; height: 36px; }
 
-/* Keep a consistent image height on wider screens */
+/* Responsive image height */
 @media (min-width: 768px) {
   .file-thumb { max-height: 260px; }
 }
 
-/* Ensure card content is left-aligned and body grows to match card height */
+/* Upload card styling */
 .upload-card {
   display: flex;
   flex-direction: column;
@@ -1070,6 +1130,7 @@ onUnmounted(() => {
   max-height: calc(1.25em * 2);
 }
 
+/* Card divider */
 .card-divider {
   height: 1px;
   width: 100%;
@@ -1078,16 +1139,46 @@ onUnmounted(() => {
   border-radius: 1px;
 }
 
-.forum-list { display: flex; flex-direction: column; gap: 18px; }
-.forum-item .card { padding: 14px; border-radius: 10px; }
-.post-media { margin-top: 8px }
-.post-image { width: 100%; height: auto; border-radius: 10px; display: block }
-.avatar img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover }
-.avatar { width: 36px; height: 36px; overflow: hidden }
-.like-btn { color: inherit }
-.like-area { display:inline-flex; align-items:center; gap:6px }
+/* Forum list */
+.forum-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.forum-item .card {
+  padding: 14px;
+  border-radius: 10px;
+}
+.post-media {
+  margin-top: 8px;
+}
+.post-image {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  display: block;
+}
+.avatar img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.avatar {
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+}
+.like-btn {
+  color: inherit;
+}
+.like-area {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 
-/* Like button visual states: only show the heart icon (no surrounding box) */
+/* Like button states and animation */
 .like-btn.not-liked { background: transparent; border: none; padding: 0; color: #fff; }
 .like-btn.not-liked .like-icon { font-size: 18px; color: #fff; }
 .like-btn.not-liked:hover .like-icon { transform: scale(1.06); }
@@ -1107,48 +1198,104 @@ onUnmounted(() => {
   transform-origin: center;
   font-size: 22px; /* slightly larger heart when liked */
 }
+/* Comments panel */
+.comments-panel {
+  margin-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.03);
+  padding-top: 8px;
+}
+.comment-item {
+  background: transparent;
+}
+.comment-item div {
+  color: #c9d1d9;
+}
 
-.comments-panel { margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 8px }
-.comment-item { background: transparent }
-.comment-item div { color: #c9d1d9 }
-.comment-item .form-control { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.03); }
+/* Comment avatar styling */
+.comment-avatar img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
 
-.comment-avatar img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover }
-.comment-left { display:flex; align-items:flex-start }
+/* Layout for comment items */
+.comment-left {
+  display: flex;
+  align-items: flex-start;
+}
 
-.comment-body { margin-top: 6px; line-height: 1.4; }
+/* Comment body */
+.comment-body {
+  margin-top: 6px;
+  line-height: 1.4;
+}
 
-.comment-menu-btn { color: rgba(255,255,255,0.65); padding: 6px; }
-.comment-menu-btn:hover { color: #fff; background: rgba(255,255,255,0.02); border-radius:6px }
-/* remove bootstrap caret added by .dropdown-toggle for the compact comment menu */
-.comment-menu-btn.dropdown-toggle::after { display: none !important; }
+/* Comment menu button */
+.comment-menu-btn {
+  color: rgba(255,255,255,0.65);
+  padding: 6px;
+}
+.comment-menu-btn:hover {
+  color: #ffa733 !important;
+  background: rgba(255,167,51,0.2) !important;
+  border-radius: 6px;
+}
 
+/* Override the hover state to apply orange only on hover */
+.comment-toggle:hover {
+  color: #ffa733 !important;
+}
+
+/* Reset the active state to default color, so it does not stay orange */
+.comment-toggle {
+  color: #cfe6ff; /* default icon color */
+  transition: color 0.3s ease;
+}
+
+/* Prevent the color from staying after click by removing any persistent style changes on active state */
+.comment-toggle:active,
+.comment-toggle.active {
+  color: #cfe6ff !important; /* reset active to default color */
+}
+
+
+.comment-toggle .bi-chat {
+  color: inherit !important;
+  transition: color 0.3s ease !important;
+}
+/* Remove dropdown arrow */
+.comment-menu-btn.dropdown-toggle::after {
+  display: none !important;
+}
+
+/* Comment edit input */
 .comment-edit-input {
   color: #fff;
   background: rgba(255,255,255,0.02);
   border: 1px solid rgba(255,255,255,0.06);
 }
-.comment-edit-input::placeholder { color: rgba(255,255,255,0.5); }
+.comment-edit-input::placeholder {
+  color: rgba(255,255,255,0.5);
+}
 
-/* Ensure typed text remains white even when focused or autofilled */
+/* Input text color fixes on focus/autofill */
 input.comment-edit-input.form-control,
 input.comment-edit-input.form-control:focus,
 input.comment-edit-input.form-control:active {
   color: #fff !important;
   caret-color: #fff !important;
-  -webkit-text-fill-color: #fff !important; /* Safari/Chrome */
+  -webkit-text-fill-color: #fff !important;
 }
-
-/* Autofill styles (some browsers change text color when autofill active) */
 input.comment-edit-input:-webkit-autofill,
 input.comment-edit-input:-webkit-autofill:focus {
   -webkit-text-fill-color: #fff !important;
 }
 
-/* when JS detects overflow, add subtle fade and an ellipsis indicator */
+/* Text clamp with fade */
 .card-caption.is-clamped {
   position: relative;
-  padding-right: 18px; /* leave room for explicit ellipsis */
+  padding-right: 18px;
 }
 .card-caption.is-clamped:after {
   content: '…';
@@ -1160,12 +1307,20 @@ input.comment-edit-input:-webkit-autofill:focus {
   pointer-events: none;
   background: transparent;
 }
-.upload-card .flex-grow-1 { display: flex; flex-direction: column; justify-content: flex-start; }
 
-/* Keep action buttons above adjacent cards */
-.forum-uploads .btn { position: relative; z-index: 5; }
+.upload-card .flex-grow-1 {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
 
-/* Forum-specific overrides to avoid global .card rules causing overflow */
+/* Position action buttons above adjacent cards */
+.forum-uploads .btn {
+  position: relative;
+  z-index: 5;
+}
+
+/* Forum-specific overrides */
 .forum-uploads .upload-card {
   width: 100% !important;
   max-width: 100% !important;
@@ -1176,18 +1331,28 @@ input.comment-edit-input:-webkit-autofill:focus {
   z-index: 1;
 }
 
-.forum-uploads .col { display: flex; }
+.forum-uploads .col {
+  display: flex;
+  overflow: visible;
+}
 
-/* Ensure the card's content doesn't overflow and push outside its column */
-.forum-uploads .card-body { overflow: hidden; }
+/* Ensure card's content doesn't overflow */
+.forum-uploads .card-body {
+  overflow: hidden;
+}
 
-/* Ensure action buttons are visually on top */
-.forum-uploads .file-actions { z-index: 10; position: relative; }
+/* File action buttons inside card */
+.forum-uploads .file-actions {
+  z-index: 10;
+  position: relative;
+}
 
-/* Allow columns to show overflow so button shadows are visible */
-.forum-uploads .col { overflow: visible; }
+/* Allow visible overflow for buttons */
+.forum-uploads .col {
+  overflow: visible;
+}
 
-/* delete modal styles */
+/* Delete modal styling */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1207,9 +1372,11 @@ input.comment-edit-input:-webkit-autofill:focus {
   box-shadow: 0 8px 32px rgba(0,0,0,0.6);
 }
 
-.upload-modal { max-width: 680px; }
+.upload-modal {
+  max-width: 680px;
+}
 
-/* floating pencil button */
+/* Floating pencil button */
 .fab-pencil {
   position: fixed;
   right: 18px;
@@ -1224,6 +1391,7 @@ input.comment-edit-input:-webkit-autofill:focus {
   z-index: 1500;
 }
 
+/* Dropzone */
 .upload-dropzone {
   position: relative;
   border: 2px dashed rgba(255,255,255,0.06);
@@ -1232,7 +1400,296 @@ input.comment-edit-input:-webkit-autofill:focus {
   background: rgba(255,255,255,0.02);
 }
 
-/* Delete modal button styles to match screenshot */
+/* Delete modal buttons */
+.btn-cancel {
+  background: #6b7379;
+  color: #e6eef8;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 10px;
+}
+
+.btn-delete {
+  background: #e44b5a;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 10px;
+}
+
+.delete-label {
+  display: inline-block;
+  max-width: 60%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+/* File input in dropzone */
+.upload-dropzone input[type="file"] {
+  opacity: 0;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.drop-hint {
+  pointer-events: none;
+  color: #c8d0da;
+  text-align: center;
+}
+
+.preview-grid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preview-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0d0f10;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.preview-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.preview-icon {
+  width: 64px;
+  height: 64px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#1f262b;
+  border-radius:6px;
+  color:#ffb14d;
+}
+
+.preview-meta {
+  display:flex;
+  flex-direction:column;
+}
+
+/* Tooltip and z-index fixes */
+.forum-uploads .upload-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 12px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  border-radius: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.forum-uploads .col {
+  display: flex;
+  overflow: visible;
+}
+
+/* Ensure the card's content doesn't overflow and push outside its column */
+.forum-uploads .card-body { overflow: hidden; }
+
+/* Ensure action buttons are visually on top */
+.forum-uploads .file-actions { z-index: 10; position: relative; }
+
+/* Allow columns to show overflow so button shadows are visible */
+.forum-uploads .col { overflow: visible; }
+
+/* Reduce filename size to prevent wrapping over actions */
+.upload-card .fw-bold { font-size: 1rem; line-height: 1.2; }
+
+/* Comments and replies styling */
+.comments-panel {
+  border-top: 1px solid rgba(255,255,255,0.03);
+  padding-top: 12px;
+}
+.comment-item { display: block }
+.comment-avatar img,
+.reply-avatar img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.comment-left { align-items: flex-start }
+.comment-body {
+  margin-top: 6px;
+  color: #e6eef8;
+}
+.reply-link {
+  color: #ff9a3c;
+  font-weight: 600;
+  text-decoration: none;
+}
+.reply-input .reply-avatar img {
+  width: 36px;
+  height: 36px;
+}
+.reply-input .form-control { border-radius: 8px; }
+.comment-replies {
+  margin-left: 64px;
+  border-left: 2px solid rgba(255,255,255,0.02);
+  padding-left: 16px;
+}
+.reply-item { gap: 10px }
+.reply-bubble {
+  background: #2b3238;
+  padding: 12px 14px;
+  border-radius: 8px;
+  color: #e6eef8;
+  width: 100%;
+}
+.reply-avatar {
+  margin-right: 10px;
+}
+
+.comment-toggle {
+  background: transparent;
+  border: none;
+  color: #cfe6ff; /* light blue tint */
+  cursor: pointer;
+  text-decoration: none; /* remove underline */
+  padding: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Avatar sizes */
+.avatar img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.avatar {
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+}
+
+/* Dropdown menu dots styling */
+.comment-menu-btn {
+  color: rgba(255,255,255,0.65);
+  padding: 6px;
+}
+
+.comment-menu-btn:hover {
+  color: #ffa733 !important;
+  background: rgba(255,167,51,0.2) !important;
+  border-radius: 6px;
+}
+.comment-menu-btn.dropdown-toggle::after {
+  display: none !important;
+}
+
+/* Comment edit input */
+.comment-edit-input {
+  color: #fff;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.comment-edit-input::placeholder {
+  color: rgba(255,255,255,0.5);
+}
+
+/* Ensure typed text remains white even when focused or autofilled */
+input.form-control {
+  background-color: #252b31 !important;
+  color: #eaf0f6 !important;
+  border: 1.5px solid #393e4a !important;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 1.1rem;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+input.form-control::placeholder {
+  color: #c0c8d2 !important;
+}
+
+/* Align icon vertically */
+.comment-toggle .bi-chat {
+  vertical-align: middle;
+  font-size: 1.3rem;
+}
+
+/* Maintain overall dark theme container if needed */
+.page {
+
+  color: #eaf0f6;
+  padding: 24px;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+input.form-control:focus {
+  outline: none !important;
+  border-color: #ffa733 !important;
+  box-shadow: 0 0 0 2px rgba(255, 167, 51, 0.25) !important;
+}
+input.comment-edit-input.form-control:active {
+  color: #fff !important;
+  caret-color: #fff !important;
+  -webkit-text-fill-color: #fff !important; /* Safari/Chrome */
+}
+
+/* Autofill styles (some browsers change text color when autofill active) */
+input.comment-edit-input:-webkit-autofill,
+input.comment-edit-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff !important;
+}
+
+/* Clamp text overflow visual */
+.card-caption.is-clamped {
+  position: relative;
+  padding-right: 18px; /* leave room for explicit ellipsis */
+}
+.card-caption.is-clamped:after {
+  content: '…';
+  position: absolute;
+  right: 8px;
+  bottom: 0.1em;
+  color: #bfc9d3;
+  font-size: 1.05em;
+  pointer-events: none;
+  background: transparent;
+}
+
+/* Floating pencil button */
+.fab-pencil {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+  z-index: 1500;
+}
+
+/* Dropzone style */
+.upload-dropzone {
+  position: relative;
+  border: 2px dashed rgba(255,255,255,0.06);
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+}
+
+/* Cancel/Delete button styles */
 .btn-cancel {
   background: #6b7379;
   color: #e6eef8;
@@ -1241,7 +1698,7 @@ input.comment-edit-input:-webkit-autofill:focus {
   border-radius: 10px;
 }
 .btn-delete {
-  background: #e44b5a; /* red */
+  background: #e44b5a;
   color: white;
   border: none;
   padding: 10px 18px;
@@ -1255,16 +1712,76 @@ input.comment-edit-input:-webkit-autofill:focus {
   text-overflow: ellipsis;
   vertical-align: middle;
 }
-.upload-dropzone input[type="file"] { opacity: 0; position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer }
-.drop-hint { pointer-events: none; color: #c8d0da; text-align: center }
-.preview-grid { display: flex; gap: 8px; flex-wrap: wrap }
-.preview-item { display: flex; align-items: center; gap: 8px; background: #0d0f10; padding: 8px; border-radius: 6px }
-.preview-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px }
-.preview-icon { width: 64px; height: 64px; display:flex; align-items:center; justify-content:center; background:#1f262b; border-radius:6px; color:#ffb14d }
-.preview-meta { display:flex; flex-direction:column }
 
-/* Position actions inside the card so they never get occluded */
-.forum-uploads .upload-card { padding-right: 80px !important; }
+/* File input */
+.upload-dropzone input[type="file"] {
+  opacity: 0;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+/* Drop hint */
+.drop-hint {
+  pointer-events: none;
+  color: #c8d0da;
+  text-align: center;
+}
+
+/* Preview grid */
+.preview-grid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.preview-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0d0f10;
+  padding: 8px;
+  border-radius: 6px;
+}
+.preview-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.preview-icon {
+  width: 64px;
+  height: 64px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#1f262b;
+  border-radius:6px;
+  color:#ffb14d;
+}
+.preview-meta {
+  display:flex;
+  flex-direction:column;
+}
+
+/* Forum uploads overrides */
+.forum-uploads .upload-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 12px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  border-radius: 10px;
+  position: relative;
+  z-index: 1;
+}
+.forum-uploads .col {
+  display: flex;
+  overflow: visible;
+}
+.forum-uploads .card-body {
+  overflow: hidden;
+}
 .forum-uploads .file-actions {
   position: absolute;
   right: 12px;
@@ -1274,8 +1791,6 @@ input.comment-edit-input:-webkit-autofill:focus {
   gap: 0.5rem;
   z-index: 20;
 }
-
-/* small square icon-only buttons (prevents pill/radius look) */
 .forum-uploads .icon-btn {
   width: 36px;
   height: 36px;
@@ -1285,23 +1800,25 @@ input.comment-edit-input:-webkit-autofill:focus {
   justify-content: center;
   border-radius: 8px;
 }
-.forum-uploads .icon-btn .bi { font-size: 1.05rem; }
+.forum-uploads .icon-btn .bi {
+  font-size: 1.05rem;
+}
+.upload-card .fw-bold {
+  font-size: 1rem;
+  line-height: 1.2;
+}
 
-/* Reduce filename size to prevent wrapping over actions */
-.upload-card .fw-bold { font-size: 1rem; line-height: 1.2; }
-
-/* Comments and replies styling */
-.comments-panel { border-top: 1px solid rgba(255,255,255,0.03); padding-top: 12px }
-.comment-item { display: block }
-.comment-avatar img, .reply-avatar img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover }
-.comment-left { align-items: flex-start }
-.comment-body { margin-top: 6px; color: #e6eef8 }
-.reply-link { color: #ff9a3c; font-weight: 600; text-decoration: none }
-.reply-input .reply-avatar img { width: 36px; height: 36px }
-.reply-input .form-control { border-radius: 8px }
-.comment-replies { margin-left: 64px; border-left: 2px solid rgba(255,255,255,0.02); padding-left: 16px }
-.reply-item { gap: 10px }
-.reply-bubble { background: #2b3238; padding: 12px 14px; border-radius: 8px; color: #e6eef8; width: 100% }
-.reply-avatar { margin-right: 10px }
-.comment-toggle { color: #cfe6ff; background: transparent; border: none }
+/* Light main post stylings */
+.main-post-text {
+  color: #eaf0f6;
+  font-size: 1.19rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  margin-bottom: 10px;
+  line-height: 1.7;
+  border-left: 3px solid #ffa733;
+  padding-left: 18px;
+  background-color: rgba(255, 167, 51, 0.025);
+  border-radius: 7px;
+}
 </style>

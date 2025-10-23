@@ -1,12 +1,7 @@
 <template>
-  <div id="app" 
-  
-  >
+  <div id="app">
     <!-- Sidebar receives v-model:collapsed so App controls layout -->
     <Sidebar v-model:collapsed="collapsed" />
-
-    <!-- Backdrop for mobile overlay -->
-    <div v-if="!collapsed" class="mobile-backdrop" @click="collapsed = true" />
 
     <!-- Topbar (logo + title + actions) aligned with main content -->
     <header class="topbar" :class="{ collapsed }"
@@ -20,41 +15,37 @@
               <path d="M4.2 14.2c2.8-5.2 8.3-8.4 14.3-7.4" />
               <path d="m11.3 21.8-1.9-2.8c-2.4-3.6-3.2-8.3-.7-12.4" />
               <path d="M21.8 12.7c-2.4 4.5-8.2 6.8-13.4 5" />
-              
             </svg>
           </div>
           <div class="top-title">Dunk+</div>
         </div>
-        
       </div>
     </header>
 
     <!-- Main content shifts/expands depending on sidebar collapsed state -->
-    <!-- <main :class="['main-content', { 'collapsed': collapsed }]"
-      :style="{ '--sidebar-current-width': collapsed ? '0px' : 'var(--sidebar-width)', '--topbar-height': '72px' }"> -->
-    <div :class="[ 'main-content', {'collapsed': collapsed}]" :style="{ '--sidebar-current-width': collapsed ? '0px' : 'var(--sidebar-width)' }">
+    <div :class="['main-content', {'collapsed': collapsed}]" 
+         :style="{ '--sidebar-current-width': collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)' }">
       <router-view />
     </div>
   </div>
 </template>
 
 <script setup>
-
 import { ref } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 
-
 const collapsed = ref(false)
 </script>
+
 
 <style scoped>
 .app-container {
   display: flex;
   height: 100vh;
   background: black;
-  /* app background */
   color: #fff;
 }
+
 
 .main-content {
   min-width: 0;
@@ -63,34 +54,21 @@ const collapsed = ref(false)
   margin-left: calc(var(--sidebar-current-width, var(--sidebar-width)));
   background: #000;
   overflow-x: hidden;
+  padding-top: 112px; /* Add space for topbar */
 }
 
 .main-content.collapsed {
-  /* fallback for older browsers */
-  margin-left: calc(var(--sidebar-collapsed-width));
+  margin-left: var(--sidebar-collapsed-width);
 }
 
 /* Ensure the router-view content stacks properly */
 main {
-  box-sizing: border-box
-}
-
-.mobile-backdrop {
-  display: none;
-}
-
-@media (max-width: 720px) {
-  .mobile-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.55);
-    z-index: 85;
-  }
+  box-sizing: border-box;
 }
 
 /* Topbar styling */
 .topbar {
+  
   position: fixed;
   left: calc(var(--sidebar-current-width, var(--sidebar-width)));
   right: 0;
@@ -110,41 +88,15 @@ main {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 100%
+  width: 100%;
 }
 
-.brand-left {
-  display: flex;
-  gap: 10px;
-  align-items: center
-}
+.topbar .top-title{
 
-.top-logo {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffb14d
-}
-
-.top-logo svg {
-  width: 28px;
-  height: 28px
-}
-
-.top-title {
-  color: orange;
-  font-size: 1.6rem;
-  font-weight: 800
-}
-
-.create-btn {
-  background: #ff9a3c;
-  color: #111;
-  padding: 10px 16px;
-  border-radius: 8px;
-  border: none
+  margin-left: -5px;
+  transform: scale(1.2); /* makes text appear 30% larger */
+  transform-origin: left center; /* so it doesn’t shift weirdly */
+  font-family: 'Saira Semi Condensed', sans-serif;
 }
 
 .brand-left {
@@ -154,9 +106,54 @@ main {
   margin-left: -8px;
 }
 
-@media (max-width:720px) {
+.top-logo {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb14d;
+}
+
+.top-logo svg {
+  width: 28px;
+  height: 28px;
+}
+
+.top-title {
+  color: orange;
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.create-btn {
+  background: #ff9a3c;
+  color: #111;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+}
+
+/* Mobile styles - Keep sidebar visible but adjust layout */
+@media (max-width: 720px) {
+  /* Topbar stays aligned with sidebar */
   .topbar {
-    left: 0
+    left: calc(var(--sidebar-current-width, var(--sidebar-width)));
+  }
+  
+  /* Main content still respects sidebar width */
+  .main-content {
+    margin-left: calc(var(--sidebar-current-width, var(--sidebar-width)));
+  }
+  
+  .main-content.collapsed {
+    margin-left: var(--sidebar-collapsed-width);
+  }
+  
+  /* Optional: reduce padding on mobile */
+  .main-content {
+    padding: 24px 16px;
+    padding-top: 96px;
   }
 }
 </style>

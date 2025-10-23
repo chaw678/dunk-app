@@ -84,7 +84,7 @@ const courtError = ref('')
 const courtSelectRef = ref(null)
 const matchType = ref('Open')
 const gender = ref('All')
-
+const selectedCourt = ref(props.courtName || '')
 
 const emit = defineEmits(['close'])
 
@@ -230,7 +230,7 @@ const createMatch = async () => {
 
   const newMatch = {
     title: matchTitle.value,
-    court: props.courtName, // Use prop directly!
+    court: selectedCourt.value,
     date: matchDate.value,
     time: startTime.value || matchTime.value,
     startTime: startTime.value,
