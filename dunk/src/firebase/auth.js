@@ -23,18 +23,37 @@ export async function saveUserToDatabase(user) {
     const snap = await get(child(dbRef, `users/${user.uid}`))
     const existing = (snap && snap.exists()) ? snap.val() : {}
 
-    // Build an update payload that preserves existing nested maps like following/followers
+    //change 22: Build an update payload that PRESERVES nested maps, but OVERRIDES with incoming profile edits
+    // // Build an update payload that preserves existing nested maps like following/followers
     const updatePayload = {
       name: user.displayName || existing.name || '',
       email: user.email || existing.email || '',
       uid: user.uid,
       skill: existing.skill || '',
-      age: existing.age != null ? existing.age : null,
-      gender: existing.gender || '',
+      // age: existing.age != null ? existing.age : null,
+      // gender: existing.gender || '',
+      age: user.age != null ? user.age : existing.age, // <-- this can be undefined!
+      gender: user.gender || existing.gender || '', // <-- always use incoming unless blank
       bio: existing.bio || '',
       match_ids: existing.match_ids || {}
       // NOTE: we intentionally do NOT reset following/followers here
     }
+    // const updatePayload = {
+    //   name: user.displayName || existing.name || '',
+    //   email: user.email || existing.email || '',
+    //   uid: user.uid,
+    //   skill: existing.skill || '',
+    //   age: user.age != null ? user.age : existing.age,
+    //   gender: user.gender || existing.gender || '', // <-- always use incoming unless blank
+    //   bio: user.bio || existing.bio || '',
+    //   match_ids: existing.match_ids || {}
+    //   }
+
+  // change 23: Remove any undefined fields before saving to Firebase
+    Object.keys(updatePayload).forEach(key => {
+      if (updatePayload[key] === undefined) delete updatePayload[key];
+    });
+
 
     await update(userRef, updatePayload)
     return true

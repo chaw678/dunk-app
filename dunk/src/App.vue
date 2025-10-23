@@ -7,7 +7,7 @@
     <header class="topbar" :class="{ collapsed }"
       :style="{ '--sidebar-current-width': collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)' }">
       <div class="topbar-inner">
-        <div class="brand-left">
+  <router-link to="/" class="brand-left brand-link" @click.native.prevent="goHome">
           <div class="top-logo" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -18,7 +18,7 @@
             </svg>
           </div>
           <div class="top-title">Dunk+</div>
-        </div>
+        </router-link>
       </div>
     </header>
 
@@ -32,9 +32,15 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 
 const collapsed = ref(false)
+const router = useRouter()
+function goHome(e) {
+  // programmatic navigation ensures we always land on the MainMenu
+  router.push({ path: '/' })
+}
 </script>
 
 
@@ -105,6 +111,8 @@ main {
   align-items: center;
   margin-left: -8px;
 }
+
+.brand-link { display: flex; gap: 10px; align-items: center; color: inherit; text-decoration: none; cursor: pointer }
 
 .top-logo {
   width: 44px;
