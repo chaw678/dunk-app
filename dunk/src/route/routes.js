@@ -7,6 +7,7 @@ import LoginPage from '../components/LoginPage.vue'
 // Placeholder pages (added so sidebar links resolve)
 import Matches from '../components/Matches.vue'
 import Forum from '../components/Forum.vue'
+import Profile from '../components/Profile.vue'
 
 const history = createWebHistory()
 
@@ -17,6 +18,7 @@ const routes = [
     { path: '/court-finder', component: CourtFinder },
     { path: '/matches', component: Matches },
     { path: '/forum', component: Forum },
+    { path: '/profile/:uid', component: Profile },
     { path: '/login', component: LoginPage },
 ]
 

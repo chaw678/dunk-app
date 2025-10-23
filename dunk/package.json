@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+  "migrate:matches": "node scripts/migrate_matches.js",
     "build": "vite build",
     "preview": "vite preview"
   },

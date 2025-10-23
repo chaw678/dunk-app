@@ -10,27 +10,44 @@ import {
   onAuthStateChanged
 } from 'firebase/auth'
 
-import { getDatabase, ref, push, set } from 'firebase/database';
+import { getDatabase, ref, push, set, get, child, update } from 'firebase/database';
 
 export async function saveUserToDatabase(user) {
   const db = getDatabase();
   const userRef = ref(db, 'users/' + user.uid);
   
   // Define user data to save (customize as needed)
-  const userData = {
-    name: user.displayName || '',
-    email: user.email || '',
-    uid: user.uid,
-    skill: '',
-    age: null,
-    gender: '',
-    bio: '',
-    match_ids: {},
-    following: {},
-    followers: {}
-  };
+  try {
+    // Fetch existing user node if any so we preserve followers/following etc.
+    const dbRef = ref(db)
+    const snap = await get(child(dbRef, `users/${user.uid}`))
+    const existing = (snap && snap.exists()) ? snap.val() : {}
 
-  return set(userRef, userData);
+    // Build an update payload that preserves existing nested maps like following/followers
+    const updatePayload = {
+      name: user.displayName || existing.name || '',
+      email: user.email || existing.email || '',
+      uid: user.uid,
+      skill: existing.skill || '',
+      age: existing.age != null ? existing.age : null,
+      gender: existing.gender || '',
+      bio: existing.bio || '',
+      match_ids: existing.match_ids || {}
+      // NOTE: we intentionally do NOT reset following/followers here
+    }
+
+    await update(userRef, updatePayload)
+    return true
+  } catch (err) {
+    console.error('saveUserToDatabase error', err)
+    // fallback: try a simple set that won't wipe nested maps if called
+    const userData = {
+      name: user.displayName || '',
+      email: user.email || '',
+      uid: user.uid
+    }
+    return set(userRef, userData)
+  }
 }
 
 

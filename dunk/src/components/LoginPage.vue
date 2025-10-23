@@ -1,16 +1,32 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { Trophy, Star, Users, Cake } from 'lucide-vue-next'
 import { loginWithGoogle, logout, onUserStateChanged, saveUserToDatabase } from '../firebase/auth.js'
+import { onDataChange, getDataFromFirebase } from '../firebase/firebase'
 
 const user = ref(null)
 const error = ref('')
+const followingCount = ref(0)
+const followersCount = ref(0)
+let userListenerUnsub = null
+function onLocalFollowChanged(e) {
+  try {
+    const d = e && e.detail
+    if (!d || !d.action) return
+    if (d.action === 'follow') {
+      followingCount.value = (followingCount.value || 0) + 1
+    } else if (d.action === 'unfollow') {
+      followingCount.value = Math.max(0, (followingCount.value || 0) - 1)
+    }
+  } catch (err) {
+    // ignore
+  }
+}
 
 const photoSrc = computed(() => {
-  // prefer provider photoURL, otherwise generate a seed-based avatar
+  // Use the seeded avatar API (same used in Forum) so avatars are consistent across the app.
+  // Derive a username from the email local-part when available.
   const u = user.value
-  if (u && u.photoURL) return u.photoURL
-  // derive a username from the email local-part when available
   const username = (u && (u.email ? u.email.split('@')[0] : (u.displayName || u.uid))) || 'anon'
   return `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(username)}`
 })
@@ -46,10 +62,38 @@ onMounted(() => {
     try {
       user.value = currentUser
       if (currentUser && currentUser.uid) await saveUserToDatabase(currentUser)
+      // subscribe to live user record so followers/following counts update in real-time
+      if (userListenerUnsub) { try { userListenerUnsub() } catch(e){} }
+      if (currentUser && currentUser.uid) {
+        // realtime subscription
+        userListenerUnsub = onDataChange(`users/${currentUser.uid}`, (val) => {
+          if (!val) { followingCount.value = 0; followersCount.value = 0; return }
+          followingCount.value = val.following ? Object.keys(val.following).length : 0
+          followersCount.value = val.followers ? Object.keys(val.followers).length : 0
+        })
+        // immediate fetch in case the realtime listener hasn't fired yet
+        try {
+          const users = await getDataFromFirebase('users')
+          const me = users && users[currentUser.uid]
+          if (me) {
+            followingCount.value = me.following ? Object.keys(me.following).length : 0
+            followersCount.value = me.followers ? Object.keys(me.followers).length : 0
+          }
+        } catch (e) {
+          // ignore fetch error; realtime listener is still authoritative
+        }
+      }
     } catch (e) {
       console.error('Error in onUserStateChanged handler', e)
     }
   })
+  // listen for local follow/unfollow events coming from Profile.vue
+  window.addEventListener('user-follow-changed', onLocalFollowChanged)
+})
+
+onUnmounted(() => {
+  try { window.removeEventListener('user-follow-changed', onLocalFollowChanged) } catch(e){}
+  if (userListenerUnsub) { try { userListenerUnsub(); } catch(e){}; userListenerUnsub = null }
 })
 
 async function handleGoogleSignIn() {
@@ -68,6 +112,8 @@ async function handleLogout() {
   try {
     await logout()
     user.value = null
+    // cleanup listener
+    if (userListenerUnsub) { try { userListenerUnsub(); } catch(e){}; userListenerUnsub = null }
     alert('Logged out.')
   } catch (e) {
     error.value = 'Logout failed'
@@ -151,14 +197,14 @@ async function handleLogout() {
           <button type="button" class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
             style="background:#181A20;">
             <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
-            Following (3)
+            Following ({{ followingCount }})
           </button>
         </div>
         <div class="col-6 col-md-4">
           <button type="button" class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
             style="background:#181A20;">
             <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
-            Followers (6)
+            Followers ({{ followersCount }})
           </button>
         </div>
       </div>

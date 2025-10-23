@@ -85,9 +85,23 @@
         <div class="card bg-dark text-white upload-card position-relative">
           <div class="card-body">
             <div class="d-flex align-items-center gap-3 mb-2">
-              <div class="avatar"> <img :src="file.avatar || '/src/assets/vue.svg'" alt="user"/></div>
+              <div class="avatar">
+                <template v-if="profilePathForFile(file)">
+                  <router-link :to="profilePathForFile(file)"><img :src="file.avatar || '/src/assets/vue.svg'" alt="user"/></router-link>
+                </template>
+                <template v-else>
+                  <img :src="file.avatar || '/src/assets/vue.svg'" alt="user"/>
+                </template>
+              </div>
               <div>
-                <div class="fw-bold">{{ file.createdByName || file.author || file.username || 'Anonymous' }}</div>
+                <div class="fw-bold">
+                  <template v-if="profilePathForFile(file)">
+                    <router-link :to="profilePathForFile(file)" class="text-reset text-decoration-none">{{ file.createdByName || file.author || file.username || 'Anonymous' }}</router-link>
+                  </template>
+                  <template v-else>
+                    {{ file.createdByName || file.author || file.username || 'Anonymous' }}
+                  </template>
+                </div>
                 <div class="small text-muted">{{ displayDate(file.createdAt) }}</div>
               </div>
               <div class="ms-auto">
@@ -129,10 +143,27 @@
 
               <div v-for="(c, cid) in file.comments" :key="cid" class="comment-item mb-3">
                 <div class="d-flex align-items-start justify-content-between small gap-2">
-                  <div class="comment-left d-flex align-items-start gap-2">
-                    <div class="comment-avatar"><img :src="c.avatar || avatarForName(c.authorName)" alt="avatar" /></div>
+                    <div class="comment-left d-flex align-items-start gap-2">
+                    <div class="comment-avatar">
+                      <template v-if="profilePathForComment(c)">
+                        <router-link :to="profilePathForComment(c)"><img :src="c.avatar || avatarForName(c.authorName)" alt="avatar" /></router-link>
+                      </template>
+                      <template v-else>
+                        <img :src="c.avatar || avatarForName(c.authorName)" alt="avatar" />
+                      </template>
+                    </div>
                     <div>
-                      <div><strong>{{ c.authorName || c.author || 'Anon' }}</strong> <span class="text-muted">• {{ displayDate(c.createdAt) }}</span></div>
+                      <div>
+                        <strong>
+                          <template v-if="profilePathForComment(c)">
+                            <router-link :to="profilePathForComment(c)" class="text-reset text-decoration-none">{{ c.authorName || c.author || 'Anon' }}</router-link>
+                          </template>
+                          <template v-else>
+                            {{ c.authorName || c.author || 'Anon' }}
+                          </template>
+                        </strong>
+                        <span class="text-muted">• {{ displayDate(c.createdAt) }}</span>
+                      </div>
                       <div class="mt-2 comment-body">{{ c.text }}</div>
                       <div class="mt-2"><a href="#" class="reply-link" @click.prevent="startReply(file, cid)">Reply</a></div>
                     </div>
@@ -160,11 +191,25 @@
                 <!-- replies list -->
                 <div class="comment-replies mt-3" v-if="c.replies && Object.keys(c.replies).length">
                   <div v-for="(r, rid) in c.replies" :key="rid" class="reply-item d-flex align-items-start mb-2">
-                    <div class="reply-avatar"><img :src="r.avatar || avatarForName(r.authorName)" alt="avatar"/></div>
+                    <div class="reply-avatar">
+                      <template v-if="profilePathForReply(r)">
+                        <router-link :to="profilePathForReply(r)"><img :src="r.avatar || avatarForName(r.authorName)" alt="avatar"/></router-link>
+                      </template>
+                      <template v-else>
+                        <img :src="r.avatar || avatarForName(r.authorName)" alt="avatar"/>
+                      </template>
+                    </div>
                     <div class="reply-bubble" style="flex:1; position:relative">
                       <div class="d-flex justify-content-between align-items-start">
                         <div>
-                          <strong>{{ r.authorName || r.author || 'Anon' }}</strong>
+                          <strong>
+                            <template v-if="profilePathForReply(r)">
+                              <router-link :to="profilePathForReply(r)" class="text-reset text-decoration-none">{{ r.authorName || r.author || 'Anon' }}</router-link>
+                            </template>
+                            <template v-else>
+                              {{ r.authorName || r.author || 'Anon' }}
+                            </template>
+                          </strong>
                           <span class="text-muted">• {{ displayDate(r.createdAt) }}</span>
                         </div>
                         <div>
@@ -231,6 +276,7 @@
 
 <script setup>
 import { ref, onMounted, nextTick, onUnmounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { Eye } from 'lucide-vue-next'
 import uploadFile from '../upload'
 import { getDataFromFirebase, pushDataToFirebase, deleteDataFromFirebase, overwriteDataToFirebase, storage, getUserName, auth } from '../firebase/firebase'
@@ -253,6 +299,26 @@ const currentUserName = ref(null)
 const tags = ref(['General','Advice','Matches','Highlights'])
 const selectedTag = ref('General')
 const selectedFilter = ref('All')
+const router = useRouter()
+
+function profilePathForFile(file) {
+  // prefer explicit uid properties if present
+  const uid = file.createdByUid || file.createdBy || file.authorId || file.author
+  if (!uid) return null
+  return `/profile/${uid}`
+}
+
+function profilePathForComment(c) {
+  const uid = c.authorId || c.author || c.uid
+  if (!uid) return null
+  return `/profile/${uid}`
+}
+
+function profilePathForReply(r) {
+  const uid = r.authorId || r.author || r.uid
+  if (!uid) return null
+  return `/profile/${uid}`
+}
 
 function isImage(name) {
   if (!name) return false
