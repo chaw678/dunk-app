@@ -683,7 +683,23 @@ watch(animateBars, (v) => { if (v) animateCounts() })
 
       <!-- Match Statistics -->
       <div class="mb-4 px-3">
-        <div class="match-stats-card border rounded-3 p-3 mt-2">
+
+    <div class="col-12 d-flex">
+      <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
+        <span class="fw-medium">Bio</span>
+        <span class="fs-6 text-warning mt-1 text-center">{{ user.bio || 'No bio yet.' }}</span>
+      </div>
+    </div>
+
+    <div class="col-12 d-flex">
+      <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
+        <span class="fw-medium">Skill / Badge</span>
+        <span class="fs-6 text-warning mt-1">{{ user.skill || 'Unassigned' }}</span>
+      </div>
+    </div>
+
+
+    <div class="match-stats-card border rounded-3 p-3 mt-2">
           <div class="match-stats-header d-flex align-items-center mb-2">
             <ChartColumn :size="18" class="me-2 text-warning" />
             <h5 class="mb-0">Match Statistics</h5>
@@ -711,19 +727,7 @@ watch(animateBars, (v) => { if (v) animateCounts() })
           </div>
         </div>
 
-    <div class="col-12 d-flex">
-      <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
-        <span class="fw-medium">Bio</span>
-        <span class="fs-6 text-warning mt-1 text-center">{{ user.bio || 'No bio yet.' }}</span>
-      </div>
-    </div>
-
-    <div class="col-12 d-flex">
-      <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
-        <span class="fw-medium">Skill / Badge</span>
-        <span class="fs-6 text-warning mt-1">{{ user.skill || 'Unassigned' }}</span>
-      </div>
-    </div>
+    <!-- add here -->
    
 
       </div>
