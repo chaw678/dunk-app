@@ -1,10 +1,23 @@
 <template>
 <div class="page-bg">
+  <!-- Sign in popup -->
+  <div v-if="showPopup" class="success-overlay" @click.self="handlePopupClose">
+    <div class="success-popup">
+      <div class="success-icon" style="background:#e04747">✕</div>
+      <h3>Sign-in Required</h3>
+      <p>Please sign in to add courts.</p>
+      <div class="popup-buttons">
+        <button class="sign-in-btn" @click.stop="handleSignIn">Sign In with Google</button>
+        <button class="close-btn" @click.stop="handlePopupClose">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div class="content-wrapper">
     <div class="card container-fluid">
       <div class="header-row">
   <h1 class="card-title">Court Finder</h1>
-  <button class="add-court-btn" :disabled="!currentUser" :title="currentUser ? 'Add Court' : 'Sign in to add courts'" @click="handleAddCourt">Add Court</button>
+  <button class="add-court-btn" @click="handleAddCourt" :title="currentUser ? 'Add Court' : 'Sign in to add courts'">Add Court</button>
       </div>
 
       <p class="card-desc">Locate basketball courts, check availability, and see user ratings.</p>
@@ -57,7 +70,7 @@
       <div class="card-section">
         <div class="card-section-header">
           <h2 class="section-title">Map</h2>
-          <button class="pin-btn" :disabled="!currentUser" :title="currentUser ? 'Add a new court location' : 'Sign in to add courts'" @click="activatePinMode">
+          <button class="pin-btn" :title="currentUser ? 'Add a new court location' : 'Sign in to add courts'" @click="handlePinClick">
             <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
               <circle cx="16" cy="16" r="12" fill="#ffa733" stroke="#333" stroke-width="2"/>
               <rect x="13" y="8" width="6" height="11" rx="3" fill="#ff9500"/>
@@ -114,6 +127,7 @@ import { getDataFromFirebase } from '../firebase/firebase'
 import AddCourtModal2 from './AddCourtModal2.vue'
 import AddCourtModal from './AddCourtModal.vue'
 import AddMatchModal from './AddMatchModal.vue'
+import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
 
 const map = ref(null)
 const markers = ref([])
@@ -126,6 +140,8 @@ const showAddCourtModal = ref(false)     // For pin drop
 const showAddMatchModal = ref(false)
 const selectedCourt = ref(null)
 const currentUser = ref(null)
+const showPopup = ref(false)
+const isSigningIn = ref(false)
 //change 1: to allow more thna one filtering
 const selectedRegions = ref(['all'])
 const searchQuery = ref('')
@@ -134,6 +150,66 @@ const autocompleteInput = ref(null)
 const isDroppingPin = ref(false)
 const matchEventToShow = ref(null)
 const suggestions = ref([])
+const auth = getAuth()
+
+async function loginWithGoogle() {
+  const provider = new GoogleAuthProvider()
+  try {
+    // Sign in with popup using Firebase auth and Google provider
+    const result = await signInWithPopup(auth, provider)
+    const user = result.user
+    currentUser.value = user
+    console.log('[CourtFinder] Google sign-in succeeded:', user)
+    showPopup.value = false
+  } catch (error) {
+    console.error('[CourtFinder] Google sign-in error:', error)
+    showPopup.value = true
+    throw error
+  }
+}
+
+
+
+
+
+
+
+const handlePopupClose = (event) => {
+  // If called programmatically (no event) just close
+  if (!event) {
+    showPopup.value = false
+    return
+  }
+
+  const el = event.target || event.currentTarget
+
+  // Close when clicking the overlay itself
+  if (el.classList && el.classList.contains('success-overlay')) {
+    showPopup.value = false
+    return
+  }
+
+   // Direct sign-in if clicking the sign-in button
+  if (el.classList && el.classList.contains('sign-in-btn')) {
+    handleSignIn()
+    showPopup.value = false // Hide after sign-in triggered
+    return
+  }
+
+  // Close when clicking a button we expect (handles clicks on inner text nodes too)
+  if (el.classList && (el.classList.contains('success-btn') || el.classList.contains('close-btn') || el.classList.contains('sign-in-btn'))) {
+    showPopup.value = false
+    return
+  }
+
+  // If the actual clicked node is a child (e.g. text node), check ancestors
+  if (el.closest) {
+    if (el.closest('.close-btn') || el.closest('.success-btn') || el.closest('.sign-in-btn')) {
+      showPopup.value = false
+      return
+    }
+  }
+}
 
 watch(searchQuery, updateSuggestions)
 
@@ -218,6 +294,42 @@ map.value.setOptions({
 });
 }
 
+function handlePinClick(event) {
+  // If not signed in, show the popup (same flow as Add Court)
+  if (!currentUser.value) {
+    showPopup.value = true
+    return
+  }
+
+  // If signed in, proceed to activate pin mode
+  activatePinMode()
+}
+
+async function handleSignIn() {
+  console.debug('[CourtFinder] handleSignIn: start')
+  if (isSigningIn.value) {
+    console.debug('[CourtFinder] handleSignIn: already signing in, ignoring')
+    return
+  }
+
+  isSigningIn.value = true
+  try {
+    // Call loginWithGoogle first (must be invoked during the user gesture so popup isn't blocked)
+    console.debug('[CourtFinder] calling loginWithGoogle()')
+    const signInPromise = loginWithGoogle()
+    // hide the popup so it doesn't overlap the provider UI; do this after starting sign-in
+    showPopup.value = false
+    await signInPromise
+    console.debug('[CourtFinder] loginWithGoogle resolved')
+  } catch (err) {
+    // If sign-in failed, reopen the popup so user can retry or close
+    console.error('[CourtFinder] Google sign-in failed', err)
+    showPopup.value = true
+  } finally {
+    isSigningIn.value = false
+  }
+}
+
 //UNHIDE 1
 // const displayedCourts = computed(() => {
 //   const query = searchQuery.value.toLowerCase().trim()
@@ -256,7 +368,11 @@ const courts = [
 }]
 
 const handleAddCourt = () => {
-showAddCourtModal2.value = true; // This opens AddCourtModal2.vue
+  if (!currentUser.value) {
+    showPopup.value = true;
+    return;
+  }
+  showAddCourtModal2.value = true; // This opens AddCourtModal2.vue
 }
 function openMatchModalFromEventCard() {
 if (matchEventToShow.value) {
@@ -787,12 +903,18 @@ border-radius: 7px;
 margin-left: 16px;
 cursor: pointer;
 box-shadow: 0 2px 14px rgba(255, 167, 51, 0.14);
-transition: background 0.3s, box-shadow 0.3s;
+transition: all 0.3s ease;
 }
-.add-court-btn:hover,
-.add-court-btn:focus {
+
+.add-court-btn:not(:disabled):hover,
+.add-court-btn:not(:disabled):focus {
 background: #ffb751;
 box-shadow: 0 4px 18px rgba(255, 183, 81, 0.32);
+}
+
+.add-court-btn:disabled {
+opacity: 0.6;
+cursor: not-allowed;
 }
 
 .card-desc {
@@ -998,6 +1120,96 @@ transition: background-color 0.3s;
 }
 .search-btn:hover {
 background-color: #ffb751;
+}
+
+/* Popup styles */
+.success-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(24, 28, 35, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.success-popup {
+  background-color: #000000;
+  padding: 30px;
+  border-radius: 10px;
+  text-align: center;
+  max-width: 400px;
+  margin: 0 20px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.success-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  font-size: 1.5rem;
+  color: white;
+  background-color: #EF4444;
+}
+
+.success-popup h3 {
+  color: #ffffff;
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 0.75rem;
+}
+
+.success-popup p {
+  color: #747d89;
+  margin-bottom: 1.5rem;
+  font-size: 1rem;
+}
+
+.popup-buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.sign-in-btn {
+  background-color: #FFAD1D;
+  color: #181C23;
+  font-weight: 600;
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+
+.sign-in-btn:hover {
+  background-color: #FFB751;
+  text-decoration: none;
+}
+
+.close-btn {
+  background-color: #374151;
+  color: white;
+  font-weight: 500;
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 0.875rem;
+}
+
+.close-btn:hover {
+  background-color: #4B5563;
 }
 
 /* Responsive */
