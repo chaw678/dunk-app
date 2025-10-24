@@ -7,7 +7,7 @@
                     <p class="matches-desc">Create and join public or private basketball games.</p>
                 </div>
                 <div>
-                    <button class="btn-create-match" @click="showAddMatchModal = true"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
+                    <button class="btn-create-match" :disabled="!currentUser" :title="currentUser ? 'Create a match' : 'Sign in to create matches'" @click="showAddMatchModal = true"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
                 </div>
             </div>
 
@@ -20,16 +20,19 @@
 
             <div class="row g-3 matches-grid">
                 <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in filteredMatches" :key="match?.id || idx">
-                    <div class="card match-card h-100 text-reset text-decoration-none">
-                        <div class="card-body d-flex flex-column h-100 p-4">
+                                        <div class="card match-card h-100 text-reset text-decoration-none">
+                                                <div class="card-header match-card-header">
+                                                    <h3 class="match-title mb-1">{{ match.title }}</h3>
+                                                    <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ Object.keys(match.joinedBy || {}).length || (match.players || []).length }}/{{ match.maxPlayers || 10 }}</div>
+                                                </div>
+                                                <div class="card-body d-flex flex-column h-100 p-4">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
-                                    <h3 class="match-title mb-1">{{ match.title }}</h3>
+                                    <!-- <h3 class="match-title mb-1">{{ match.title }}</h3> -->
                                     <div class="match-sub small">{{ match.location }}</div>
+                                    <div class="match-date">{{ formatDate(match) }}</div>
                                 </div>
-                                <div class="text-end text-warning fw-bold small">
-                                    <i class="bi bi-people-fill me-1"></i> {{ Object.keys(match.joinedBy || {}).length || (match.players || []).length }}/{{ match.maxPlayers || 10 }}
-                                </div>
+                                <div></div>
                             </div>
 
                             <div class="match-meta-row mb-3">
@@ -364,16 +367,77 @@ function initials(name) {
 }
 
 const formatTimeRange = (match) => {
-    // prefer startTime/endTime, fall back to time
     if (!match) return ''
-    if (match.startTime && match.endTime) return `${match.startTime} — ${match.endTime}`
+    const opts = { hour: 'numeric', minute: '2-digit', hour12: true }
+
+    // helper: convert a time-only string (HH:mm or HH:mm:ss) into a localized 12h string
+    function formatTimeString(t, isoDate) {
+        if (!t) return ''
+        const raw = ('' + t).trim()
+        // already contains am/pm
+        if (/[ap]m$/i.test(raw)) return raw
+        // ISO datetime
+        if (/\d{4}-\d{2}-\d{2}T/.test(raw)) {
+            try { return new Date(raw).toLocaleTimeString([], opts) } catch (e) { return raw }
+        }
+        // time-only like HH:mm or HH:mm:ss
+        const m = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
+        if (m) {
+            try {
+                let base = isoDate ? new Date(isoDate) : (match.startAtISO ? new Date(match.startAtISO) : null)
+                if (!base) base = new Date()
+                base.setHours(Number(m[1]), Number(m[2]) || 0, Number(m[3]) || 0, 0)
+                return base.toLocaleTimeString([], opts)
+            } catch (e) {
+                return raw
+            }
+        }
+        return raw
+    }
+
+    // If explicit startTime/endTime provided (possibly 24h), convert both
+    if (match.startTime && match.endTime) {
+        const s = formatTimeString(match.startTime, match.startAtISO || match.date)
+        const e = formatTimeString(match.endTime, match.endAtISO || match.date)
+        return `${s} — ${e}`
+    }
+
+    // If ISO timestamps exist, format them
     if (match.startAtISO && match.endAtISO) {
         try {
             const s = new Date(match.startAtISO)
             const e = new Date(match.endAtISO)
-            return `${s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — ${e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            return `${s.toLocaleTimeString([], opts)} — ${e.toLocaleTimeString([], opts)}`
         } catch (err) { console.warn('formatTimeRange parse error', err) }
     }
+
+    // If legacy match.time is a range like '16:00 — 17:00', try to parse both sides
+    if (match.time && typeof match.time === 'string') {
+        const parts = match.time.split('—').map(s => s.trim())
+        if (parts.length === 2) {
+            const s = formatTimeString(parts[0], match.startAtISO || match.date)
+            const e = formatTimeString(parts[1], match.endAtISO || match.date)
+            return `${s} — ${e}`
+        }
+        return match.time
+    }
+
+    return ''
+}
+
+function formatDate(match) {
+    if (!match) return ''
+    // prefer ISO timestamp
+    const iso = match.startAtISO || match.startAt || match.date
+    if (iso) {
+        try {
+            const d = new Date(iso)
+            return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+        } catch (err) {
+            // fall through
+        }
+    }
+    // fallback: if match.time contains a day name, try to return that
     if (match.time) return match.time
     return ''
 }
@@ -485,6 +549,9 @@ const formatTimeRange = (match) => {
     white-space: nowrap;
 }
 
+.match-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+.match-people { display: flex; align-items: center; gap: 6px }
+
 .match-sub {
     color: #cbd6df;
     margin-top: 6px;
@@ -495,6 +562,8 @@ const formatTimeRange = (match) => {
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
+
+.match-date { color: #ffffff; margin-top: 6px; font-size: 1.05rem; font-weight: 700 }
 
 .match-meta {
     margin-top: 12px;
