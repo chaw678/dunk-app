@@ -26,18 +26,26 @@ export async function saveUserToDatabase(user) {
     //change 22: Build an update payload that PRESERVES nested maps, but OVERRIDES with incoming profile edits
     // // Build an update payload that preserves existing nested maps like following/followers
     const updatePayload = {
-      name: user.displayName || existing.name || '',
+      name: user.name || user.displayName || existing.name || '',
       email: user.email || existing.email || '',
       uid: user.uid,
-      skill: existing.skill || '',
-      // age: existing.age != null ? existing.age : null,
-      // gender: existing.gender || '',
-      age: user.age != null ? user.age : existing.age, // <-- this can be undefined!
-      gender: user.gender || existing.gender || '', // <-- always use incoming unless blank
-      bio: existing.bio || '',
+
+      // --- Skill & Bio ---
+      skill: user.skill || existing.skill || '',  // <-- allow new skill inputs to update Firebase
+      bio: user.bio || existing.bio || '',        // <-- allow new bio inputs to update Firebase
+
+      // --- DOB Fields (new structure) ---
+      dobYear: user.dobYear || existing.dobYear || '',
+      dobMonth: user.dobMonth || existing.dobMonth || '',
+      dobDay: user.dobDay || existing.dobDay || '',
+
+      // --- Other Fields ---
+      age: user.age != null ? user.age : existing.age,
+      gender: user.gender || existing.gender || '',
       match_ids: existing.match_ids || {}
       // NOTE: we intentionally do NOT reset following/followers here
     }
+    
     // const updatePayload = {
     //   name: user.displayName || existing.name || '',
     //   email: user.email || existing.email || '',
