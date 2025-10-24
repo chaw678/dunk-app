@@ -16,6 +16,7 @@
                     <button :class="['tab-pill', selectedTab === 'all' ? 'active' : '']" @click="selectedTab = 'all'">All Matches</button>
                     <button :class="['tab-pill', selectedTab === 'hosts' ? 'active' : '']" @click="selectedTab = 'hosts'">My Matches</button>
                     <button :class="['tab-pill', selectedTab === 'joined' ? 'active' : '']" @click="selectedTab = 'joined'">Joined Matches</button>
+                    <button :class="['tab-pill', selectedTab === 'past' ? 'active' : '']" @click="selectedTab = 'past'">Past Matches</button>
                 </div>
             </div>
 
@@ -58,11 +59,17 @@
                                 <div class="mt-auto d-flex justify-content-between align-items-center">
                                     <div class="btn-group">
                                         <template v-if="isHost(match)">
-                                            <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                            <!-- For ongoing matches, host can Start the match (writes started flag) -->
+                                            <button type="button" class="btn btn-success btn-sm d-flex align-items-center" @click.prevent="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
                                         </template>
                                         <template v-else-if="isJoined(match)">
                                             <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                            <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                            <template v-if="match.started || match._started">
+                                                <button type="button" class="btn btn-primary btn-sm ms-2 d-flex align-items-center" @click.prevent="playMatch(match)"><i class="bi bi-controller me-2"></i>Play</button>
+                                            </template>
+                                            <template v-else>
+                                                <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                            </template>
                                         </template>
                                         <template v-else>
                                             <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent="joinMatch(match)">Join</button>
@@ -186,6 +193,16 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Empty state for Past Matches when user has none -->
+            <div v-if="selectedTab === 'past' && groupedMatches && (!groupedMatches.past || groupedMatches.past.length === 0)" class="past-empty-state">
+                <h3 class="section-heading">Past</h3>
+                <div class="empty-card card">
+                    <div class="card-body">
+                        <p class="mb-2">You have no past matches.</p>
+                        <p class="text-muted small">Past matches you hosted or joined will appear here. Try checking <strong>All Matches</strong> to find upcoming games.</p>
                     </div>
                 </div>
             </div>
@@ -452,11 +469,24 @@ function getMatchStartEnd(match) {
 }
 
 const matchesForTab = computed(() => {
-    if (selectedTab.value === 'all') return matches.value
+    // By default, non-past tabs should exclude past matches so Past Matches tab becomes the single source
+    // of truth for historical games.
+    if (selectedTab.value === 'all') return matches.value.filter(m => !isPast(m))
+    if (selectedTab.value === 'past') {
+        // only show past matches that the current user hosted or joined and exclude soft-deleted records
+        if (!currentUser.value) return []
+        const uid = currentUser.value.uid
+        return matches.value.filter(m => {
+            if (!isPast(m)) return false
+            if (m.deleted || m.removed || m.deletedAt) return false
+            const joined = Boolean(m.joinedBy && m.joinedBy[uid])
+            return isHost(m) || joined
+        })
+    }
     if (!currentUser.value) return []
-    if (selectedTab.value === 'hosts') return matches.value.filter(m => isHost(m))
-    if (selectedTab.value === 'joined') return matches.value.filter(m => !isHost(m) && Boolean(m.joinedBy && currentUser.value && m.joinedBy[currentUser.value.uid]))
-    return matches.value
+    if (selectedTab.value === 'hosts') return matches.value.filter(m => isHost(m) && !isPast(m))
+    if (selectedTab.value === 'joined') return matches.value.filter(m => !isHost(m) && Boolean(m.joinedBy && currentUser.value && m.joinedBy[currentUser.value.uid]) && !isPast(m))
+    return matches.value.filter(m => !isPast(m))
 })
 
 const groupedMatches = computed(() => {
@@ -654,6 +684,34 @@ async function deleteMatch(match) {
         console.error('Failed to delete match', e)
         alert('Failed to delete — try again')
     }
+}
+
+async function startMatch(match) {
+    if (!currentUser.value) { alert('Please sign in'); return }
+    if (!isHost(match)) { alert('Only the host may start this match'); return }
+    if (!confirm('Start this match now?')) return
+    // optimistic local flag
+    match._started = true
+    if (match.__dbPath) {
+        try {
+            const parts = match.__dbPath.split('/')
+            const id = parts.pop()
+            const path = parts.join('/')
+            await setChildData(`${path}/${id}`, 'started', true)
+            await setChildData(`${path}/${id}`, 'startedAt', new Date().toISOString())
+        } catch (e) {
+            console.error('Failed to set started flag', e)
+            alert('Failed to start match — try again')
+            match._started = false
+        }
+    }
+}
+
+function playMatch(match) {
+    // only allowed when started
+    if (!(match.started || match._started)) { alert('Match has not been started by the host yet'); return }
+    // placeholder: open match view or mark user as 'in play'
+    alert('Entering match live view — implement actual play flow')
 }
 
 function initials(name) {
