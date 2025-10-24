@@ -32,8 +32,8 @@
           <p class="court-display">{{ selectedCourt }}</p>
         </div>
 
-        <label>Date</label>
-        <input type="date" v-model="matchDate" />
+  <label>Date</label>
+  <input type="date" v-model="matchDate" :min="minDate" />
 
         <label class="d-flex align-items-center">Match Timing
           <small v-if="timingError" class="text-danger ms-2" style="font-weight:600;font-size:0.9rem;">{{ timingError }}</small>
@@ -89,8 +89,19 @@ const selectedCourt = ref(props.courtName || '')
 
 // listen for auth state so we can record the creating user's uid
 const currentUser = ref(null)
+const minDate = ref('')
+
 onMounted(() => {
   onUserStateChanged((u) => { currentUser.value = u })
+  // compute minDate (today) for the date picker and default matchDate if empty
+  try {
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    minDate.value = `${y}-${m}-${day}`
+    if (!matchDate.value) matchDate.value = minDate.value
+  } catch (e) {}
 })
 
 const emit = defineEmits(['close'])
@@ -132,11 +143,11 @@ function toSingaporeDateTimeISO(dateStr, timeStr) {
   if (!dateStr || !timeStr) return null
   const [y, m, d] = dateStr.split('-').map(Number)
   const [hh, mm] = timeStr.split(':').map(Number)
-  // create UTC time offset by Singapore timezone (UTC+8) by constructing a Date in UTC
-  // We'll create a Date using Date.UTC then subtract the local timezone offset to normalize, then add +8 hours.
-  const utcMillis = Date.UTC(y, m - 1, d, hh || 0, mm || 0, 0)
-  const sgMillis = utcMillis + (8 * 60 * 60 * 1000)
-  return new Date(sgMillis).toISOString()
+  // We want the ISO (UTC) that represents the given wall-time in Singapore (UTC+8).
+  // To convert Singapore local time to UTC, subtract 8 hours from the local wall-time.
+  // Using Date.UTC treats the input as UTC; therefore take Date.UTC(...) and subtract 8h.
+  const utcMillisForSG = Date.UTC(y, m - 1, d, hh || 0, mm || 0, 0) - (8 * 60 * 60 * 1000)
+  return new Date(utcMillisForSG).toISOString()
 }
 
 async function isTimingOverlap() {
@@ -186,6 +197,7 @@ async function isTimingOverlap() {
 const canSubmit = computed(() => {
   if (!selectedCourt.value) return false
   if (!matchDate.value) return false
+  if (minDate.value && matchDate.value < minDate.value) return false
   if (!startTime.value || !endTime.value) return false
   const s = parseDateTime(matchDate.value, startTime.value)
   const e = parseDateTime(matchDate.value, endTime.value)
