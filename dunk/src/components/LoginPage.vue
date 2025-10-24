@@ -1,7 +1,7 @@
 <script setup>
 // change 15: added "watch" import for profile edit modal
 import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
-import { Trophy, Star, Users, Cake } from 'lucide-vue-next'
+import { Trophy, Star, Users, Cake, ChartColumn } from 'lucide-vue-next'
 import { loginWithGoogle, logout, onUserStateChanged, saveUserToDatabase } from '../firebase/auth.js'
 import { onDataChange, getDataFromFirebase } from '../firebase/firebase'
 
@@ -301,6 +301,41 @@ function barHeight(value) {
   const px = Math.round(30 + pct * 190)
   return `${px}px`
 }
+
+// animate bars on mount
+const animateBars = ref(false)
+
+// animated numeric displays for login page
+const displayOpen = ref(0)
+const displayIntermediate = ref(0)
+const displayProfessional = ref(0)
+let countsStarted = false
+function animateCounts(duration = 700) {
+  if (countsStarted) return
+  countsStarted = true
+  const start = performance.now()
+  const targets = {
+    o: statsFromProfile.value.open_wins,
+    i: statsFromProfile.value.intermediate_wins,
+    p: statsFromProfile.value.professional_wins
+  }
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3) }
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration)
+    const e = easeOutCubic(t)
+    displayOpen.value = Math.round(targets.o * e)
+    displayIntermediate.value = Math.round(targets.i * e)
+    displayProfessional.value = Math.round(targets.p * e)
+    if (t < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
+
+onMounted(() => {
+  setTimeout(() => { animateBars.value = true; }, 90)
+})
+
+watch(animateBars, (v) => { if (v) animateCounts() })
 </script>
 
 <template>
@@ -459,26 +494,29 @@ function barHeight(value) {
 
       <!-- Match Statistics -->
       <div class="mb-4 px-3">
-        <h5>Match Statistics</h5>
-        <p class="text-muted">You have a total of <span class="text-warning fw-semibold">{{ totalWins }}</span> wins across all skill levels. Here's the breakdown:</p>
-
         <div class="match-stats-card border rounded-3 p-3 mt-2">
+          <div class="match-stats-header d-flex align-items-center mb-2">
+            <ChartColumn :size="18" class="me-2 text-warning" />
+            <h5 class="mb-0">Match Statistics</h5>
+          </div>
+          <p class="lead-text">You have a total of <span class="text-warning fw-semibold">{{ totalWins }}</span> wins across all skill levels. Here's the breakdown:</p>
+          <div class="chart-grid-lines" aria-hidden="true"></div>
           <div class="stats-chart d-flex align-items-end justify-content-between">
             <div class="chart-bar">
-              <div class="bar-fill" :style="{ height: barHeight(statsFromProfile.open_wins) }" aria-hidden="true"></div>
-              <div class="bar-value">{{ statsFromProfile.open_wins }}</div>
+              <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.open_wins) : '8px'), transitionDelay: '0ms' }" aria-hidden="true"></div>
+              <div class="bar-value">{{ displayOpen }}</div>
               <div class="bar-label">Open</div>
             </div>
 
             <div class="chart-bar">
-              <div class="bar-fill" :style="{ height: barHeight(statsFromProfile.intermediate_wins) }" aria-hidden="true"></div>
-              <div class="bar-value">{{ statsFromProfile.intermediate_wins }}</div>
+              <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.intermediate_wins) : '8px'), transitionDelay: '90ms' }" aria-hidden="true"></div>
+              <div class="bar-value">{{ displayIntermediate }}</div>
               <div class="bar-label">Intermediate</div>
             </div>
 
             <div class="chart-bar">
-              <div class="bar-fill" :style="{ height: barHeight(statsFromProfile.professional_wins) }" aria-hidden="true"></div>
-              <div class="bar-value">{{ statsFromProfile.professional_wins }}</div>
+              <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.professional_wins) : '8px'), transitionDelay: '180ms' }" aria-hidden="true"></div>
+              <div class="bar-value">{{ displayProfessional }}</div>
               <div class="bar-label">Professional</div>
             </div>
           </div>
@@ -697,12 +735,44 @@ function barHeight(value) {
 
 
       /* Match statistics chart */
-      .match-stats-card { background: #0F1113; border: 1px solid rgba(255,255,255,0.04); }
-      .stats-chart { gap: 18px; }
-      .chart-bar { flex: 1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding:8px }
-      .bar-fill { width: 60%; background: #FFAD1D; border-radius: 6px 6px 0 0; transition: height 300ms ease; }
-      .bar-value { color: #fff; font-weight:700; margin-top:8px }
-      .bar-label { color:#9CA3AF; margin-top:6px; font-size:0.9rem }
+      .match-stats-card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02));
+        border: 1px solid rgba(255,255,255,0.04);
+        padding: 18px;
+        position: relative;
+        overflow: hidden;
+      }
+      .match-stats-card .lead-text { color: rgba(255,255,255,0.88); margin-bottom: 8px; font-size:0.98rem }
+
+      .match-stats-grid {
+        display:flex; gap:18px; align-items:center; justify-content:space-between; margin-top:6px;
+      }
+
+      .stats-chart { gap: 28px; align-items:flex-end; height:260px; padding-bottom:12px; display:flex }
+      .chart-bar { flex: 1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; position:relative }
+
+      .chart-grid-lines {
+        position:absolute; left:18px; right:18px; top:18px; bottom:56px; pointer-events:none;
+        background-image: linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+        background-size: 100% 44px;
+        opacity:0.9;
+      }
+
+      .bar-fill {
+        width: 60%;
+        background: linear-gradient(180deg,#ffca6a,#ffad1d);
+        border-radius: 8px 8px 4px 4px;
+        transition: height 360ms cubic-bezier(.2,.9,.3,1);
+        display:flex; align-items:flex-start; justify-content:center; padding-top:8px; box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+      }
+
+      .bar-value { color: #081017; font-weight:800; font-size:0.98rem; margin-bottom:6px }
+      .bar-label { color:#9CA3AF; margin-top:10px; font-size:0.95rem }
+
+      @media (max-width: 540px) {
+        .stats-chart { height: 180px }
+        .bar-fill { width: 72% }
+      }
 
 
 </style>

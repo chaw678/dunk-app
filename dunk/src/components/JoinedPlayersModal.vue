@@ -12,8 +12,14 @@
         <ul class="list-unstyled mb-0">
           <li v-for="(p, i) in players || []" :key="i" class="player-row border-bottom">
             <div class="player-avatar">
-              <img v-if="p.avatar" :src="p.avatar" alt="avatar" class="big-avatar" />
-              <div v-else class="avatar-initial big-avatar">{{ initials(p.name) }}</div>
+              <router-link v-if="p.uid" :to="`/profile/${p.uid}`" class="player-link">
+                <img v-if="p.avatar" :src="p.avatar" alt="avatar" class="big-avatar" />
+                <div v-else class="avatar-initial big-avatar">{{ initials(p.name) }}</div>
+              </router-link>
+              <template v-else>
+                <img v-if="p.avatar" :src="p.avatar" alt="avatar" class="big-avatar" />
+                <div v-else class="avatar-initial big-avatar">{{ initials(p.name) }}</div>
+              </template>
             </div>
             <div class="player-info">
               <div class="player-name">
@@ -149,6 +155,8 @@ async function unfollowUser(uid) {
 .player-avatar { flex: 0 0 auto; width: var(--avatar-size); }
 .big-avatar { width: var(--avatar-size); height: var(--avatar-size); border-radius: 50%; object-fit: cover; display: block; border: 6px solid rgba(255,255,255,0.02); position: relative; z-index: 2 }
 .avatar-initial.big-avatar { display:flex; align-items:center; justify-content:center; background:#1f262b; color:#fff; font-weight:700 }
+.player-avatar .player-link { display: block }
+.player-avatar .player-link .big-avatar { cursor: pointer }
 .player-info { flex: 1 1 auto; display:flex; flex-direction:column; justify-content:center; }
 .player-name { font-size: 20px; color: #fff; font-weight: 700; line-height: 1.2 }
 .name-link { color: #fff; text-decoration: none }

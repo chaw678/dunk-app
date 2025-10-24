@@ -94,26 +94,29 @@
 
       <!-- Match Statistics -->
       <div class="mb-4 px-3">
-        <h5>Match Statistics</h5>
-        <p class="text-muted">You have a total of <span class="text-warning fw-semibold">{{ totalWins }}</span> wins across all skill levels. Here's the breakdown:</p>
-
         <div class="match-stats-card border rounded-3 p-3 mt-2">
+          <div class="match-stats-header d-flex align-items-center mb-2">
+            <ChartColumn :size="18" class="me-2 text-warning" />
+            <h5 class="mb-0">Match Statistics</h5>
+          </div>
+          <p class="lead-text">You have a total of <span class="text-warning fw-semibold">{{ totalWins }}</span> wins across all skill levels. Here's the breakdown:</p>
+          <div class="chart-grid-lines" aria-hidden="true"></div>
           <div class="stats-chart d-flex align-items-end justify-content-between">
             <div class="chart-bar">
-              <div class="bar-fill" :style="{ height: barHeight(statsFromProfile.open_wins) }" aria-hidden="true"></div>
-              <div class="bar-value">{{ statsFromProfile.open_wins }}</div>
+              <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.open_wins) : '8px'), transitionDelay: '0ms' }" aria-hidden="true"></div>
+              <div class="bar-value">{{ displayOpen }}</div>
               <div class="bar-label">Open</div>
             </div>
 
             <div class="chart-bar">
-              <div class="bar-fill" :style="{ height: barHeight(statsFromProfile.intermediate_wins) }" aria-hidden="true"></div>
-              <div class="bar-value">{{ statsFromProfile.intermediate_wins }}</div>
+              <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.intermediate_wins) : '8px'), transitionDelay: '90ms' }" aria-hidden="true"></div>
+              <div class="bar-value">{{ displayIntermediate }}</div>
               <div class="bar-label">Intermediate</div>
             </div>
 
             <div class="chart-bar">
-              <div class="bar-fill" :style="{ height: barHeight(statsFromProfile.professional_wins) }" aria-hidden="true"></div>
-              <div class="bar-value">{{ statsFromProfile.professional_wins }}</div>
+              <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.professional_wins) : '8px'), transitionDelay: '180ms' }" aria-hidden="true"></div>
+              <div class="bar-value">{{ displayProfessional }}</div>
               <div class="bar-label">Professional</div>
             </div>
           </div>
@@ -124,11 +127,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getDataFromFirebase, overwriteDataToFirebase, setChildData, deleteChildData } from '../firebase/firebase'
 import { onUserStateChanged } from '../firebase/auth'
-import { MoveLeft, Trophy, Star, Users, Cake } from 'lucide-vue-next'
+import { MoveLeft, Trophy, Star, Users, Cake, ChartColumn } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -205,13 +208,15 @@ async function loadRecentContent() {
 function goBack() { router.back() }
 
 const displayInitials = computed(() => {
-  const name = profile.value.name || profile.value.username || ''
+  const p = profile.value || {}
+  const name = p.name || p.username || ''
   return name.split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase() || 'U'
 })
 
 const photoUrl = computed(() => {
-  if (profile.value && profile.value.photoURL) return profile.value.photoURL
-  const name = profile.value.name || profile.value.username || profile.value.email || uid || 'anon'
+  const p = profile.value || {}
+  if (p.photoURL) return p.photoURL
+  const name = p.name || p.username || p.email || uid || 'anon'
   return `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(name)}`
 })
 
@@ -238,6 +243,47 @@ function barHeight(value) {
   const px = Math.round(30 + pct * 190) // min 30px, max ~220px
   return `${px}px`
 }
+
+// animation trigger for bars
+const animateBars = ref(false)
+
+// animated numeric displays (count-up)
+const displayOpen = ref(0)
+const displayIntermediate = ref(0)
+const displayProfessional = ref(0)
+
+let countsStarted = false
+function animateCounts(duration = 700) {
+  if (countsStarted) return
+  countsStarted = true
+  const start = performance.now()
+  const startVals = { o: 0, i: 0, p: 0 }
+  const targets = {
+    o: statsFromProfile.value.open_wins,
+    i: statsFromProfile.value.intermediate_wins,
+    p: statsFromProfile.value.professional_wins
+  }
+
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3) }
+
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration)
+    const e = easeOutCubic(t)
+    displayOpen.value = Math.round(startVals.o + (targets.o - startVals.o) * e)
+    displayIntermediate.value = Math.round(startVals.i + (targets.i - startVals.i) * e)
+    displayProfessional.value = Math.round(startVals.p + (targets.p - startVals.p) * e)
+    if (t < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
+
+onMounted(() => {
+  // small delay to allow initial render with tiny bars, then grow
+  setTimeout(() => { animateBars.value = true }, 80)
+})
+
+// start count animation when bars begin animating
+watch(animateBars, (v) => { if (v) animateCounts() })
 
 function isFollowing() {
   if (!currentUser.value || !profile.value) return false
@@ -325,11 +371,44 @@ async function toggleFollow() {
 
 .avatar-img { width:36px; height:36px; border-radius:50%; object-fit:cover; border:2px solid rgba(0,0,0,0.6); margin-left:-12px }
 
-/* Match statistics chart */
-.match-stats-card { background: #0F1113; border: 1px solid rgba(255,255,255,0.04); }
-.stats-chart { gap: 18px; }
-.chart-bar { flex: 1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding:8px }
-.bar-fill { width: 60%; background: #FFAD1D; border-radius: 6px 6px 0 0; transition: height 300ms ease; }
-.bar-value { color: #fff; font-weight:700; margin-top:8px }
-.bar-label { color:#9CA3AF; margin-top:6px; font-size:0.9rem }
+/* Match statistics chart: visually match the profile screenshot */
+.match-stats-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02));
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+}
+.match-stats-card .lead-text { color: rgba(255,255,255,0.88); margin-bottom: 8px; font-size:0.98rem }
+
+.match-stats-grid {
+  display:flex; gap:18px; align-items:center; justify-content:space-between; margin-top:6px;
+}
+
+.stats-chart { gap: 28px; align-items:flex-end; height:260px; padding-bottom:12px; display:flex }
+.chart-bar { flex: 1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; position:relative }
+
+.chart-grid-lines {
+  position:absolute; left:18px; right:18px; top:18px; bottom:56px; pointer-events:none;
+  background-image: linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 100% 44px;
+  opacity:0.9;
+}
+
+.bar-fill {
+  width: 60%;
+  background: linear-gradient(180deg,#ffca6a,#ffad1d);
+  border-radius: 8px 8px 4px 4px;
+  transition: height 360ms cubic-bezier(.2,.9,.3,1);
+  display:flex; align-items:flex-start; justify-content:center; padding-top:8px; box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+}
+
+.bar-value { color: #081017; font-weight:800; font-size:0.98rem; margin-bottom:6px }
+.bar-label { color:#9CA3AF; margin-top:10px; font-size:0.95rem }
+
+/* make sure small screens still look good */
+@media (max-width: 540px) {
+  .stats-chart { height: 180px }
+  .bar-fill { width: 72% }
+}
 </style>
