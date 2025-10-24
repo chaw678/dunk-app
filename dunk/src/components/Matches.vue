@@ -269,6 +269,43 @@ const filteredMatches = computed(() => {
     })
 })
 
+const now = ref(new Date())
+
+const ongoingMatches = computed(() =>
+  filteredMatches.value
+    .filter(m => {
+      if (!m.startAtISO || !m.endAtISO) return false
+      const start = new Date(m.startAtISO)
+      const end = new Date(m.endAtISO)
+      return start <= now.value && end >= now.value
+    })
+    .sort((a, b) => new Date(a.startAtISO) - new Date(b.startAtISO))
+)
+
+const scheduledMatches = computed(() =>
+  filteredMatches.value
+    .filter(m => {
+      if (!m.startAtISO) return false
+      const start = new Date(m.startAtISO)
+      return start > now.value
+    })
+    .sort((a, b) => new Date(a.startAtISO) - new Date(b.startAtISO))
+)
+
+const pastMatches = computed(() =>
+  filteredMatches.value
+    .filter(m => {
+      if (!m.endAtISO) return false
+      const end = new Date(m.endAtISO)
+      return end < now.value
+    })
+    .sort((a, b) => new Date(b.startAtISO) - new Date(a.startAtISO))
+)
+
+// update 'now' every minute to refresh categories live
+setInterval(() => { now.value = new Date() }, 60000)
+
+
 function visiblePlayers(arr) {
     if (!arr) return []
     return arr.slice(0, maxAvatars)
