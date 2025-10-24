@@ -66,7 +66,8 @@
 
 <script setup>
 import { pushDataToFirebase, getDataFromFirebase } from '../firebase/firebase'
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { onUserStateChanged } from '../firebase/auth'
 const props = defineProps({
   courtName: String,
   courtList: { type: Array, default: () => [] }
@@ -85,6 +86,12 @@ const courtSelectRef = ref(null)
 const matchType = ref('Open')
 const gender = ref('All')
 const selectedCourt = ref(props.courtName || '')
+
+// listen for auth state so we can record the creating user's uid
+const currentUser = ref(null)
+onMounted(() => {
+  onUserStateChanged((u) => { currentUser.value = u })
+})
 
 const emit = defineEmits(['close'])
 
@@ -246,9 +253,26 @@ const createMatch = async () => {
   }
 
   try {
-    // push under matches/{courtKey}/{YYYY-MM-DD}
-    const courtKey = encodeURIComponent(selectedCourt.value)
-    await pushDataToFirebase(`matches/${courtKey}/${matchDate.value}`, newMatch)
+    // attach creating user's uid as createdby/ownerId and persist host as joined
+    try {
+      const u = currentUser && currentUser.value
+      if (u && u.uid) {
+        const uid = u.uid
+        const displayName = (u.displayName) || uid
+        newMatch.createdby = uid
+        newMatch.ownerId = uid
+        // persist host as joined by default
+        newMatch.joinedBy = { [uid]: true }
+        newMatch.playersMap = { [uid]: displayName }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+  // push under matches/{courtKey}/{YYYY-MM-DD}
+  // guard against double-encoding: decode then encode once
+  const courtKey = encodeURIComponent(decodeURIComponent(selectedCourt.value || ''))
+  await pushDataToFirebase(`matches/${courtKey}/${matchDate.value}`, newMatch)
     alert('Match created and saved to Firebase!')
     // notify parent to refresh list
     emit('created')

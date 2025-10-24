@@ -14,55 +14,176 @@
             <div class="tabs mb-3">
                 <div class="tabs-pill" role="tablist" aria-label="Match tabs">
                     <button :class="['tab-pill', selectedTab === 'all' ? 'active' : '']" @click="selectedTab = 'all'">All Matches</button>
-                    <button :class="['tab-pill', selectedTab === 'my' ? 'active' : '']" @click="selectedTab = 'my'">My Matches</button>
+                    <button :class="['tab-pill', selectedTab === 'hosts' ? 'active' : '']" @click="selectedTab = 'hosts'">My Matches</button>
+                    <button :class="['tab-pill', selectedTab === 'joined' ? 'active' : '']" @click="selectedTab = 'joined'">Joined Matches</button>
                 </div>
             </div>
 
-            <div class="row g-3 matches-grid">
-                <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in filteredMatches" :key="match?.id || idx">
-                                        <div class="card match-card h-100 text-reset text-decoration-none">
-                                                <div class="card-header match-card-header">
-                                                    <h3 class="match-title mb-1">{{ match.title }}</h3>
-                                                    <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ Object.keys(match.joinedBy || {}).length || (match.players || []).length }}/{{ match.maxPlayers || 10 }}</div>
-                                                </div>
-                                                <div class="card-body d-flex flex-column h-100 p-4">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div>
-                                    <!-- <h3 class="match-title mb-1">{{ match.title }}</h3> -->
-                                    <div class="match-sub small">{{ match.location }}</div>
-                                    <div class="match-date">{{ formatDate(match) }}</div>
-                                </div>
-                                <div></div>
+            <!-- Grouped sections: Ongoing / Scheduled / Past -->
+            <div v-if="groupedMatches && groupedMatches.ongoing && groupedMatches.ongoing.length">
+                <h3 class="section-heading">Ongoing</h3>
+                <div class="row g-3 matches-grid">
+                    <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.ongoing ? groupedMatches.ongoing : [])" :key="match?.id || idx">
+                        <div :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']">
+                            <div class="card-header match-card-header">
+                                <h3 class="match-title mb-1">{{ match.title }}</h3>
+                                <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
                             </div>
+                            <div class="card-body d-flex flex-column h-100 p-4">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <div class="match-sub small">{{ match.location }}</div>
+                                        <div class="match-date">{{ formatDate(match) }}</div>
+                                    </div>
+                                    <div></div>
+                                </div>
 
-                            <div class="match-meta-row mb-3">
-                                <div class="time-range">{{ formatTimeRange(match) }}</div>
-                                <div class="meta-pill">{{ match.gender || 'All' }}</div>
-                                <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-                                <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
-                            </div>
+                                <div class="match-meta-row mb-3">
+                                    <div class="time-range">{{ formatTimeRange(match) }}</div>
+                                    <div class="meta-pill">{{ match.gender || 'All' }}</div>
+                                    <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
+                                    <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+                                </div>
 
-                            <div class="avatars mb-3">
-                                <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
-                                    <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
-                                        <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
-                                        <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
-                                    </template>
-                                    <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
+                                <div class="avatars mb-3">
+                                    <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
+                                        <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
+                                            <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
+                                            <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
+                                        </template>
+                                        <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-auto d-flex justify-content-between align-items-center">
+                                    <div class="btn-group">
+                                        <template v-if="isHost(match)">
+                                            <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                        </template>
+                                        <template v-else-if="isJoined(match)">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                        </template>
+                                        <template v-else>
+                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent="joinMatch(match)">Join</button>
+                                        </template>
+                                    </div>
+                                    <div></div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                            <div class="mt-auto d-flex justify-content-between align-items-center">
-                                <div class="btn-group">
-                                    <template v-if="isJoined(match)">
-                                        <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                        <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
-                                    </template>
-                                    <template v-else>
-                                        <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!canJoin(match)" @click.prevent="joinMatch(match)">Join</button>
-                                    </template>
+            <div v-if="groupedMatches && groupedMatches.scheduled && groupedMatches.scheduled.length">
+                <h3 class="section-heading">Scheduled</h3>
+                <div class="row g-3 matches-grid">
+                    <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.scheduled ? groupedMatches.scheduled : [])" :key="match?.id || idx">
+                        <!-- reuse same card markup -->
+                        <div :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']">
+                            <div class="card-header match-card-header">
+                                <h3 class="match-title mb-1">{{ match.title }}</h3>
+                                <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                            </div>
+                            <div class="card-body d-flex flex-column h-100 p-4">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <div class="match-sub small">{{ match.location }}</div>
+                                        <div class="match-date">{{ formatDate(match) }}</div>
+                                    </div>
+                                    <div></div>
                                 </div>
-                                <div><!-- avatars are clickable; removed View button --></div>
+
+                                <div class="match-meta-row mb-3">
+                                    <div class="time-range">{{ formatTimeRange(match) }}</div>
+                                    <div class="meta-pill">{{ match.gender || 'All' }}</div>
+                                    <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
+                                    <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+                                </div>
+
+                                <div class="avatars mb-3">
+                                    <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
+                                        <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
+                                            <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
+                                            <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
+                                        </template>
+                                        <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-auto d-flex justify-content-between align-items-center">
+                                    <div class="btn-group">
+                                        <template v-if="isHost(match)">
+                                            <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                        </template>
+                                        <template v-else-if="isJoined(match)">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                        </template>
+                                        <template v-else>
+                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent="joinMatch(match)">Join</button>
+                                        </template>
+                                    </div>
+                                    <div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="groupedMatches && groupedMatches.past && groupedMatches.past.length">
+                <h3 class="section-heading">Past</h3>
+                <div class="row g-3 matches-grid">
+                    <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.past ? groupedMatches.past : [])" :key="match?.id || idx">
+                        <!-- reuse same card markup -->
+                        <div :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']">
+                            <div class="card-header match-card-header">
+                                <h3 class="match-title mb-1">{{ match.title }}</h3>
+                                <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                            </div>
+                            <div class="card-body d-flex flex-column h-100 p-4">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <div class="match-sub small">{{ match.location }}</div>
+                                        <div class="match-date">{{ formatDate(match) }}</div>
+                                    </div>
+                                    <div></div>
+                                </div>
+
+                                <div class="match-meta-row mb-3">
+                                    <div class="time-range">{{ formatTimeRange(match) }}</div>
+                                    <div class="meta-pill">{{ match.gender || 'All' }}</div>
+                                    <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
+                                    <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+                                </div>
+
+                                <div class="avatars mb-3">
+                                    <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
+                                        <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
+                                            <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
+                                            <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
+                                        </template>
+                                        <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-auto d-flex justify-content-between align-items-center">
+                                    <div class="btn-group">
+                                        <template v-if="isHost(match)">
+                                            <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                        </template>
+                                        <template v-else-if="isJoined(match)">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                        </template>
+                                        <template v-else>
+                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent="joinMatch(match)">Join</button>
+                                        </template>
+                                    </div>
+                                    <div></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -195,6 +316,18 @@ onMounted(async () => {
     })
 })
 
+// also refresh matches when auth state changes (so hosts see updated joined lists)
+onUserStateChanged(async (u) => {
+    currentUser.value = u
+    // reload users and matches to reflect any joinedBy changes made while signed out
+    try {
+        await loadUsers()
+        await loadMatches()
+    } catch (e) {
+        console.warn('Failed to refresh matches on auth change', e)
+    }
+})
+
 async function loadMatches() {
     try {
         const data = await getDataFromFirebase('matches')
@@ -214,7 +347,8 @@ async function loadMatches() {
                         // v2 may be an object of matches
                         if (typeof v2 === 'object') {
                             for (const [mid, mv] of Object.entries(v2)) {
-                                const copy = { id: mid, __dbPath: `matches/${encodeURIComponent(k1)}/${k2}/${mid}`, ...mv }
+                                // k1 is the court key as stored in the DB; do not re-encode here
+                                const copy = { id: mid, __dbPath: `matches/${k1}/${k2}/${mid}`, ...mv }
                                 out.push(copy)
                             }
                         }
@@ -257,16 +391,102 @@ async function loadCourts() {
 
 const selectedTab = ref('all')
 
-const filteredMatches = computed(() => {
+function isHost(match) {
+    if (!currentUser.value || !match) return false
+    const uid = currentUser.value.uid
+    // owner may be stored as ownerId/owner/ownerUid/name
+    const owner = match.ownerId || match.ownerUid || match.owner
+    if (!owner) return false
+    if (owner === uid) return true
+    // sometimes owner stored as display name
+    const name = (currentUserProfile.value && (currentUserProfile.value.name || currentUser.value.displayName)) || ''
+    if (name && owner === name) return true
+    return false
+}
+
+function getMatchStartEnd(match) {
+    if (!match) return { start: null, end: null }
+    // prefer ISO fields
+    try {
+        if (match.startAtISO) {
+            const s = new Date(match.startAtISO)
+            let e = match.endAtISO ? new Date(match.endAtISO) : null
+            if (!e || isNaN(e.getTime())) e = new Date(s.getTime() + 90 * 60 * 1000) // default 90min
+            return { start: s, end: e }
+        }
+        // fallback to startAt / endAt which may be stored as ISO-like
+        if (match.startAt) {
+            const s = new Date(match.startAt)
+            let e = match.endAt ? new Date(match.endAt) : null
+            if (!e || isNaN(e.getTime())) e = new Date(s.getTime() + 90 * 60 * 1000)
+            return { start: s, end: e }
+        }
+        // try to combine date + startTime / endTime
+        if (match.date && match.startTime) {
+            // if date is ISO-like, use it
+            let base = new Date(match.date)
+            if (isNaN(base.getTime())) base = new Date()
+            const t = ('' + match.startTime).trim()
+            // parse hh:mm or hh:mm:ss
+            const m = t.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/) || []
+            if (m.length) {
+                base.setHours(Number(m[1]), Number(m[2]) || 0, Number(m[3]) || 0, 0)
+                const s = base
+                let e = null
+                if (match.endTime) {
+                    const mbe = ('' + match.endTime).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/) || []
+                    if (mbe.length) {
+                        const be = new Date(base)
+                        be.setHours(Number(mbe[1]), Number(mbe[2]) || 0, Number(mbe[3]) || 0, 0)
+                        e = be
+                    }
+                }
+                if (!e) e = new Date(s.getTime() + 90 * 60 * 1000)
+                return { start: s, end: e }
+            }
+        }
+    } catch (err) {
+        // parsing failed
+    }
+    return { start: null, end: null }
+}
+
+const matchesForTab = computed(() => {
     if (selectedTab.value === 'all') return matches.value
-    // 'my' matches: matches the current user owns or has joined
     if (!currentUser.value) return []
-    return matches.value.filter(m => {
-        const uid = currentUser.value && currentUser.value.uid
-        const joined = m && m.joinedBy && uid && Boolean(m.joinedBy[uid])
-        const ownerMatch = m && (m.owner === uid || m.owner === currentUserProfile.value.name || m.owner === (currentUser.value.displayName || ''))
-        return joined || ownerMatch
+    if (selectedTab.value === 'hosts') return matches.value.filter(m => isHost(m))
+    if (selectedTab.value === 'joined') return matches.value.filter(m => !isHost(m) && Boolean(m.joinedBy && currentUser.value && m.joinedBy[currentUser.value.uid]))
+    return matches.value
+})
+
+const groupedMatches = computed(() => {
+    const now = new Date()
+    const out = { ongoing: [], scheduled: [], past: [] }
+    const list = (matchesForTab.value || []).slice()
+    // sort by start time where possible (earliest first)
+    list.sort((a, b) => {
+        const aa = getMatchStartEnd(a).start
+        const bb = getMatchStartEnd(b).start
+        if (!aa && !bb) return 0
+        if (!aa) return 1
+        if (!bb) return -1
+        return aa - bb
     })
+    for (const m of list) {
+        const { start, end } = getMatchStartEnd(m)
+        if (start && end) {
+            if (now >= start && now <= end) out.ongoing.push(m)
+            else if (start > now) out.scheduled.push(m)
+            else out.past.push(m)
+        } else if (start && !end) {
+            if (start > now) out.scheduled.push(m)
+            else out.ongoing.push(m)
+        } else {
+            // unknown times go to scheduled by default
+            out.scheduled.push(m)
+        }
+    }
+    return out
 })
 
 function visiblePlayers(arr) {
@@ -276,9 +496,10 @@ function visiblePlayers(arr) {
 
 function displayedPlayers(match) {
     if (!match) return []
+    const out = []
     // Prefer deriving players from joinedBy map (uids) so we always show distinct users
     if (match.joinedBy && typeof match.joinedBy === 'object') {
-        return Object.keys(match.joinedBy).map(uid => {
+        for (const uid of Object.keys(match.joinedBy)) {
             let name = (match.playersMap && match.playersMap[uid])
             if (!name && usersCache.value && usersCache.value[uid]) {
                 const u = usersCache.value[uid]
@@ -286,12 +507,31 @@ function displayedPlayers(match) {
             }
             if (!name) name = uid
             const avatar = (usersCache.value && usersCache.value[uid] && (usersCache.value[uid].photoURL || usersCache.value[uid].avatar)) || seededAvatar(name)
-            return { uid, name, avatar }
-        })
+            out.push({ uid, name, avatar })
+        }
+    } else if (Array.isArray(match.players)) {
+        for (const name of match.players) out.push({ name, avatar: seededAvatar(name) })
     }
-    // fallback to legacy players array (names only)
-    if (Array.isArray(match.players)) return match.players.map(name => ({ name, avatar: seededAvatar(name) }))
-    return []
+
+    // ensure host appears in player list (hosts are implicitly joined)
+    try {
+        if (isHost(match)) {
+            const uid = currentUser.value && currentUser.value.uid
+            // if host has uid and isn't already listed, prepend
+            if (uid) {
+                const exists = out.find(p => p.uid === uid)
+                if (!exists) {
+                    const displayName = (currentUserProfile.value && (currentUserProfile.value.name || currentUser.value.displayName)) || uid
+                    const avatar = (usersCache.value && usersCache.value[uid] && (usersCache.value[uid].photoURL || usersCache.value[uid].avatar)) || seededAvatar(displayName)
+                    out.unshift({ uid, name: displayName, avatar })
+                }
+            }
+        }
+    } catch (err) {
+        // ignore
+    }
+
+    return out
 }
 
 const skillOrder = ['Open', 'Beginner', 'Intermediate', 'Professional']
@@ -307,6 +547,35 @@ function canJoin(match) {
     const matchSkill = match.type || 'Open'
     // user can join if their skill rank >= match required rank
     return skillRank(userSkill) >= skillRank(matchSkill)
+}
+
+function playersCount(match) {
+    if (!match) return 0
+    if (match.joinedBy && typeof match.joinedBy === 'object') return Object.keys(match.joinedBy).length
+    if (Array.isArray(match.players)) return match.players.length
+    return 0
+}
+
+function isPast(match) {
+    const { start, end } = getMatchStartEnd(match)
+    const now = new Date()
+    if (end && end instanceof Date && !isNaN(end.getTime())) return end < now
+    // if only start exists and is in the past and there's no end, treat as past
+    if (start && start instanceof Date && !isNaN(start.getTime()) && (!end || isNaN((end && end.getTime) ? end.getTime() : NaN))) return start < now
+    return false
+}
+
+function joinDisabledReason(match) {
+    // returns a string reason or empty if join allowed
+    if (isPast(match)) return 'Match is over'
+    if (!currentUser.value) return 'Sign in to join'
+    const count = playersCount(match)
+    const max = match.maxPlayers || 10
+    if (count >= max) return 'Match is full'
+    const userSkill = currentUserProfile.value.skill || 'Open'
+    const matchSkill = match.type || match.level || 'Open'
+    if (skillRank(userSkill) < skillRank(matchSkill)) return `Requires ${matchSkill} level`
+    return ''
 }
 
 async function joinMatch(match) {
@@ -335,6 +604,8 @@ async function joinMatch(match) {
 
 async function leaveMatch(match) {
     if (!currentUser.value) { alert('Please sign in'); return }
+    if (isHost(match)) { alert('You are the host of this match and cannot leave it. You may delete it instead.'); return }
+    if (isPast(match)) { alert('This match is already over — you cannot leave past matches.'); return }
     const uid = currentUser.value.uid
     match.joinedBy = match.joinedBy || {}
     if (!match.joinedBy[uid]) return
@@ -358,7 +629,31 @@ async function leaveMatch(match) {
 
 function isJoined(match) {
     if (!currentUser.value) return false
+    // hosts are implicitly joined
+    if (isHost(match)) return true
     return Boolean(match && match.joinedBy && match.joinedBy[currentUser.value.uid])
+}
+
+async function deleteMatch(match) {
+    if (!currentUser.value) { alert('Please sign in'); return }
+    if (!isHost(match)) { alert('Only the host may delete this match'); return }
+    if (!confirm('Delete this match? This action cannot be undone.')) return
+    if (!match.__dbPath) {
+        // fallback: remove locally
+        matches.value = matches.value.filter(m => m !== match)
+        return
+    }
+    try {
+        const parts = match.__dbPath.split('/')
+        const id = parts.pop()
+        const path = parts.join('/')
+        await deleteChildData(path, id)
+        // remove locally
+        matches.value = matches.value.filter(m => m.id !== match.id)
+    } catch (e) {
+        console.error('Failed to delete match', e)
+        alert('Failed to delete — try again')
+    }
 }
 
 function initials(name) {
@@ -639,6 +934,16 @@ function formatDate(match) {
     display: flex;
     align-items: stretch;
 }
+
+/* Host-created matches use the same visual highlight as the Create Match button */
+.match-card.host-match {
+    background: linear-gradient(180deg,#ff9a3c 0%, #ff9a3c 100%);
+    color: #111;
+    border-color: rgba(0,0,0,0.12);
+}
+.match-card.host-match .match-title { color: #111 }
+
+.section-heading { color: #ff9a3c; font-weight: 800; margin-top: 18px; margin-bottom: 12px }
 
 /* Prevent container overflow from accidental wide children */
 .large-card, .matches-grid {
