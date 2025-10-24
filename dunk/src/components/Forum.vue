@@ -59,13 +59,13 @@
         </div>
         <div class="d-flex justify-content-end gap-2 mt-3">
           <button class="btn btn-secondary" @click="cancelUploadModal">Cancel</button>
-          <button class="btn btn-warning" @click="submitUpload">Create Post</button>
+          <button class="btn btn-warning" :disabled="!currentUserId" :title="currentUserId ? 'Create Post' : 'Sign in to create posts'" @click="submitUpload">Create Post</button>
         </div>
       </div>
     </div>
 
     <!-- Floating pencil button to open modal -->
-    <button class="btn btn-warning fab-pencil" @click="openUploadModal" aria-label="Create post">
+    <button class="btn btn-warning fab-pencil" :disabled="!currentUserId" :title="currentUserId ? 'Create post' : 'Sign in to create posts'" @click="openUploadModal" aria-label="Create post">
       <i class="bi bi-pencil" style="font-size:20px;color:#111"></i>
     </button>
 
@@ -696,6 +696,7 @@ async function onFilesSelected(e) {
 }
 
 function openUploadModal() {
+  if (!currentUserId.value) { alert('Please sign in to create a post'); return }
   uploadTitle.value = ''
   uploadCaption.value = ''
   selectedUploadFiles.value = []

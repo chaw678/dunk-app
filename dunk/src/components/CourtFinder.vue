@@ -3,8 +3,8 @@
   <div class="content-wrapper">
     <div class="card container-fluid">
       <div class="header-row">
-        <h1 class="card-title">Court Finder</h1>
-        <button class="add-court-btn" @click="handleAddCourt">Add Court</button>
+  <h1 class="card-title">Court Finder</h1>
+  <button class="add-court-btn" :disabled="!currentUser" :title="currentUser ? 'Add Court' : 'Sign in to add courts'" @click="handleAddCourt">Add Court</button>
       </div>
 
       <p class="card-desc">Locate basketball courts, check availability, and see user ratings.</p>
@@ -57,7 +57,7 @@
       <div class="card-section">
         <div class="card-section-header">
           <h2 class="section-title">Map</h2>
-          <button class="pin-btn" @click="activatePinMode" title="Add a new court location">
+          <button class="pin-btn" :disabled="!currentUser" :title="currentUser ? 'Add a new court location' : 'Sign in to add courts'" @click="activatePinMode">
             <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
               <circle cx="16" cy="16" r="12" fill="#ffa733" stroke="#333" stroke-width="2"/>
               <rect x="13" y="8" width="6" height="11" rx="3" fill="#ff9500"/>
@@ -78,7 +78,7 @@
       <p><strong>Date:</strong> {{ matchEventToShow.date }}</p>
       <p><strong>Time:</strong> {{ matchEventToShow.time }}</p>
       <p><strong>Type:</strong> {{ matchEventToShow.type }}</p>
-      <button class="add-match-btn" @click="openMatchModalFromEventCard">Add Match</button>
+  <button class="add-match-btn" :disabled="!currentUser" :title="currentUser ? 'Add Match' : 'Sign in to create matches'" @click="openMatchModalFromEventCard">Add Match</button>
     </div>
   </div>
 </div>
@@ -109,6 +109,7 @@ v-if="showAddCourtModal"
 
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
+import { onUserStateChanged } from '../firebase/auth'
 import { getDataFromFirebase } from '../firebase/firebase'
 import AddCourtModal2 from './AddCourtModal2.vue'
 import AddCourtModal from './AddCourtModal.vue'
@@ -124,6 +125,7 @@ const showAddCourtModal2 = ref(false)    // For button ("Add Court")
 const showAddCourtModal = ref(false)     // For pin drop
 const showAddMatchModal = ref(false)
 const selectedCourt = ref(null)
+const currentUser = ref(null)
 //change 1: to allow more thna one filtering
 const selectedRegions = ref(['all'])
 const searchQuery = ref('')
@@ -177,6 +179,10 @@ if (map.value && court.lat && court.lon) {
     icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' }
   })
 }
+
+onMounted(() => {
+  onUserStateChanged((u) => { currentUser.value = u })
+})
 
 // Perform search or update markers if needed
 handleSearch()
@@ -298,10 +304,7 @@ if (data) {
   firebaseList = Object.entries(data).map(([id, court]) => ({
     id,
     name: court.name ?? '',
-    // keep original region raw value but also compute a normalized region string
     region: ((court.region ?? '') + '').toString().toLowerCase().trim(),
-    // support comma-separated/multi-region values by creating a normalizedRegions array
-    normalizedRegions: (((court.region ?? '') + '').toString().split(',').map(s => (s || '').toString().toLowerCase().trim()).filter(Boolean)),
     lat: Number(court.lat),
     lon: Number(court.lon),
     keywords: court.keywords ?? [],
@@ -312,7 +315,6 @@ if (data) {
 const localNormalized = courts.map(c => ({
   ...c,
   region: ((c.region ?? '') + '').toString().toLowerCase().trim(),
-  normalizedRegions: (((c.region ?? '') + '').toString().split(',').map(s => (s || '').toString().toLowerCase().trim()).filter(Boolean)),
   lat: Number(c.lat),
   lon: Number(c.lon),
   keywords: c.keywords ?? []
@@ -322,14 +324,6 @@ allCourts.value = [...firebaseList, ...localNormalized];
 console.debug('[loadCourtsFromFirebase] loaded', allCourts.value.length, 'courts', allCourts.value.map(x => ({ name: x.name, region: x.region })));
 applyFilters();
 };
-
-// Helper: return normalized regions array for a court (always lower-case, trimmed)
-function getCourtRegions(court) {
-  if (!court) return []
-  if (Array.isArray(court.normalizedRegions) && court.normalizedRegions.length) return court.normalizedRegions
-  if (court.region) return ((court.region + '').toString().split(',').map(s => (s || '').toString().toLowerCase().trim()).filter(Boolean))
-  return []
-}
 
 
 
@@ -535,9 +529,8 @@ let filtered = (allCourts.value || []).slice();
 if (!activeRegions.includes('all')) {
   const set = new Set(activeRegions.filter(Boolean));
   filtered = filtered.filter(c => {
-    const regions = getCourtRegions(c);
-    if (!regions || !regions.length) return false;
-    return regions.some(rr => set.has(rr));
+    const r = ((c.region ?? '') + '').toString().toLowerCase().trim();
+    return r && set.has(r);
   });
 }
 

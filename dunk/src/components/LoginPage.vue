@@ -1,7 +1,7 @@
 <script setup>
 // change 15: added "watch" import for profile edit modal
 import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
-import { Trophy, Star, Users, Cake } from 'lucide-vue-next'
+import { Trophy, Star, Users, Cake, ChartColumn } from 'lucide-vue-next'
 import { loginWithGoogle, logout, onUserStateChanged, saveUserToDatabase } from '../firebase/auth.js'
 import { onDataChange, getDataFromFirebase } from '../firebase/firebase'
 
@@ -58,6 +58,157 @@ const editGender = ref('');
 const dobYear = ref('');
 const dobMonth = ref('');
 const dobDay = ref('');
+const editBio = ref(''); 
+const editSkill = ref('');
+
+
+
+// Step 1: Followers / Following Popup States
+const showFollowers = ref(false);
+const showFollowing = ref(false);
+const searchQuery = ref('');
+const followersList = ref([]);
+const followingList = ref([]);
+const filteredFollowers = ref([]);
+const filteredFollowing = ref([]);
+const showConfirmPopup = ref(false);
+const confirmAction = ref(null);
+const confirmMessage = ref('');
+
+// Functions to open / close popups
+function openFollowers() {
+  showFollowers.value = true;
+  loadFollowers();
+}
+function openFollowing() {
+  showFollowing.value = true;
+  loadFollowing();
+}
+function closePopup() {
+  showFollowers.value = false;
+  showFollowing.value = false;
+  searchQuery.value = '';
+}
+
+// Step 2: Load lists from Firebase and hydrate UI
+async function loadFollowers() {
+  try {
+    const dbUsers = await getDataFromFirebase('users');
+    const current = dbUsers[user.value.uid];
+    if (current && current.followers) {
+      followersList.value = Object.keys(current.followers)
+        .map(uid => dbUsers[uid])
+        .filter(u => u != null); // <-- avoids undefined
+      filteredFollowers.value = followersList.value;
+    } else {
+      followersList.value = [];
+      filteredFollowers.value = [];
+    }
+  } catch (e) {
+    console.error('Error loading followers', e);
+  }
+}
+
+async function loadFollowing() {
+  try {
+    const dbUsers = await getDataFromFirebase('users');
+    const current = dbUsers[user.value.uid];
+    if (current && current.following) {
+      followingList.value = Object.keys(current.following)
+        .map(uid => dbUsers[uid])
+        .filter(u => u != null); // <-- avoids undefined
+      filteredFollowing.value = followingList.value;
+    } else {
+      followingList.value = [];
+      filteredFollowing.value = [];
+    }
+  } catch (e) {
+    console.error('Error loading following', e);
+  }
+}
+
+// Step 3: Real-time search filter
+watch(searchQuery, (val) => {
+  const q = val.trim().toLowerCase();
+  if (showFollowers.value) {
+    filteredFollowers.value = followersList.value.filter(
+      (u) => u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
+    );
+  } else if (showFollowing.value) {
+    filteredFollowing.value = followingList.value.filter(
+      (u) => u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
+    );
+  }
+});
+
+// Step 4: Remove a follower with confirmation
+// async function removeFollower(uidToRemove) {
+//   if (!confirm('Are you sure you want to remove this follower?')) return;
+//   try {
+//     const db = getDatabase();
+//     const followerRef = ref(db, `users/${user.value.uid}/followers/${uidToRemove}`);
+//     await set(followerRef, null);
+//     await loadFollowers();
+//   } catch (e) {
+//     console.error('Error removing follower', e);
+//   }
+// }
+
+// Step 6: Show aesthetic confirmation for “Remove” or “Unfollow”
+function confirmRemoveFollower(uidToRemove) {
+  confirmMessage.value = 'Are you sure you want to remove this follower?';
+  confirmAction.value = async () => {
+    await performRemoveFollower(uidToRemove);
+  };
+  showConfirmPopup.value = true;
+}
+
+function confirmUnfollow(uidToRemove) {
+  confirmMessage.value = 'Are you sure you want to unfollow this user?';
+  confirmAction.value = async () => {
+    await performUnfollow(uidToRemove);
+  };
+  showConfirmPopup.value = true;
+}
+
+// Step 7: Execute removal actions after confirmation
+async function performRemoveFollower(uidToRemove) {
+  try {
+    const db = getDatabase();
+    const followerRef = ref(db, `users/${user.value.uid}/followers/${uidToRemove}`);
+    await set(followerRef, null);
+    showConfirmPopup.value = false;
+    await loadFollowers();
+  } catch (e) {
+    console.error('Error removing follower', e);
+  }
+}
+
+// Step 8: Execute Unfollow action (removes record on both users)
+async function performUnfollow(uidToRemove) {
+  try {
+    const db = getDatabase();
+    const myRef = ref(db, `users/${user.value.uid}/following/${uidToRemove}`);
+    const theirRef = ref(db, `users/${uidToRemove}/followers/${user.value.uid}`);
+    await set(myRef, null);
+    await set(theirRef, null);
+    showConfirmPopup.value = false;
+    await loadFollowing();
+  } catch (e) {
+    console.error('Error unfollowing user', e);
+  }
+}
+
+// Step 9: Close confirmation popup manually
+function closeConfirmPopup() {
+  showConfirmPopup.value = false;
+  confirmAction.value = null;
+  confirmMessage.value = '';
+}
+
+
+
+
 
 // const dobYear = ref(user.value?.dobYear || 2000)
 // const dobMonth = ref(user.value?.dobMonth || 1)
@@ -110,11 +261,11 @@ watch(user, () => {
   // dobYear.value = user.value?.dobYear !== undefined ? user.value.dobYear : '';
   // dobMonth.value = user.value?.dobMonth !== undefined ? user.value.dobMonth : '';
   // dobDay.value = user.value?.dobDay !== undefined ? user.value.dobDay : '';
-  editName.value    = user.value?.name    ?? '';
+  editName.value = user.value?.name    ?? '';
   editGender.value  = user.value?.gender  ?? '';
-  dobYear.value     = user.value?.dobYear ?? '';
-  dobMonth.value    = user.value?.dobMonth ?? '';
-  dobDay.value      = user.value?.dobDay  ?? '';
+  dobYear.value = user.value?.dobYear ?? '';
+  dobMonth.value = user.value?.dobMonth ?? '';
+  dobDay.value = user.value?.dobDay  ?? '';
 
 });
 
@@ -142,23 +293,30 @@ async function saveProfileEdits() {
   }
 
   const updates = {
-    displayName: editName.value,
+    // displayName: editName.value,
+    name: editName.value,  
     gender: editGender.value,
     dobYear: dobYear.value,
     dobMonth: dobMonth.value,
     dobDay: dobDay.value,
-    age: age // <-- Adds age as a profile property
+    // <-- change 27: adds age, bio and skill as  profile property
+    age: age,
+    bio: editBio.value,     
+    skill: editSkill.value
   }
 
   // change 21: Only send fields to save, including uid for path reference
     const userDbUpdate = {
       uid: user.value.uid,
-      displayName: updates.displayName,
+      // displayName: updates.displayName,
+      name: updates.name,   
       gender: updates.gender,
       dobYear: updates.dobYear,
       dobMonth: updates.dobMonth,
       dobDay: updates.dobDay,
-      age: updates.age // <-- Actually push age data to DB
+      age: updates.age, // <-- Actually push age data to DB
+      bio: updates.bio,      
+      skill: updates.skill 
     };
 
     await saveUserToDatabase(userDbUpdate);
@@ -213,9 +371,22 @@ onMounted(() => {
         userListenerUnsub = onDataChange(`users/${currentUser.uid}`, (val) => {
           if (!val) { followingCount.value = 0; followersCount.value = 0; return }
 
-          //change 25: Update all user profile fields from DB
-          Object.assign(user.value, val); // <-- Loads gender, displayName etc. instantly!
+          // //change 25: Update all user profile fields from DB
+          // Object.assign(user.value, val); // <-- Loads gender, displayName etc. instantly!
 
+          // IMPORTANT: Set the complete Firebase user profile into user.value
+          user.value = { ...user.value, ...val };
+
+          // Immediately hydrate the edit fields after loading Firebase data
+          editName.value   = val.name    ?? '';
+          editGender.value = val.gender  ?? '';
+          dobYear.value    = val.dobYear ?? '';
+          dobMonth.value   = val.dobMonth ?? '';
+          dobDay.value     = val.dobDay  ?? '';
+          editBio.value    = val.bio ?? '';      
+          editSkill.value  = val.skill ?? '';
+
+          
           followingCount.value = val.following ? Object.keys(val.following).length : 0
           followersCount.value = val.followers ? Object.keys(val.followers).length : 0
         })
@@ -244,17 +415,27 @@ onUnmounted(() => {
   if (userListenerUnsub) { try { userListenerUnsub(); } catch(e){}; userListenerUnsub = null }
 })
 
+let popupTimer = null;
+
 async function handleGoogleSignIn() {
   error.value = ''
   try {
     const result = await loginWithGoogle()
     user.value = result.user
-    await saveUserToDatabase(result.user)
+    // Fetch DB record and only create if it doesn't exist
+      const users = await getDataFromFirebase('users');
+      const existingUser = users && users[result.user.uid];
+      if (!existingUser) {
+        await saveUserToDatabase(result.user); // Only create new record if NOT exists
+      }
     //change 2: Show basketball popup on login
     // alert('Signed in with Google!')
     // Show basketball popup for 2.5 seconds
     showLoginPopup.value = true;
-    setTimeout(() => { showLoginPopup.value = false; }, 2500);
+    // setTimeout(() => { showLoginPopup.value = false; }, 2500);
+    popupTimer = setTimeout(() => {
+      showLoginPopup.value = false;
+    }, 2500);
 
   } catch (e) {
     error.value = 'Google sign-in failed'
@@ -279,6 +460,70 @@ async function handleLogout() {
     console.error(e)
   }
 }
+
+// change 28: handle popup close on click
+function handleClosePopup() {
+  showLoginPopup.value = false;
+  // Optional: clear the auto timer if still active
+  if (popupTimer) clearTimeout(popupTimer);
+}
+
+// Match statistics helpers (reads from the realtime user record)
+const statsFromProfile = computed(() => {
+  const s = user.value && (user.value.statistics || user.value.stats) ? (user.value.statistics || user.value.stats) : {}
+  return {
+    open_wins: Number(s.open_wins || 0),
+    intermediate_wins: Number(s.intermediate_wins || 0),
+    professional_wins: Number(s.professional_wins || 0)
+  }
+})
+
+const totalWins = computed(() => {
+  const s = statsFromProfile.value
+  return s.open_wins + s.intermediate_wins + s.professional_wins
+})
+
+function barHeight(value) {
+  const max = Math.max(1, statsFromProfile.value.open_wins, statsFromProfile.value.intermediate_wins, statsFromProfile.value.professional_wins)
+  const pct = value / Math.max(1, max)
+  const px = Math.round(30 + pct * 190)
+  return `${px}px`
+}
+
+// animate bars on mount
+const animateBars = ref(false)
+
+// animated numeric displays for login page
+const displayOpen = ref(0)
+const displayIntermediate = ref(0)
+const displayProfessional = ref(0)
+let countsStarted = false
+function animateCounts(duration = 700) {
+  if (countsStarted) return
+  countsStarted = true
+  const start = performance.now()
+  const targets = {
+    o: statsFromProfile.value.open_wins,
+    i: statsFromProfile.value.intermediate_wins,
+    p: statsFromProfile.value.professional_wins
+  }
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3) }
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration)
+    const e = easeOutCubic(t)
+    displayOpen.value = Math.round(targets.o * e)
+    displayIntermediate.value = Math.round(targets.i * e)
+    displayProfessional.value = Math.round(targets.p * e)
+    if (t < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
+
+onMounted(() => {
+  setTimeout(() => { animateBars.value = true; }, 90)
+})
+
+watch(animateBars, (v) => { if (v) animateCounts() })
 </script>
 
 <template>
@@ -287,7 +532,8 @@ async function handleLogout() {
 
     <!-- change 3: Login success popup -->
     <!-- Login Success Popup Overlay -->
-    <div v-if="showLoginPopup" class="login-popup-overlay">
+    <div v-if="showLoginPopup" class="login-popup-overlay"
+    @click="handleClosePopup">
       <div class="login-popup-content">
         <!-- change 6: use dunk logo          -->
         <!-- <img :src="dunkLogo" alt="Dunk+ Logo" class="basketball-anim" /> -->
@@ -435,21 +681,85 @@ async function handleLogout() {
   </div>
 </div>
 
+      <!-- Match Statistics -->
+      <div class="mb-4 px-3">
+
+    <div class="col-12 d-flex">
+      <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
+        <span class="fw-medium">Bio</span>
+        <span class="fs-6 text-warning mt-1 text-center">{{ user.bio || 'No bio yet.' }}</span>
+      </div>
+    </div>
+
+    <div class="col-12 d-flex">
+      <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
+        <span class="fw-medium">Skill / Badge</span>
+        <span class="fs-6 text-warning mt-1">{{ user.skill || 'Unassigned' }}</span>
+      </div>
+    </div>
+
+
+    <div class="match-stats-card border rounded-3 p-3 mt-2">
+          <div class="match-stats-header d-flex align-items-center mb-2">
+            <ChartColumn :size="18" class="me-2 text-warning" />
+            <h5 class="mb-0">Match Statistics</h5>
+          </div>
+          <p class="lead-text">You have a total of <span class="text-warning fw-semibold">{{ totalWins }}</span> wins across all skill levels. Here's the breakdown:</p>
+          <div class="chart-grid-lines" aria-hidden="true"></div>
+          <div class="stats-chart d-flex align-items-end justify-content-between">
+            <div class="chart-bar">
+              <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.open_wins) : '8px'), transitionDelay: '0ms' }" aria-hidden="true"></div>
+              <div class="bar-value">{{ displayOpen }}</div>
+              <div class="bar-label">Open</div>
+            </div>
+
+            <div class="chart-bar">
+              <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.intermediate_wins) : '8px'), transitionDelay: '90ms' }" aria-hidden="true"></div>
+              <div class="bar-value">{{ displayIntermediate }}</div>
+              <div class="bar-label">Intermediate</div>
+            </div>
+
+            <div class="chart-bar">
+              <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.professional_wins) : '8px'), transitionDelay: '180ms' }" aria-hidden="true"></div>
+              <div class="bar-value">{{ displayProfessional }}</div>
+              <div class="bar-label">Professional</div>
+            </div>
+          </div>
+        </div>
+
+    <!-- add here -->
+   
+
+      </div>
+
       <!-- Following & Followers -->
       <div class="row gx-3 justify-content-center mb-3">
         <div class="col-6 col-md-4">
-          <button type="button" class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
-            style="background:#181A20;">
+
+          <!-- Step 2: Open Following Popup -->
+          <button
+            type="button"
+            class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
+            style="background:#181A20;"
+            @click="openFollowing"
+          >
             <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
             Following ({{ followingCount }})
           </button>
+
         </div>
         <div class="col-6 col-md-4">
-          <button type="button" class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
-            style="background:#181A20;">
+          <!-- Step 2: Open Followers Popup -->
+          <button
+            type="button"
+            class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
+            style="background:#181A20;"
+            @click="openFollowers"
+          >
             <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
             Followers ({{ followersCount }})
           </button>
+
         </div>
       </div>
       <!-- Logout button -->
@@ -505,6 +815,20 @@ async function handleLogout() {
         </div>
         <!-- Age (auto-calculated, shown for feedback) -->
         <div class="mt-2 text-warning small mb-2">Current Age: {{ computedAge }}</div>
+
+        <!-- User Bio -->
+        <div class="mb-2">
+          <label class="form-label text-white mb-1">Bio</label>
+          <textarea v-model="editBio" rows="2" class="form-control" placeholder="Write something about yourself..."></textarea>
+        </div>
+
+        <!-- Skill Badge -->
+        <div class="mb-2">
+          <label class="form-label text-white mb-1">Skill / Badge</label>
+          <input v-model="editSkill" type="text" class="form-control" placeholder="Enter your skill or badge (e.g., Shooter, Defender)" />
+        </div>
+
+
         <!-- Action Buttons -->
         <div class="d-flex gap-2 justify-content-center mt-3">
           <button class="btn btn-warning px-4" @click="saveProfileEdits">Save</button>
@@ -513,9 +837,84 @@ async function handleLogout() {
       </div>
     </div>
 
+    <!-- Step 3: Followers Popup -->
+    <div v-if="showFollowers" class="follow-popup-overlay" @click.self="closePopup">
+      <div class="follow-popup-content">
+        <div class="follow-popup-header">
+          <h3>Followers</h3>
+          <button class="close-btn" @click="closePopup">✕</button>
+        </div>
 
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search followers..."
+          class="search-input"
+        />
 
+        <div class="follow-list">
+          <div class="follow-item" v-for="f in filteredFollowers" :key="f.uid">
+            <img
+              :src="f.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f.email.split('@')[0])}`"
+              class="avatar"
+            />
+            <div class="info">
+              <div class="username">{{ f?.name || f?.email || 'Unknown User' }}</div>
+              <div class="sub">{{ f.gender || 'User' }}</div>
+            </div>
+            <!-- <button class="remove-btn" @click="removeFollower(f.uid)">Remove</button> -->
+             <button class="remove-btn" @click="confirmRemoveFollower(f.uid)">Remove</button>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: Following Popup -->
+    <div v-if="showFollowing" class="follow-popup-overlay" @click.self="closePopup">
+      <div class="follow-popup-content">
+        <div class="follow-popup-header">
+          <h3>Following</h3>
+          <button class="close-btn" @click="closePopup">✕</button>
+        </div>
+
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search following..."
+          class="search-input"
+        />
+
+        <div class="follow-list">
+          <div class="follow-item" v-for="f in filteredFollowing" :key="f.uid">
+            <img
+              :src="f?.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f?.email?.split('@')[0] || f?.name || 'user')}`"
+              class="avatar"
+            />
+            <div class="info">
+              <div class="username">{{ f?.name || f?.email || 'Unknown User' }}</div>
+              <div class="sub">{{ f?.gender || 'User' }}</div>
+            </div>
+            <button class="unfollow-btn" @click="confirmUnfollow(f.uid)">Unfollow</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    </div>
+
+    <!-- Step 10: Aesthetic Confirmation Modal -->
+<div v-if="showConfirmPopup" class="confirm-popup-overlay" @click.self="closeConfirmPopup">
+  <div class="confirm-popup-content">
+    <h2 class="popup-title">Confirm Action</h2>
+    <p class="popup-text">{{ confirmMessage }}</p>
+    <div class="popup-buttons">
+      <button class="btn-confirm" @click="confirmAction()">Confirm</button>
+      <button class="btn-cancel" @click="closeConfirmPopup">Cancel</button>
+    </div>
   </div>
+</div>
+  
 </template>
 
 <style>
@@ -536,6 +935,7 @@ async function handleLogout() {
       justify-content: center;
       align-items: center;
       z-index: 9999;
+      cursor: pointer;
     }
     .login-popup-content {
       display: flex;
@@ -550,7 +950,76 @@ async function handleLogout() {
       color: #ffad1d;
       position: relative;
       animation: popup-fade-in 0.5s cubic-bezier(.68,-0.55,.27,1.55) both;
+      cursor: default;
     }
+
+    /* Step 11: Aesthetic Confirm Popup Styling */
+    .confirm-popup-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(20, 20, 20, 0.85);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 99999;
+    }
+    .confirm-popup-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #181a20;
+      border-radius: 1.2rem;
+      padding: 32px 48px;
+      border: 2px solid #FFAD1D;
+      text-align: center;
+      color: #ffad1d;
+      max-width: 340px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      animation: popup-fade-in 0.5s cubic-bezier(.68,-0.55,.27,1.55) both;
+    }
+    .popup-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .btn-confirm {
+      background: #FFAD1D;
+      color: #181A20;
+      padding: 8px 18px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn-confirm:hover {
+      background: #faca50;
+    }
+    .btn-cancel {
+      background: #323B46;
+      color: #FFD75C;
+      padding: 8px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-cancel:hover {
+      background: #3A4350;
+    }
+    .unfollow-btn {
+      background: #3a3f47;
+      color: #FFD75C;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .unfollow-btn:hover {
+      background: #4d5660;
+    }
+
+
     @keyframes popup-fade-in {
       from { transform: scale(0.7); opacity: 0; }
       to { transform: scale(1); opacity: 1; }
@@ -643,6 +1112,120 @@ async function handleLogout() {
       .edit-profile-modal-content .btn-secondary {
         background: #323B46;
         color: #FFD75C;
+      }
+
+
+      /* Match statistics chart */
+      .match-stats-card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02));
+        border: 1px solid rgba(255,255,255,0.04);
+        padding: 18px;
+        position: relative;
+        overflow: hidden;
+      }
+      .match-stats-card .lead-text { color: rgba(255,255,255,0.88); margin-bottom: 8px; font-size:0.98rem }
+
+      .match-stats-grid {
+        display:flex; gap:18px; align-items:center; justify-content:space-between; margin-top:6px;
+      }
+
+      .stats-chart { gap: 28px; align-items:flex-end; height:260px; padding-bottom:12px; display:flex }
+      .chart-bar { flex: 1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; position:relative }
+
+      .chart-grid-lines {
+        position:absolute; left:18px; right:18px; top:18px; bottom:56px; pointer-events:none;
+        background-image: linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+        background-size: 100% 44px;
+        opacity:0.9;
+      }
+
+      .bar-fill {
+        width: 60%;
+        background: linear-gradient(180deg,#ffca6a,#ffad1d);
+        border-radius: 8px 8px 4px 4px;
+        transition: height 360ms cubic-bezier(.2,.9,.3,1);
+        display:flex; align-items:flex-start; justify-content:center; padding-top:8px; box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+      }
+
+      .bar-value { color: #081017; font-weight:800; font-size:0.98rem; margin-bottom:6px }
+      .bar-label { color:#9CA3AF; margin-top:10px; font-size:0.95rem }
+
+      @media (max-width: 540px) {
+        .stats-chart { height: 180px }
+        .bar-fill { width: 72% }
+      }
+      /* Step 4: Followers/Following Popup Styling */
+      .follow-popup-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(20,20,30,0.93);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 99999;
+      }
+      .follow-popup-content {
+        width: 420px;
+        max-height: 85vh;
+        overflow-y: auto;
+        background: #181a20;
+        border-radius: 12px;
+        border: 2px solid #FFAD1D;
+        padding: 20px;
+      }
+      .follow-popup-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: #FFAD1D;
+        margin-bottom: 10px;
+      }
+      .search-input {
+        width: 100%;
+        background: #21242a;
+        color: #FFD75C;
+        border: 1px solid #30373d;
+        padding: 6px 10px;
+        border-radius: 6px;
+        margin-bottom: 12px;
+      }
+      .follow-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .follow-item {
+        display: flex;
+        align-items: center;
+        padding: 6px 8px;
+        border-radius: 6px;
+        background: #22272d;
+      }
+      .avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 3px solid #FFAD1D;
+        object-fit: cover;
+      }
+      .info { flex-grow: 1; margin-left: 10px; }
+      .username { color: #fff; font-weight: 600; }
+      .sub { color: #9ca3af; font-size: 0.85rem; }
+      .remove-btn {
+        background: #e74c3c;
+        color: white;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .remove-btn:hover { background: #c0392b; }
+      .close-btn {
+        background: none;
+        border: none;
+        color: #fff;
+        font-size: 1.25rem;
+        cursor: pointer;
       }
 
 

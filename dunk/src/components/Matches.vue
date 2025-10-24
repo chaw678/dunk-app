@@ -7,7 +7,7 @@
                     <p class="matches-desc">Create and join public or private basketball games.</p>
                 </div>
                 <div>
-                    <button class="btn-create-match" @click="showAddMatchModal = true"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
+                    <button class="btn-create-match" :disabled="!currentUser" :title="currentUser ? 'Create a match' : 'Sign in to create matches'" @click="showAddMatchModal = true"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
                 </div>
             </div>
 
