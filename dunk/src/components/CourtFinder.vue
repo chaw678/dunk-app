@@ -257,7 +257,16 @@ if (map.value && court.lat && court.lon) {
 }
 
 onMounted(() => {
-  onUserStateChanged((u) => { currentUser.value = u })
+  // Keep currentUser in sync with Firebase auth state
+  onUserStateChanged((user) => {
+    currentUser.value = user;
+    if (user) {
+      // Hide popup if user is signed in
+      showPopup.value = false;
+    }
+  })
+
+  loadCourtsFromFirebase()
 })
 
 // Perform search or update markers if needed
