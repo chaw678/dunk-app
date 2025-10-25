@@ -155,19 +155,16 @@ const auth = getAuth()
 async function loginWithGoogle() {
   const provider = new GoogleAuthProvider()
   try {
-    // Sign in with popup using Firebase auth and Google provider
     const result = await signInWithPopup(auth, provider)
-    const user = result.user
-    currentUser.value = user
-    console.log('[CourtFinder] Google sign-in succeeded:', user)
-    showPopup.value = false
+    currentUser.value = result.user
+    showPopup.value = false   // Hide popup after successful sign-in
+    return result.user
   } catch (error) {
     console.error('[CourtFinder] Google sign-in error:', error)
-    showPopup.value = true
+    showPopup.value = true    // Show popup if sign-in failed
     throw error
   }
 }
-
 
 
 
@@ -303,32 +300,21 @@ map.value.setOptions({
 });
 }
 
-function handlePinClick(event) {
-  // If not signed in, show the popup (same flow as Add Court)
+function handlePinClick() {
   if (!currentUser.value) {
-    showPopup.value = true
+    showPopup.value = true  // Only show popup if not signed in
     return
   }
-
-  // If signed in, proceed to activate pin mode
   activatePinMode()
 }
 
 async function handleSignIn() {
   console.debug('[CourtFinder] handleSignIn: start')
-  if (isSigningIn.value) {
-    console.debug('[CourtFinder] handleSignIn: already signing in, ignoring')
-    return
-  }
-
+  if (isSigningIn.value) return
   isSigningIn.value = true
   try {
-    // Call loginWithGoogle first (must be invoked during the user gesture so popup isn't blocked)
-    console.debug('[CourtFinder] calling loginWithGoogle()')
-    const signInPromise = loginWithGoogle()
-    // hide the popup so it doesn't overlap the provider UI; do this after starting sign-in
-    showPopup.value = false
-    await signInPromise
+    await loginWithGoogle()     // Let loginWithGoogle manage popup on success/failure
+    // OPTIONAL: you can set showPopup.value = false here, but better to do it inside loginWithGoogle
     console.debug('[CourtFinder] loginWithGoogle resolved')
   } catch (err) {
     // If sign-in failed, reopen the popup so user can retry or close
@@ -376,16 +362,23 @@ const courts = [
 { name: 'Bishan Sports Hall Court', lat: 1.3508, lon: 103.8482, region: 'central', keywords: ['bishan', 'bishan sports hall'] 
 }]
 
-const handleAddCourt = () => {
-  if (!currentUser.value) {
-    showPopup.value = true;
-    return;
+watch(currentUser, (newUser) => {
+  if (newUser) {
+    showPopup.value = false
   }
-  showAddCourtModal2.value = true; // This opens AddCourtModal2.vue
+})
+
+function handleAddCourt() {
+  if (!currentUser.value) {
+    showPopup.value = true  // Only show popup if not signed in
+    return
+  }
+  showAddCourtModal2.value = true
 }
+
 function openMatchModalFromEventCard() {
 if (matchEventToShow.value) {
-  selectedCourt.value = { name: matchEventToShow.value.court }; // this is fine!
+  selectedCourt.value = { name: matchEventToShow.value.court }; 
   showAddMatchModal.value = true;
 }
 }
@@ -739,6 +732,18 @@ applyFilters();
 });
 
 onMounted(() => {
+
+
+
+
+  onUserStateChanged((user) => {
+    currentUser.value = user
+    if (user) {
+      showPopup.value = false // Always hide when user is present
+    }
+  })
+
+
 map.value = new google.maps.Map(document.getElementById('map'), {
   center: { lat: 1.3521, lng: 103.8198 },
   zoom: 12,
