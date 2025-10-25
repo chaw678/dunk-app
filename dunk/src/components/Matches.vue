@@ -1,13 +1,21 @@
 <template>
     <div class="page-bg">
         <div class="card large-card">
-            <div class="page-header matches-header">
+            <div v-if="!embedded" class="page-header matches-header">
                 <div>
                     <h1 class="matches-title">Match Organizer</h1>
                     <p class="matches-desc">Create and join public or private basketball games.</p>
                 </div>
                 <div>
                     <button class="btn-create-match" :disabled="!currentUser" :title="currentUser ? 'Create a match' : 'Sign in to create matches'" @click="showAddMatchModal = true"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
+                </div>
+            </div>
+
+            <!-- Embedded compact header when rendered inside CourtFinder -->
+            <div v-if="embedded" class="embedded-header">
+                <div class="embedded-title">Matches at {{ courtFilter || 'this court' }}</div>
+                <div>
+                    <button class="btn-create-match small" :disabled="!currentUser" :title="currentUser ? 'Create a match' : 'Sign in to create matches'" @click="showAddMatchModal = true"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
                 </div>
             </div>
 
@@ -21,6 +29,15 @@
             </div>
 
             <!-- Grouped sections: Ongoing / Scheduled / Past -->
+            <!-- Empty state when the selected tab has no matches -->
+            <div v-if="isTabEmpty" class="embedded-empty-state" v-cloak>
+                <div class="empty-card card">
+                    <div class="card-body text-center">
+                        <p class="mb-2">{{ emptyMessage }}</p>
+                        <p class="text-muted small">Try switching tabs or create a match for this court.</p>
+                    </div>
+                </div>
+            </div>
             <div v-if="groupedMatches && groupedMatches.ongoing && groupedMatches.ongoing.length">
                 <h3 class="section-heading">Ongoing</h3>
                 <div class="row g-3 matches-grid">
@@ -208,14 +225,20 @@
             </div>
         </div>
 
-        <!-- render modal inside template so Vue can mount it -->
-        <AddMatchModal v-if="showAddMatchModal" :courtList="courts" @close="showAddMatchModal = false" @created="(async () => { await loadMatches(); showAddMatchModal=false })()" />
+    <!-- render modal inside template so Vue can mount it -->
+    <AddMatchModal v-if="showAddMatchModal" :courtList="courts" :courtName="courtFilter || ''" @close="showAddMatchModal = false" @created="(async () => { await loadMatches(); showAddMatchModal=false })()" />
         <JoinedPlayersModal v-if="showPlayersModal" :players="activePlayers" :title="activeTitle" @close="closePlayersModal" />
     </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+const props = defineProps({
+    courtFilter: { type: String, default: '' },
+    embedded: { type: Boolean, default: false }
+})
+// expose convenient local bindings for template/script
+const { courtFilter, embedded } = props
 import { getDataFromFirebase, pushDataToFirebase, overwriteDataToFirebase, setChildData, deleteChildData } from '../firebase/firebase'
 import { onUserStateChanged } from '../firebase/auth'
 import AddMatchModal from './AddMatchModal.vue'
@@ -469,14 +492,23 @@ function getMatchStartEnd(match) {
 }
 
 const matchesForTab = computed(() => {
+    // filter by courtFilter first (if provided)
+    const q = (courtFilter || '')
+    const qlc = (q || '').toLowerCase()
+    const base = matches.value.filter(m => {
+        if (!qlc) return true
+        const court = (m && (m.court || m.location || m.venue || '')).toString().toLowerCase()
+        return court.indexOf(qlc) !== -1
+    })
+
     // By default, non-past tabs should exclude past matches so Past Matches tab becomes the single source
     // of truth for historical games.
-    if (selectedTab.value === 'all') return matches.value.filter(m => !isPast(m))
+    if (selectedTab.value === 'all') return base.filter(m => !isPast(m))
     if (selectedTab.value === 'past') {
         // only show past matches that the current user hosted or joined and exclude soft-deleted records
         if (!currentUser.value) return []
         const uid = currentUser.value.uid
-        return matches.value.filter(m => {
+        return base.filter(m => {
             if (!isPast(m)) return false
             if (m.deleted || m.removed || m.deletedAt) return false
             const joined = Boolean(m.joinedBy && m.joinedBy[uid])
@@ -484,9 +516,9 @@ const matchesForTab = computed(() => {
         })
     }
     if (!currentUser.value) return []
-    if (selectedTab.value === 'hosts') return matches.value.filter(m => isHost(m) && !isPast(m))
-    if (selectedTab.value === 'joined') return matches.value.filter(m => !isHost(m) && Boolean(m.joinedBy && currentUser.value && m.joinedBy[currentUser.value.uid]) && !isPast(m))
-    return matches.value.filter(m => !isPast(m))
+    if (selectedTab.value === 'hosts') return base.filter(m => isHost(m) && !isPast(m))
+    if (selectedTab.value === 'joined') return base.filter(m => !isHost(m) && Boolean(m.joinedBy && currentUser.value && m.joinedBy[currentUser.value.uid]) && !isPast(m))
+    return base.filter(m => !isPast(m))
 })
 
 const groupedMatches = computed(() => {
@@ -517,6 +549,23 @@ const groupedMatches = computed(() => {
         }
     }
     return out
+})
+
+const isTabEmpty = computed(() => {
+    // matchesForTab already applies the selectedTab logic and excludes past where appropriate
+    try {
+        return !(matchesForTab.value && matchesForTab.value.length)
+    } catch (e) {
+        return true
+    }
+})
+
+const emptyMessage = computed(() => {
+    const t = selectedTab.value
+    if (t === 'hosts') return "You haven't created any upcoming matches."
+    if (t === 'joined') return "You haven't joined any upcoming matches."
+    if (t === 'past') return 'You have no past matches.'
+    return 'No upcoming matches found.'
 })
 
 function visiblePlayers(arr) {
@@ -1007,4 +1056,20 @@ function formatDate(match) {
 .large-card, .matches-grid {
     overflow: hidden;
 }
+
+/* Embedded compact header & empty state */
+.embedded-header {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding: 10px 6px;
+    margin-top: 8px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.02);
+}
+.embedded-title { font-size: 1.25rem; font-weight: 800; color: #fff }
+.btn-create-match.small { padding: 8px 12px; font-size: 0.95rem }
+.embedded-empty-state .empty-card { background: #0f1418; border: 1px solid rgba(255,255,255,0.03); margin: 12px 0; }
+.embedded-empty-state .card-body { padding: 28px; }
+.embedded-empty-state p { color: #9fb0bf }
 </style>
