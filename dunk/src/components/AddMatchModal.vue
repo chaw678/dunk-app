@@ -43,8 +43,8 @@
           <p class="court-display">{{ selectedCourt }}</p>
         </div>
 
-        <label>Date</label>
-        <input type="date" v-model="matchDate" />
+  <label>Date</label>
+  <input type="date" v-model="matchDate" :min="minDate" />
 
         <label class="d-flex align-items-center">Match Timing
           <small v-if="timingError" class="text-danger ms-2" style="font-weight:600;font-size:0.9rem;">{{ timingError }}</small>
@@ -78,7 +78,9 @@
 
 <script setup>
 import { pushDataToFirebase, getDataFromFirebase } from '../firebase/firebase'
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { onUserStateChanged } from '../firebase/auth'
+
 const props = defineProps({
   courtName: String,
   courtList: { type: Array, default: () => [] }
@@ -98,8 +100,25 @@ const matchType = ref('Open')
 const gender = ref('All')
 const selectedCourt = ref(props.courtName || '')
 const showPopup = ref(false)
+const popupType = ref('success')
 const popupMessage = ref('')
-const popupType = ref('success') // 'success' | 'error'
+
+// listen for auth state so we can record the creating user's uid
+const currentUser = ref(null)
+const minDate = ref('')
+
+onMounted(() => {
+  onUserStateChanged((u) => { currentUser.value = u })
+  // compute minDate (today) for the date picker and default matchDate if empty
+  try {
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    minDate.value = `${y}-${m}-${day}`
+    if (!matchDate.value) matchDate.value = minDate.value
+  } catch (e) {}
+})
 
 const emit = defineEmits(['close'])
 
@@ -160,11 +179,11 @@ function toSingaporeDateTimeISO(dateStr, timeStr) {
   if (!dateStr || !timeStr) return null
   const [y, m, d] = dateStr.split('-').map(Number)
   const [hh, mm] = timeStr.split(':').map(Number)
-  // create UTC time offset by Singapore timezone (UTC+8) by constructing a Date in UTC
-  // We'll create a Date using Date.UTC then subtract the local timezone offset to normalize, then add +8 hours.
-  const utcMillis = Date.UTC(y, m - 1, d, hh || 0, mm || 0, 0)
-  const sgMillis = utcMillis + (8 * 60 * 60 * 1000)
-  return new Date(sgMillis).toISOString()
+  // We want the ISO (UTC) that represents the given wall-time in Singapore (UTC+8).
+  // To convert Singapore local time to UTC, subtract 8 hours from the local wall-time.
+  // Using Date.UTC treats the input as UTC; therefore take Date.UTC(...) and subtract 8h.
+  const utcMillisForSG = Date.UTC(y, m - 1, d, hh || 0, mm || 0, 0) - (8 * 60 * 60 * 1000)
+  return new Date(utcMillisForSG).toISOString()
 }
 
 async function isTimingOverlap() {
@@ -224,6 +243,7 @@ async function isTimingOverlap() {
 const canSubmit = computed(() => {
   if (!selectedCourt.value) return false
   if (!matchDate.value) return false
+  if (minDate.value && matchDate.value < minDate.value) return false
   if (!startTime.value || !endTime.value) return false
   const s = parseDateTime(matchDate.value, startTime.value)
   const e = parseDateTime(matchDate.value, endTime.value)
@@ -290,13 +310,32 @@ const createMatch = async () => {
       joinedBy: {},
       createdAt: new Date().toISOString()
     }
+  
+  try {
+    // attach creating user's uid as createdby/ownerId and persist host as joined
+    try {
+      const u = currentUser && currentUser.value
+      if (u && u.uid) {
+        const uid = u.uid
+        const displayName = (u.displayName) || uid
+        newMatch.createdby = uid
+        newMatch.ownerId = uid
+        // persist host as joined by default
+        newMatch.joinedBy = { [uid]: true }
+        newMatch.playersMap = { [uid]: displayName }
+      }
+    } catch (e) {
+      // ignore
+    }
 
-    // push under matches/{courtKey}/{YYYY-MM-DD}
-    const courtKey = encodeURIComponent(selectedCourt.value)
-    await pushDataToFirebase(`matches/${courtKey}/${matchDate.value}`, newMatch)
-    popupType.value = 'success'
-    popupMessage.value = 'Match created and saved successfully.'
-    showPopup.value = true
+  // push under matches/{courtKey}/{YYYY-MM-DD}
+  // guard against double-encoding: decode then encode once
+  const courtKey = encodeURIComponent(decodeURIComponent(selectedCourt.value || ''))
+  await pushDataToFirebase(`matches/${courtKey}/${matchDate.value}`, newMatch)
+    alert('Match created and saved to Firebase!')
+    // notify parent to refresh list
+    emit('created')
+    closeModal()
   } catch (error) {
     console.error('Failed to save match:', error)
     popupType.value = 'error'

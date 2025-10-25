@@ -61,7 +61,8 @@
             :class="['region-btn', selectedRegions.includes(region) ? 'active' : '']"
             @click="toggleRegion(region)"
           >
-            {{ region }}
+      {{ region.charAt(0).toUpperCase() + region.slice(1) }}
+      <span class="region-badge">({{ (regionCounts && regionCounts[region]) || 0 }})</span>
         </button>
       </div>
 
@@ -80,9 +81,34 @@
         </div>
         <p class="section-desc">Interactive map of basketball courts in Singapore.</p>
         <div id="map" class="map-container"></div>
+        <!-- Court list below map: collapsed cards that expand to show matches for that court -->
+        <div class="court-list">
+          <div v-for="(court, idx) in visibleCourts" :key="court.id || court.name" class="court-card" :data-court-key="courtKey(court)" :data-court-index="idx">
+            <div class="court-card-row">
+              <div class="court-info">
+                <h3 class="court-name">{{ court.name }}</h3>
+                <div class="court-sub">{{ court.region ? (court.region.charAt(0).toUpperCase() + court.region.slice(1)) : '' }}</div>
+                <div class="court-rating"> 
+                  <span class="stars">★★★★★</span>
+                  <span class="reviews">(120 reviews)</span>
+                </div>
+              </div>
+              <div class="court-actions">
+                <button class="view-matches-link" @click="toggleCourtExpand(court)">{{ expandedCourts[courtKey(court)] ? 'Hide Matches' : 'View Matches' }}</button>
+              </div>
+            </div>
+
+            <div v-if="expandedCourts[courtKey(court)]" class="mini-matches">
+              <!-- outer header removed to avoid duplication with embedded Matches header -->
+              <div class="expanded-matches">
+                      <Matches :courtFilter="court.name" :embedded="true" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="floating-icon">N</div>
+  <!-- floating icon removed -->
     </div>
 
     <div v-if="matchEventToShow" class="match-event-card">
@@ -127,6 +153,7 @@ import { getDataFromFirebase } from '../firebase/firebase'
 import AddCourtModal2 from './AddCourtModal2.vue'
 import AddCourtModal from './AddCourtModal.vue'
 import AddMatchModal from './AddMatchModal.vue'
+import Matches from './Matches.vue'
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
 
 const map = ref(null)
@@ -135,11 +162,14 @@ const searchMarker = ref(null)
 const firebaseCourts = ref([])
 // change 5: unify court data base from firebase console and hardcoded courts:
 const allCourts = ref([]);
+const visibleCourts = ref([])
 const showAddCourtModal2 = ref(false)    // For button ("Add Court")
 const showAddCourtModal = ref(false)     // For pin drop
 const showAddMatchModal = ref(false)
 const selectedCourt = ref(null)
 const currentUser = ref(null)
+const expandedCourts = ref({})
+const matchesCache = ref({})
 const showPopup = ref(false)
 const isSigningIn = ref(false)
 //change 1: to allow more thna one filtering
@@ -251,11 +281,10 @@ if (map.value && court.lat && court.lon) {
     title: court.name,
     icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' }
   })
-}
+}}
 
 onMounted(() => {
-  // Keep currentUser in sync with Firebase auth state
-  onUserStateChanged((user) => {
+   onUserStateChanged((user) => {
     currentUser.value = user;
     if (user) {
       // Hide popup if user is signed in
@@ -266,9 +295,117 @@ onMounted(() => {
   loadCourtsFromFirebase()
 })
 
+// --- Mini-match helpers (lightweight, local copies from Matches.vue) ---
+const maxAvatarsSmall = 4
+function courtSeededAvatar(name) {
+  const username = name || 'anon'
+  return `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(username)}`
+}
+
+function courtInitials(name) {
+  if (!name) return ''
+  return name.split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase()
+}
+
+function getMatchStartEnd(match) {
+  if (!match) return { start: null, end: null }
+  try {
+    if (match.startAtISO) {
+      const s = new Date(match.startAtISO)
+      let e = match.endAtISO ? new Date(match.endAtISO) : null
+      if (!e || isNaN(e.getTime())) e = new Date(s.getTime() + 90 * 60 * 1000)
+      return { start: s, end: e }
+    }
+    if (match.startAt) {
+      const s = new Date(match.startAt)
+      let e = match.endAt ? new Date(match.endAt) : null
+      if (!e || isNaN(e.getTime())) e = new Date(s.getTime() + 90 * 60 * 1000)
+      return { start: s, end: e }
+    }
+    if (match.date && match.startTime) {
+      let base = new Date(match.date)
+      if (isNaN(base.getTime())) base = new Date()
+      const t = ('' + match.startTime).trim()
+      const m = t.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/) || []
+      if (m.length) {
+        base.setHours(Number(m[1]), Number(m[2]) || 0, Number(m[3]) || 0, 0)
+        const s = base
+        let e = null
+        if (match.endTime) {
+          const mbe = ('' + match.endTime).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/) || []
+          if (mbe.length) {
+            const be = new Date(base)
+            be.setHours(Number(mbe[1]), Number(mbe[2]) || 0, Number(mbe[3]) || 0, 0)
+            e = be
+          }
+        }
+        if (!e) e = new Date(s.getTime() + 90 * 60 * 1000)
+        return { start: s, end: e }
+      }
+    }
+  } catch (err) {
+    // ignore
+  }
+  return { start: null, end: null }
+}
+
+function courtFormatDate(match) {
+  if (!match) return ''
+  const iso = match.startAtISO || match.startAt || match.date
+  if (iso) {
+    try {
+      const d = new Date(iso)
+      return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+    } catch (err) {}
+  }
+  if (match.time) return match.time
+  return ''
+}
+
+function courtFormatTimeRange(match) {
+  if (!match) return ''
+  const opts = { hour: 'numeric', minute: '2-digit', hour12: true }
+  if (match.startTime && match.endTime) {
+    try {
+      const s = match.startTime
+      const e = match.endTime
+      return `${s} — ${e}`
+    } catch (e) { }
+  }
+  if (match.startAtISO && match.endAtISO) {
+    try {
+      const s = new Date(match.startAtISO)
+      const e = new Date(match.endAtISO)
+      return `${s.toLocaleTimeString([], opts)} — ${e.toLocaleTimeString([], opts)}`
+    } catch (err) {}
+  }
+  if (match.time) return match.time
+  return ''
+}
+
+function courtDisplayedPlayers(match) {
+  const out = []
+  if (!match) return out
+  if (match.joinedBy && typeof match.joinedBy === 'object') {
+    for (const uid of Object.keys(match.joinedBy)) {
+      let name = (match.playersMap && match.playersMap[uid])
+      if (!name) name = uid
+      const avatar = (match.playersMap && match.playersMap[uid] && '') || courtSeededAvatar(name)
+      out.push({ uid, name, avatar })
+    }
+  } else if (Array.isArray(match.players)) {
+    for (const name of match.players) out.push({ name, avatar: courtSeededAvatar(name) })
+  }
+  return out
+}
+
+function courtVisiblePlayers(arr) {
+  if (!arr) return []
+  return arr.slice(0, maxAvatarsSmall)
+}
+
 // Perform search or update markers if needed
 handleSearch()
-}
 
 
 function handleSearch() {
@@ -351,6 +488,35 @@ encodeURIComponent(`
   </svg>
 `)
 
+// Map of region → marker color (fallbacks included)
+const regionColors = {
+  all: '#f57c00',
+  north: '#0b84ff',
+  south: '#00c853',
+  east: '#ff5252',
+  west: '#8e24aa',
+  central: '#ff9a3c',
+  northeast: '#ffd600'
+}
+
+// Returns a basketball SVG data-URI with the requested fill color.
+// Keeps the same visual shape as `basketballIcon` but allows colorization per region.
+function getBasketballIcon(color = '#f57c00') {
+  try {
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="${color}" stroke="#666" stroke-width="2">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M4.2 14.2c2.8-5.2 8.3-8.4 14.3-7.4" />
+        <path d="m11.3 21.8-1.9-2.8c-2.4-3.6-3.2-8.3-.7-12.4" />
+        <path d="M21.8 12.7c-2.4 4.5-8.2 6.8-13.4 5" />
+      </svg>
+    `
+    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg)
+  } catch (err) {
+    return basketballIcon
+  }
+}
+
 const regions = ['all', 'north', 'south', 'east', 'west', 'central', 'northeast']
 
 const courts = [
@@ -389,6 +555,25 @@ if (matchEventToShow.value) {
 const handleAddMatch = (court) => {
 selectedCourt.value = court
 showAddMatchModal.value = true
+}
+
+// compute counts of courts per region (based on the unified allCourts array)
+const regionCounts = computed(() => {
+  const out = {}
+  // initialize counts for known regions
+  for (const r of regions) out[r] = 0
+  const list = allCourts.value || []
+  out['all'] = list.length
+  for (const c of list) {
+    const k = ((c.region || '') + '').toString().toLowerCase().trim() || 'all'
+    if (out[k] === undefined) out[k] = 0
+    out[k] = (out[k] || 0) + 1
+  }
+  return out
+})
+
+function regionCount(region) {
+  return (regionCounts.value && regionCounts.value[region]) || 0
 }
 
 
@@ -522,16 +707,19 @@ courtsList.forEach(court => {
   const lon = Number(court.lon);
   if (!isFinite(lat) || !isFinite(lon)) return;
 
-  const marker = new google.maps.Marker({
+    const marker = new google.maps.Marker({
     position: { lat, lng: lon },
     map: map.value,
     title: court.name || '',
     icon: {
-      url: basketballIcon,
+      url: getBasketballIcon(regionColors[(court.region || '').toString().toLowerCase().trim()] || '#f57c00'),
       scaledSize: new google.maps.Size(32, 32),
       anchor: new google.maps.Point(16, 16)
     }
   });
+  // attach numeric index (position in the filtered courtsList) so we can find the DOM card reliably
+  // when marker is clicked. Use a non-enumerable property to avoid accidental exposure.
+  Object.defineProperty(marker, '__courtIndex', { value: courtsList.indexOf(court), writable: true, enumerable: false })
 
   const infoWindow = new google.maps.InfoWindow({
     content: `
@@ -546,14 +734,31 @@ courtsList.forEach(court => {
   marker.addListener('mouseover', () => infoWindow.open(map.value, marker));
   marker.addListener('mouseout', () => infoWindow.close());
   marker.addListener('click', () => {
-    matchEventToShow.value = {
-      title: 'Create a New Match',
-      court: court.name,
-      date: '',
-      time: '',
-      type: 'Open'
-    };
-    selectedCourt.value = court;
+    // When marker is clicked, expand only the corresponding court card and scroll it into view.
+    // Do NOT open the create-match modal here.
+    try {
+      selectedCourt.value = court
+      const key = courtKey(court)
+      // collapse others and expand this one
+      expandedCourts.value = { [key]: true }
+      // allow DOM to update, then scroll the card into view
+      setTimeout(() => {
+        // prefer numeric index lookup if available
+        const idx = marker.__courtIndex
+        let el = null
+        if (typeof idx !== 'undefined' && idx !== null) {
+          el = document.querySelector(`[data-court-index="${idx}"]`)
+        }
+        if (!el) {
+          el = document.querySelector(`[data-court-key="${key}"]`)
+        }
+        if (el && typeof el.scrollIntoView === 'function') {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 160)
+    } catch (e) {
+      console.warn('Marker click handler failed to expand/scroll court card', e)
+    }
   });
 
   markers.value.push(marker);
@@ -662,7 +867,8 @@ if (query) {
 }
 
 console.debug('[applyFilters] regions=', selectedRegions.value, 'query=', searchQuery.value, 'matches=', filtered.length, filtered.map(c => ({ name: c.name, region: c.region })));
-addMarkers(filtered);
+  visibleCourts.value = filtered
+  addMarkers(filtered);
 };
 
 
@@ -673,6 +879,75 @@ addMarkers(filtered);
 watch(allCourts, () => {
 applyFilters();
 });
+
+function courtKey(court) {
+  return encodeURIComponent((court.id || court.name || '').toString())
+}
+
+async function loadMatchesForCourt(court) {
+  const key = courtKey(court)
+  if (matchesCache.value[key]) return matchesCache.value[key]
+  try {
+    const data = await getDataFromFirebase('matches')
+    const out = []
+    if (data && typeof data === 'object') {
+      for (const [k1, v1] of Object.entries(data)) {
+        if (!v1) continue
+        if (typeof v1 === 'object') {
+          for (const [k2, v2] of Object.entries(v1)) {
+            if (!v2) continue
+            if (typeof v2 === 'object') {
+              for (const [mid, mv] of Object.entries(v2)) {
+                const copy = { id: mid, __dbPath: `matches/${k1}/${k2}/${mid}`, ...mv }
+                out.push(copy)
+              }
+            }
+          }
+        }
+      }
+    }
+    // filter by court name (loose match on court or location)
+    const name = (court.name || '').toString().toLowerCase()
+    const filtered = out.filter(m => ((m.court || '') + '').toString().toLowerCase().includes(name) || ((m.location || '') + '').toString().toLowerCase().includes(name))
+    // sort upcoming first
+    filtered.sort((a,b) => {
+      const sa = getMatchStartEnd(a).start
+      const sb = getMatchStartEnd(b).start
+      if (!sa && !sb) return 0
+      if (!sa) return 1
+      if (!sb) return -1
+      return sa - sb
+    })
+    matchesCache.value[key] = filtered
+    return filtered
+  } catch (e) {
+    console.error('Failed to load matches for court', e)
+    matchesCache.value[key] = []
+    return []
+  }
+}
+
+async function toggleCourtExpand(court) {
+  const key = courtKey(court)
+  if (!expandedCourts.value[key]) {
+    // expand: load matches
+    expandedCourts.value = { ...expandedCourts.value, [key]: true }
+    await loadMatchesForCourt(court)
+  } else {
+    expandedCourts.value = { ...expandedCourts.value, [key]: false }
+  }
+}
+
+function openCreateMatchForCourt(court) {
+  try {
+    selectedCourt.value = court
+    showAddMatchModal.value = true
+  } catch (e) {
+    // fallback
+    selectedCourt = court
+    showAddMatchModal = true
+  }
+}
 
 
 //change 3: toggleregion function
@@ -1047,29 +1322,7 @@ width: 100%;
 height: 100%;
 border-radius: 8px;
 }
-.floating-icon {
-position: absolute;
-bottom: 36px;
-right: 36px;
-background: #22262d;
-color: #fff;
-width: 42px;
-height: 42px;
-border-radius: 50%;
-display: flex;
-align-items: center;
-justify-content: center;
-font-size: 1.3rem;
-font-weight: 700;
-box-shadow: 0 1.5px 6px rgba(30,30,50,0.19);
-cursor: pointer;
-transition: background 0.2s;
-z-index: 1;
-}
-.floating-icon:hover {
-background: #ff9a3c;
-color: #181c23;
-}
+/* floating icon removed */
 
 /* Selected Court Card */
 .court-card {
@@ -1090,6 +1343,39 @@ font-weight: bold;
 margin-bottom: 8px;
 color: orange;
 }
+
+/* Court list and mini matches */
+.court-list { margin-top: 18px }
+.court-card { padding: 16px; margin-bottom: 12px }
+.court-card-row { display:flex; justify-content:space-between; align-items:center }
+.court-info { display:flex; flex-direction:column }
+.court-sub { color:#9fb0bf; font-size:0.95rem }
+.court-rating { color:#ffb14d; margin-top:6px }
+.stars { color:#ffb14d; letter-spacing: 1px; margin-right:8px }
+.reviews { color:#9fb0bf; font-size:0.85rem }
+.view-matches-link { background:transparent; border:none; color:#ffb14d; font-weight:700; cursor:pointer }
+.mini-matches { margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.03) }
+.mini-match { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.02) }
+.mini-left { flex:1 }
+.mini-title { font-weight:700; color:#fff }
+.mini-meta { color:#9fb0bf; font-size:0.9rem; margin-top:6px }
+.mini-badges .badge { background: rgba(255,255,255,0.03); color:#cbd6df; padding:4px 8px; border-radius:6px; margin-right:6px; font-size:0.75rem }
+.avatar-stack-small { display:flex; align-items:center }
+.avatar-img-small { width:28px; height:28px; border-radius:50%; object-fit:cover; margin-left:-8px; border:2px solid rgba(0,0,0,0.5) }
+.avatar-initial-small { width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:#1f262b; color:#fff; margin-left:-8px; font-size:0.8rem }
+.mini-actions { display:flex; flex-direction:column; gap:6px; margin-left:12px }
+.mini-empty { color:#9fb0bf; padding:8px 0 }
+
+.create-match-top {
+  background: #ff9a3c;
+  color: #111;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.create-match-top:hover { background:#ffb14d }
 
 .add-match-btn {
 margin-top: 14px;
@@ -1135,6 +1421,12 @@ transition: background-color 0.3s;
 .search-btn:hover {
 background-color: #ffb751;
 }
+
+/* Region filter badge (small rounded count) */
+.region-filter { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px }
+.region-btn { background: transparent; border: 1px solid rgba(255,255,255,0.04); color: #dbe9f2; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-weight:700 }
+.region-btn.active { background: rgba(255,154,60,0.12); border-color: rgba(255,154,60,0.18); color: #fff }
+.region-badge { background: rgba(255,255,255,0.06); color: #fff; font-weight:700; font-size:0.78rem; padding: 2px 8px; border-radius: 999px; margin-left: 8px; display:inline-block; vertical-align: middle }
 
 /* Popup styles */
 .success-overlay {
@@ -1260,6 +1552,17 @@ background-color: #ffb751;
   height: 230px;
 }
 }
+
+/* Embedded Matches tweaks: make Matches component compact inside the expanded court card */
+.expanded-matches .large-card {
+  padding: 8px 6px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+.expanded-matches .matches-header { display: none }
+.expanded-matches .matches-grid { margin-top: 8px }
+.expanded-matches .match-card { min-height: 220px }
 
 @media (max-width: 768px) {
 .map-container { height: 300px; }
