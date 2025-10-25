@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-  "migrate:matches": "node scripts/migrate_matches.js",
+    "migrate:matches": "node scripts/migrate_matches.js",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -13,6 +13,7 @@
     "@tailwindcss/vite": "^4.1.14",
     "bootstrap": "^5.3.8",
     "firebase": "^12.3.0",
+    "firebase-admin": "^13.5.0",
     "init": "^0.1.2",
     "leaflet": "^1.9.4",
     "lucide-vue-next": "^0.544.0",

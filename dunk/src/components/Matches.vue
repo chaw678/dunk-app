@@ -226,7 +226,7 @@
         </div>
 
     <!-- render modal inside template so Vue can mount it -->
-    <AddMatchModal v-if="showAddMatchModal" :courtList="courts" :courtName="courtFilter || ''" @close="showAddMatchModal = false" @created="(async () => { await loadMatches(); showAddMatchModal=false })()" />
+    <AddMatchModal v-if="showAddMatchModal" :courtList="courts" :courtName="courtFilter || ''" @close="showAddMatchModal = false" @created="onMatchCreated" />
         <JoinedPlayersModal v-if="showPlayersModal" :players="activePlayers" :title="activeTitle" @close="closePlayersModal" />
     </div>
 </template>
@@ -367,6 +367,17 @@ onUserStateChanged(async (u) => {
         console.warn('Failed to refresh matches on auth change', e)
     }
 })
+
+// Handler called when AddMatchModal emits 'created'
+async function onMatchCreated() {
+    try {
+        await loadMatches()
+    } catch (e) {
+        console.warn('onMatchCreated: failed to reload matches', e)
+    } finally {
+        showAddMatchModal.value = false
+    }
+}
 
 async function loadMatches() {
     try {

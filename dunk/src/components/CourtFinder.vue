@@ -16,7 +16,7 @@
   placeholder="Search courts by keyword..."
   class="search-input"
 />
-<ul v-if="suggestions.length" class="suggestions-list">
+<ul v-if="suggestions && suggestions.length" class="suggestions-list">
   <li
     v-for="court in suggestions"
     :key="court.name"
@@ -31,33 +31,14 @@
 
 
 
-      <div class="region-filter">
-        <!-- change 2: toggleregion function -->
-        <!-- <button
-          v-for="region in regions"
-          :key="region"
-          :class="['region-btn', selectedRegion === region ? 'active' : '']"
-          @click="filterByRegion(region)"
-        >
-          {{ region }}
-        </button> -->
-
-        <button
-            v-for="region in regions"
-            :key="region"
-            :class="['region-btn', selectedRegions.includes(region) ? 'active' : '']"
-            @click="toggleRegion(region)"
-          >
-      {{ region.charAt(0).toUpperCase() + region.slice(1) }}
-      <span class="region-badge">({{ (regionCounts && regionCounts[region]) || 0 }})</span>
-        </button>
-      </div>
+      <!-- region filter moved below the map -->
 
       
 
       <div class="card-section">
         <div class="card-section-header">
           <h2 class="section-title">Map</h2>
+          
           <button class="pin-btn" :disabled="!currentUser" :title="currentUser ? 'Add a new court location' : 'Sign in to add courts'" @click="activatePinMode">
             <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
               <circle cx="16" cy="16" r="12" fill="#ffa733" stroke="#333" stroke-width="2"/>
@@ -68,6 +49,18 @@
         </div>
         <p class="section-desc">Interactive map of basketball courts in Singapore.</p>
         <div id="map" class="map-container"></div>
+  <!-- region filter inserted below the interactive map -->
+  <div class="region-filter" style="margin-top:24px;">
+          <button
+              v-for="region in regions"
+              :key="region"
+              :class="['region-btn', selectedRegions.includes(region) ? 'active' : '']"
+              @click="toggleRegion(region)"
+            >
+        {{ region.charAt(0).toUpperCase() + region.slice(1) }}
+        <span class="region-badge">({{ (regionCounts && regionCounts[region]) || 0 }})</span>
+          </button>
+  </div>
         <!-- Court list below map: collapsed cards that expand to show matches for that court -->
         <div class="court-list">
           <div v-for="(court, idx) in visibleCourts" :key="court.id || court.name" class="court-card" :data-court-key="courtKey(court)" :data-court-index="idx">
@@ -113,7 +106,9 @@
 <AddMatchModal
 v-if="showAddMatchModal"
 :courtName="selectedCourt?.name"
+:courtList="visibleCourts"
 @close="showAddMatchModal = false"
+@created="handleMatchCreated"
 />
 
 <AddCourtModal2
@@ -165,7 +160,16 @@ const isDroppingPin = ref(false)
 const matchEventToShow = ref(null)
 const suggestions = ref([])
 
-// ...existing code...
+const courts = ref([]);
+
+onMounted(async () => {
+  const response = await fetch('/courts.json');
+  const data = await response.json();
+  courts.value = data;
+});
+
+
+
 
 watch(searchQuery, updateSuggestions)
 
@@ -412,21 +416,28 @@ function getBasketballIcon(color = '#f57c00') {
     return basketballIcon
   }
 }
-
+fetch('/courts.json')
+  .then(response => response.json())
+  .then(data => {
+    const courts = data;
+    console.log(courts);
+  });
 const regions = ['all', 'north', 'south', 'east', 'west', 'central', 'northeast']
 
-const courts = [
-{ name: 'Singapore Sports Hub', lat: 1.3048, lon: 103.874, region: 'central', keywords: ['kallang', 'sports hub'] },
-{ name: 'Bishan Park Court', lat: 1.3622, lon: 103.8345, region: 'central', keywords: ['bishan', 'bishan park'] },
-{ name: 'Tampines Street 81 Court', lat: 1.3521, lon: 103.944, region: 'east', keywords: ['tampines'] },
-{ name: 'Jurong West Court', lat: 1.3399, lon: 103.7058, region: 'west', keywords: ['jurong', 'jurong west'] },
-{ name: 'Yishun Street 22 Court', lat: 1.4304, lon: 103.8358, region: 'north', keywords: ['yishun'] },
-{ name: 'Bishan Sports Hall Court', lat: 1.3508, lon: 103.8482, region: 'central', keywords: ['bishan', 'bishan sports hall'] 
-}]
+// const courts = [
+// { name: 'Singapore Sports Hub', lat: 1.3048, lon: 103.874, region: 'central', keywords: ['kallang', 'sports hub'] },
+// { name: 'Bishan Park Court', lat: 1.3622, lon: 103.8345, region: 'central', keywords: ['bishan', 'bishan park'] },
+// { name: 'Tampines Street 81 Court', lat: 1.3521, lon: 103.944, region: 'east', keywords: ['tampines'] },
+// { name: 'Jurong West Court', lat: 1.3399, lon: 103.7058, region: 'west', keywords: ['jurong', 'jurong west'] },
+// { name: 'Yishun Street 22 Court', lat: 1.4304, lon: 103.8358, region: 'north', keywords: ['yishun'] },
+// { name: 'Bishan Sports Hall Court', lat: 1.3508, lon: 103.8482, region: 'central', keywords: ['bishan', 'bishan sports hall'] 
+// }]
 
 const handleAddCourt = () => {
 showAddCourtModal2.value = true; // This opens AddCourtModal2.vue
 }
+
+
 function openMatchModalFromEventCard() {
 if (matchEventToShow.value) {
   selectedCourt.value = { name: matchEventToShow.value.court }; // this is fine!
@@ -471,7 +482,8 @@ function regionCount(region) {
 //   }
 // }
 
-// change 5: unify court data base from firebase console and hardcoded courts:
+// change 5: unify court data base from firebase console and
+//  hardcoded courts:
 
 // After fetching from Firebase:
 // const loadCourtsFromFirebase = async () => {
@@ -500,18 +512,35 @@ if (data) {
   }));
 }
 
-const localNormalized = courts.map(c => ({
-  ...c,
-  region: ((c.region ?? '') + '').toString().toLowerCase().trim(),
-  lat: Number(c.lat),
-  lon: Number(c.lon),
-  keywords: c.keywords ?? []
-}));
+const localNormalized = Array.isArray(courts.value)
+  ? courts.value.map(c => ({
+      ...c,
+      region: ((c.region ?? '') + '').toString().toLowerCase().trim(),
+      lat: Number(c.lat),
+      lon: Number(c.lon),
+      keywords: c.keywords ?? []
+    }))
+  : [];
 
 allCourts.value = [...firebaseList, ...localNormalized];
 console.debug('[loadCourtsFromFirebase] loaded', allCourts.value.length, 'courts', allCourts.value.map(x => ({ name: x.name, region: x.region })));
 applyFilters();
 };
+
+// Called when AddMatchModal emits 'created' — refresh matches for the selected court so embedded lists update
+async function handleMatchCreated() {
+  try {
+    if (selectedCourt.value) {
+      await loadMatchesForCourt(selectedCourt.value)
+      // ensure the court's expanded matches view is visible
+      expandedCourts.value = { [courtKey(selectedCourt.value)]: true }
+    }
+  } catch (e) {
+    console.warn('handleMatchCreated failed', e)
+  } finally {
+    showAddMatchModal.value = false
+  }
+}
 
 
 
