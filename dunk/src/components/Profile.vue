@@ -17,10 +17,48 @@
             {{ displayInitials }}
           </div>
         </div>
-        <h3 class="fw-bold mb-0 mt-2" style="font-size:1.7rem;">{{ profile.name || profile.username || 'Anonymous' }}</h3>
-        <div style="color:#9CA3AF;font-size:1.1rem;">{{ profile.email || '' }}</div>
+
+        <!-- <h3 class="fw-bold mb-0 mt-2" style="font-size:1.7rem;">{{ profile.name || profile.username || 'Anonymous' }}</h3>
+        <div style="color:#9CA3AF;font-size:1.1rem;">{{ profile.email || '' }}</div> -->
+        <h3
+          v-if="profile && (profile.name || profile.username)"
+          class="fw-bold mb-0 mt-2"
+          style="font-size:1.7rem;"
+        >
+          {{ profile.name || profile.username }}
+        </h3>
+        <h3
+          v-else
+          class="fw-bold mb-0 mt-2 text-muted"
+          style="font-size:1.7rem;"
+        >
+          Anonymous
+        </h3>
+
+        <div
+          v-if="profile && profile.email"
+          style="color:#9CA3AF;font-size:1.1rem;"
+        >
+          {{ profile.email }}
+        </div>
+
         <div class="mt-2" v-if="!(currentUser && currentUser.uid && currentUser.uid === uid)">
-          <button class="btn btn-outline-primary me-2" @click="toggleFollow">{{ (profile.followers && currentUser && currentUser.uid && profile.followers[currentUser.uid]) ? 'Unfollow' : 'Follow' }}</button>
+          <!-- <button class="btn btn-outline-primary me-2" @click="toggleFollow">{{ (profile.followers && currentUser && currentUser.uid && profile.followers[currentUser.uid]) ? 'Unfollow' : 'Follow' }}</button> -->
+           <button
+            v-if="profile && profile.followers && currentUser && currentUser.uid"
+            class="btn btn-outline-primary me-2"
+            @click="toggleFollow"
+          >
+            {{ profile.followers[currentUser.uid] ? 'Unfollow' : 'Follow' }}
+          </button>
+
+          <button
+            v-else
+            class="btn btn-outline-primary me-2"
+            disabled
+          >
+            Follow
+          </button>
         </div>
       </div>
 
@@ -30,57 +68,123 @@
           <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
             <Trophy :color="'#FFAD1D'" :size="28" class="mb-2" />
             <span class="fw-medium">Ranking</span>
-            <span class="badge bg-purple text-white mt-1" style="font-size:0.92rem;">{{ profile.skill || 'Open' }}</span>
+            <!-- <span class="badge bg-purple text-white mt-1" style="font-size:0.92rem;">{{ profile.skill || 'Open' }}</span> -->
+
+            <span
+            v-if="profile && profile.skill"
+            class="badge bg-purple text-white mt-1"
+            style="font-size:0.92rem;"
+          >
+            {{ profile.skill }}
+          </span>
+          <span
+            v-else
+            class="badge bg-purple text-white mt-1"
+            style="font-size:0.92rem;"
+          >
+            Open
+          </span>
+
+
           </div>
         </div>
         <div class="col-6 col-md-3 d-flex">
           <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
             <Star :color="'#FFAD1D'" :size="28" class="mb-2" />
             <span class="fw-medium">Score</span>
-            <div class="fs-4 fw-semibold text-warning mt-1">{{ profile.score || 0 }}</div>
+            <!-- <div class="fs-4 fw-semibold text-warning mt-1">{{ profile.score || 0 }}</div> -->
+             <div class="fs-4 fw-semibold text-warning mt-1">
+            {{ (profile && profile.score !== undefined) ? profile.score : 0 }}
+          </div>
+
           </div>
         </div>
         <div class="col-6 col-md-3 d-flex">
           <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
             <Users :color="'#FFAD1D'" :size="28" class="mb-2" />
             <span class="fw-medium">Gender</span>
-            <span class="fw-semibold text-warning mt-1">{{ profile.gender || 'All' }}</span>
+            <!-- <span class="fw-semibold text-warning mt-1">{{ profile.gender || 'All' }}</span> -->
+             <span class="fw-semibold text-warning mt-1">
+            {{ (profile && profile.gender) ? profile.gender : 'All' }}
+          </span>
+
           </div>
         </div>
         <div class="col-6 col-md-3 d-flex">
           <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
             <Cake :color="'#FFAD1D'" :size="28" class="mb-2" />
             <span class="fw-medium">Age</span>
-            <span class="fs-4 fw-semibold text-warning mt-1">{{ profile.age || '—' }}</span>
+            <!-- <span class="fs-4 fw-semibold text-warning mt-1">{{ profile.age || '—' }}</span> -->
+             <span class="fs-4 fw-semibold text-warning mt-1">
+            {{ (profile && profile.age !== undefined && profile.age !== null) ? profile.age : '—' }}
+          </span>
+
           </div>
         </div>
       </div>
 
       <!-- Following & Followers -->
-      <div class="row gx-3 justify-content-center mb-3">
+      <div
+        class="row gx-3 justify-content-center mb-3"
+        v-if="profile && profile.followers && profile.following"
+      >
         <div class="col-6 col-md-4">
-          <button type="button" class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3" style="background:#181A20;">
+
+          <!-- <button type="button" class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3" style="background:#181A20;">
             Following ({{ profile.following ? Object.keys(profile.following).length : 0 }})
+          </button> -->
+
+          <button
+            type="button"
+            class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
+            style="background:#181A20;"
+          >
+            Following (
+            {{
+              profile && profile.following
+                ? Object.keys(profile.following).length
+                : 0
+            }}
+            )
           </button>
+
         </div>
         <div class="col-6 col-md-4">
-          <button type="button" class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3" style="background:#181A20;">
+          <!-- <button type="button" class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3" style="background:#181A20;">
             Followers ({{ profile.followers ? Object.keys(profile.followers).length : 0 }})
-          </button>
+          </button> -->
+
+        <button
+          type="button"
+          class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
+          style="background:#181A20;"
+        >
+          Followers (
+          {{
+            profile && profile.followers
+              ? Object.keys(profile.followers).length
+              : 0
+          }}
+          )
+        </button>  
+
         </div>
       </div>
 
       <!-- Bio -->
-      <div class="mb-4 px-3">
+      <!-- <div class="mb-4 px-3">
         <h5>About</h5>
         <p>{{ profile.bio || 'No bio available.' }}</p>
-      </div>
+      </div> -->
+      <p>{{ (profile && profile.bio) ? profile.bio : 'No bio available.' }}</p>
       <!-- Recent posts & matches -->
       <div class="mb-4 px-3">
         <h5>Recent Posts</h5>
         <ul>
           <li v-for="p in recentPosts" :key="p.id"><router-link :to="`/forum`">{{ p.caption || p.title || 'Post' }}</router-link></li>
-          <li v-if="recentPosts.length === 0" class="text-muted">No recent posts</li>
+          <!-- <li v-if="recentPosts.length === 0" class="text-muted">No recent posts</li> -->
+           <li v-if="!recentPosts || recentPosts.length === 0" class="text-muted">No recent posts</li>
+
         </ul>
       </div>
 
@@ -88,7 +192,9 @@
         <h5>Recent Matches</h5>
         <ul>
           <li v-for="m in recentMatches" :key="m.id"><router-link :to="m.id ? `/matches/${m.id}` : '/matches'">{{ m.title || 'Match' }}</router-link></li>
-          <li v-if="recentMatches.length === 0" class="text-muted">No recent matches</li>
+          <!-- <li v-if="recentMatches.length === 0" class="text-muted">No recent matches</li> -->
+           <li v-if="!recentMatches || recentMatches.length === 0" class="text-muted">No recent matches</li>
+
         </ul>
       </div>
 
@@ -127,16 +233,68 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeMount, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getDataFromFirebase, overwriteDataToFirebase, setChildData, deleteChildData } from '../firebase/firebase'
 import { onUserStateChanged } from '../firebase/auth'
 import { MoveLeft, Trophy, Star, Users, Cake, ChartColumn } from 'lucide-vue-next'
 
+onBeforeMount(() => {
+  window.scrollTo(0, 0)
+})
+
 const route = useRoute()
 const router = useRouter()
+
 const uid = route.params.uid
-const profile = ref({})
+// const profile = ref({})
+// Always start as an empty, valid object to avoid undefined property access
+const profile = ref({
+  name: '',
+  username: '',
+  email: '',
+  gender: '',
+  age: null,
+  skill: '',
+  score: 0,            
+  followers: {},
+  following: {},
+  bio: '',
+  statistics: {
+    open_wins: 0,
+    intermediate_wins: 0,
+    professional_wins: 0
+  }
+})
+
+
+
+watch(
+  () => route.params.uid,
+  async (newUid, oldUid) => {
+    if (newUid && newUid !== oldUid) {
+      await fetchProfile(newUid)
+    }
+  }
+)
+
+// Extract data loading into its own function so we can reuse it
+async function fetchProfile(targetUid) {
+  try {
+    const users = await getDataFromFirebase('users')
+    if (users && users[targetUid]) 
+    // profile.value = users[targetUid]
+      {
+      // Merge fetched data with defaults so missing fields remain defined
+      profile.value = { ...profile.value, ...users[targetUid] }
+    }
+  } catch (e) {
+    console.warn('Failed to reload profile', e)
+  }
+}
+
+
+
 const stats = ref({})
 const currentUser = ref(null)
 const imgErrored = ref(false)
@@ -147,7 +305,10 @@ onMounted(async () => {
   if (!uid) return
   try {
     const users = await getDataFromFirebase('users')
-    if (users && users[uid]) profile.value = users[uid]
+    if (users && users[uid]) {
+    profile.value = { ...profile.value, ...users[uid] }
+}
+    // profile.value = users[uid]
 
     // basic stats: count matches created and joined
     const matches = await getDataFromFirebase('matches')
@@ -183,27 +344,65 @@ onMounted(() => {
   loadRecentContent()
 })
 
+// async function loadRecentContent() {
+//   try {
+//     const posts = await getDataFromFirebase('forumUploads')
+//     if (posts) {
+//       const arr = Array.isArray(posts) ? posts : Object.entries(posts).map(([id, v]) => ({ id, ...v }))
+//       recentPosts.value = arr.filter(p => (p.createdByUid === uid || p.createdBy === uid || p.author === uid)).sort((a,b)=> (b.createdAt||0)-(a.createdAt||0)).slice(0,5)
+//     }
+//   } catch (e) {
+//     recentPosts.value = []
+//   }
+
+//   try {
+//     const matches = await getDataFromFirebase('matches')
+//     if (matches) {
+//       const marr = Array.isArray(matches) ? matches : Object.entries(matches).map(([id,v]) => ({ id, ...v }))
+//       recentMatches.value = marr.filter(m => (m.owner === uid || m.createdByUid === uid)).sort((a,b)=> (b.createdAt||0)-(a.createdAt||0)).slice(0,5)
+//     }
+//   } catch (e) {
+//     recentMatches.value = []
+//   }
+// }
+
 async function loadRecentContent() {
   try {
     const posts = await getDataFromFirebase('forumUploads')
     if (posts) {
-      const arr = Array.isArray(posts) ? posts : Object.entries(posts).map(([id, v]) => ({ id, ...v }))
-      recentPosts.value = arr.filter(p => (p.createdByUid === uid || p.createdBy === uid || p.author === uid)).sort((a,b)=> (b.createdAt||0)-(a.createdAt||0)).slice(0,5)
+      const arr = Array.isArray(posts)
+        ? posts
+        : Object.entries(posts).map(([id, v]) => ({ id, ...v }))
+      recentPosts.value = arr
+        .filter(p => (p.createdByUid === uid || p.createdBy === uid || p.author === uid))
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        .slice(0, 5)
+    } else {
+      recentPosts.value = [] // ✅ safe fallback
     }
   } catch (e) {
-    recentPosts.value = []
+    recentPosts.value = [] // ✅ initialize on error
   }
 
   try {
     const matches = await getDataFromFirebase('matches')
     if (matches) {
-      const marr = Array.isArray(matches) ? matches : Object.entries(matches).map(([id,v]) => ({ id, ...v }))
-      recentMatches.value = marr.filter(m => (m.owner === uid || m.createdByUid === uid)).sort((a,b)=> (b.createdAt||0)-(a.createdAt||0)).slice(0,5)
+      const marr = Array.isArray(matches)
+        ? matches
+        : Object.entries(matches).map(([id, v]) => ({ id, ...v }))
+      recentMatches.value = marr
+        .filter(m => (m.owner === uid || m.createdByUid === uid))
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        .slice(0, 5)
+    } else {
+      recentMatches.value = [] 
     }
   } catch (e) {
     recentMatches.value = []
   }
 }
+
+
 
 function goBack() { router.back() }
 
@@ -304,6 +503,9 @@ async function toggleFollow() {
   const myUid = currentUser.value.uid
   if (!myUid) { alert('Please sign in'); return }
   if (myUid === uid) return
+
+  if (!profile.value.followers) profile.value.followers = {}
+  if (!profile.value.following) profile.value.following = {}
 
   try {
     const users = await getDataFromFirebase('users')

@@ -134,6 +134,7 @@ main {
   border: none;
 }
 
+
 /* Mobile styles - Keep sidebar visible but adjust layout */
 @media (max-width: 720px) {
   /* Topbar stays aligned with sidebar */

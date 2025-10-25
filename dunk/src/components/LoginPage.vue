@@ -4,6 +4,8 @@ import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
 import { Trophy, Star, Users, Cake, ChartColumn } from 'lucide-vue-next'
 import { loginWithGoogle, logout, onUserStateChanged, saveUserToDatabase } from '../firebase/auth.js'
 import { onDataChange, getDataFromFirebase } from '../firebase/firebase'
+import { getDatabase, ref as dbRef, set } from 'firebase/database'
+
 
 //change 6: import dunk logo from assets
 import dunkLogo from '../assets/dunk-ball.svg'
@@ -74,6 +76,14 @@ const filteredFollowing = ref([]);
 const showConfirmPopup = ref(false);
 const confirmAction = ref(null);
 const confirmMessage = ref('');
+
+// helper to execute confirmed action safely
+function runConfirmAction() {
+  if (confirmAction.value && typeof confirmAction.value === 'function') {
+    confirmAction.value();  // execute the stored action
+  }
+}
+
 
 // Functions to open / close popups
 function openFollowers() {
@@ -172,30 +182,94 @@ function confirmUnfollow(uidToRemove) {
 }
 
 // Step 7: Execute removal actions after confirmation
+// async function performRemoveFollower(uidToRemove) {
+//   try {
+//     const db = getDatabase();
+//     const followerRef = ref(db, `users/${user.value.uid}/followers/${uidToRemove}`);
+//     await set(followerRef, null);
+//     showConfirmPopup.value = false;
+//     await loadFollowers();
+//   } catch (e) {
+//     console.error('Error removing follower', e);
+//   }
+// }
+
 async function performRemoveFollower(uidToRemove) {
   try {
-    const db = getDatabase();
-    const followerRef = ref(db, `users/${user.value.uid}/followers/${uidToRemove}`);
-    await set(followerRef, null);
-    showConfirmPopup.value = false;
-    await loadFollowers();
+    const db = getDatabase()
+
+    if (!uidToRemove) {
+      console.error('performRemoveFollower(): uidToRemove is undefined!')
+      alert('Error: follower UID missing — cannot remove.')
+      return
+    }
+    if (!user.value || !user.value.uid) {
+      console.error('performRemoveFollower(): current user.uid is undefined!')
+      alert('Error: current user not detected — please log in again.')
+      return
+    }
+
+    console.log('Current User ID:', user.value.uid)
+    console.log('Removing Follower UID:', uidToRemove)
+
+    const followerRef = dbRef(db, `users/${user.value.uid}/followers/${uidToRemove}`)
+    const theirFollowingRef = dbRef(db, `users/${uidToRemove}/following/${user.value.uid}`)
+
+
+    console.log('Deleting node:', `users/${user.value.uid}/followers/${uidToRemove}`)
+    console.log('Deleting node:', `users/${uidToRemove}/following/${user.value.uid}`)
+
+    await set(followerRef, null)
+    await set(theirFollowingRef, null)
+
+    console.log(`Follower ${uidToRemove} removed.`)
+    showConfirmPopup.value = false
+    await loadFollowers()
   } catch (e) {
-    console.error('Error removing follower', e);
+    console.error('Error removing follower:', e)
   }
 }
+
+
+
+
 
 // Step 8: Execute Unfollow action (removes record on both users)
 async function performUnfollow(uidToRemove) {
   try {
     const db = getDatabase();
-    const myRef = ref(db, `users/${user.value.uid}/following/${uidToRemove}`);
-    const theirRef = ref(db, `users/${uidToRemove}/followers/${user.value.uid}`);
-    await set(myRef, null);
-    await set(theirRef, null);
+
+    // Validate both UIDs
+    if (!uidToRemove) {
+      console.error("performUnfollow(): uidToRemove is undefined!");
+      alert("Error: user to unfollow not found.");
+      return;
+    }
+    if (!user.value || !user.value.uid) {
+      console.error("performUnfollow(): current user.uid is undefined!");
+      alert("Error: current user not detected — please log in again.");
+      return;
+    }
+
+    console.log("You:", user.value.uid);
+    console.log("Unfollowing:", uidToRemove);
+
+    // Step 2: Build references correctly
+    const myFollowingRef = dbRef(db, `users/${user.value.uid}/following/${uidToRemove}`);
+    const theirFollowersRef = dbRef(db, `users/${uidToRemove}/followers/${user.value.uid}`);
+
+    console.log("Deleting node:", `users/${user.value.uid}/following/${uidToRemove}`);
+    console.log("Deleting node:", `users/${uidToRemove}/followers/${user.value.uid}`);
+
+    // Step 3: Delete both records
+    await set(myFollowingRef, null);
+    await set(theirFollowersRef, null);
+
+    console.log(`Successfully unfollowed ${uidToRemove}`);
     showConfirmPopup.value = false;
     await loadFollowing();
-  } catch (e) {
-    console.error('Error unfollowing user', e);
+  } catch (error) {
+    console.error("Error unfollowing user:", error);
   }
 }
 
@@ -852,7 +926,7 @@ watch(animateBars, (v) => { if (v) animateCounts() })
           class="search-input"
         />
 
-        <div class="follow-list">
+        <!-- <div class="follow-list">
           <div class="follow-item" v-for="f in filteredFollowers" :key="f.uid">
             <img
               :src="f.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f.email.split('@')[0])}`"
@@ -861,7 +935,28 @@ watch(animateBars, (v) => { if (v) animateCounts() })
             <div class="info">
               <div class="username">{{ f?.name || f?.email || 'Unknown User' }}</div>
               <div class="sub">{{ f.gender || 'User' }}</div>
+            </div> -->
+
+        <div class="follow-list">
+          <div
+            class="follow-item"
+            v-for="f in filteredFollowers"
+            :key="f.uid"
+          >
+            <!-- Make each box clickable using router-link -->
+            <router-link
+            :to="{ name: 'PublicProfile', params: { uid: f.uid } }"
+            class="d-flex align-items-center w-100 text-decoration-none text-reset"
+          >
+            <img
+              :src="f.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f.email.split('@')[0])}`"
+              class="avatar"
+            />
+            <div class="info ms-2">
+              <div class="username">{{ f.name || f.email }}</div>
+              <div class="sub">{{ f.gender || 'User' }}</div>
             </div>
+          </router-link>
             <!-- <button class="remove-btn" @click="removeFollower(f.uid)">Remove</button> -->
              <button class="remove-btn" @click="confirmRemoveFollower(f.uid)">Remove</button>
 
@@ -887,17 +982,26 @@ watch(animateBars, (v) => { if (v) animateCounts() })
 
         <div class="follow-list">
           <div class="follow-item" v-for="f in filteredFollowing" :key="f.uid">
+            <!-- Step 2: Clickable router-link to public profile -->
+            <router-link
+            :to="{ name: 'PublicProfile', params: { uid: f.uid } }"
+            class="d-flex align-items-center w-100 text-decoration-none text-reset"
+          >
             <img
-              :src="f?.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f?.email?.split('@')[0] || f?.name || 'user')}`"
+              :src="f.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f.email.split('@')[0])}`"
               class="avatar"
             />
-            <div class="info">
-              <div class="username">{{ f?.name || f?.email || 'Unknown User' }}</div>
-              <div class="sub">{{ f?.gender || 'User' }}</div>
+            <div class="info ms-2">
+              <div class="username">{{ f.name || f.email }}</div>
+              <div class="sub">{{ f.gender || 'User' }}</div>
             </div>
-            <button class="unfollow-btn" @click="confirmUnfollow(f.uid)">Unfollow</button>
-          </div>
+          </router-link>
+
+    <!-- Keep existing Unfollow button -->
+    <button class="unfollow-btn" @click="confirmUnfollow(f.uid)">Unfollow</button>
+  </div>
         </div>
+
       </div>
     </div>
 
@@ -909,7 +1013,7 @@ watch(animateBars, (v) => { if (v) animateCounts() })
     <h2 class="popup-title">Confirm Action</h2>
     <p class="popup-text">{{ confirmMessage }}</p>
     <div class="popup-buttons">
-      <button class="btn-confirm" @click="confirmAction()">Confirm</button>
+      <button class="btn-confirm" @click="runConfirmAction()">Confirm</button>
       <button class="btn-cancel" @click="closeConfirmPopup">Cancel</button>
     </div>
   </div>

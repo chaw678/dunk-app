@@ -18,9 +18,28 @@ const routes = [
     { path: '/court-finder', component: CourtFinder },
     { path: '/matches', component: Matches },
     { path: '/forum', component: Forum },
-    { path: '/profile/:uid', component: Profile },
+    { path: '/profile/:uid', name: 'PublicProfile', component: Profile  },
     { path: '/login', component: LoginPage },
 ]
 
-const router = createRouter({ history, routes })
+// const router = createRouter({ history, routes })
+// export default router
+
+
+const router = createRouter({
+  history,
+  routes,
+  scrollBehavior(to, from, savedPosition) {
+    // FORCE an instant jump to top-left corner — disables all animation/saved scroll
+    return new Promise((resolve) => {
+      // Wait for DOM paint to ensure route has mounted
+      setTimeout(() => {
+        resolve({ left: 0, top: 0 })
+      }, 0)
+    })
+  }
+})
+
 export default router
+
+
