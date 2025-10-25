@@ -134,11 +134,15 @@ main {
   border: none;
 }
 
-/* Mobile styles - Keep sidebar visible but adjust layout */
-@media (max-width: 720px) {
+/* Mobile/Tablet styles - Keep sidebar visible but adjust layout */
+@media (max-width: 1024px) {
   /* Topbar stays aligned with sidebar */
   .topbar {
     left: calc(var(--sidebar-current-width, var(--sidebar-width)));
+  }
+  /* Hide topbar when sidebar is open and overlaying (i.e., not collapsed) */
+  .topbar:not(.collapsed) {
+    display: none;
   }
   
   /* Main content still respects sidebar width */
@@ -150,7 +154,7 @@ main {
     margin-left: var(--sidebar-collapsed-width);
   }
   
-  /* Optional: reduce padding on mobile */
+  /* Optional: reduce padding on mobile/tablet */
   .main-content {
     padding: 24px 16px;
     padding-top: 96px;

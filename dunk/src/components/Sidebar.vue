@@ -45,13 +45,20 @@
         </div>
       </div>
     </aside>
+    <!-- Mobile backdrop: shown when sidebar is open (not collapsed) to dim and block background -->
+    <div
+      v-if="!collapsed"
+      class="sidebar-backdrop"
+      @click="toggle"
+      aria-hidden="true"
+    />
   </div>
 </template>
 
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
+import { defineProps, defineEmits, watch, onBeforeUnmount } from 'vue'
 import { Grid2x2, Trophy, Users, MessageCircle } from 'lucide-vue-next'
-import { defineProps, defineEmits } from 'vue'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false }
@@ -64,6 +71,32 @@ const goLogin = () => router.push('/login')
 function toggle() {
   emit('update:collapsed', !props.collapsed)
 }
+
+// Prevent background scrolling when sidebar overlays on mobile
+const toggleBodyScroll = (disable) => {
+  const cls = 'no-scroll'
+  const root = document.documentElement
+  const body = document.body
+  if (disable) {
+    root.classList.add(cls)
+    body.classList.add(cls)
+  } else {
+    root.classList.remove(cls)
+    body.classList.remove(cls)
+  }
+}
+
+// Watch collapsed and apply no-scroll on small screens when open
+const mq = window.matchMedia('(max-width: 720px)')
+const syncScrollLock = () => {
+  toggleBodyScroll(!props.collapsed && mq.matches)
+}
+watch(() => props.collapsed, syncScrollLock, { immediate: true })
+mq.addEventListener?.('change', syncScrollLock)
+onBeforeUnmount(() => {
+  toggleBodyScroll(false)
+  mq.removeEventListener?.('change', syncScrollLock)
+})
 </script>
 
 <style scoped>
@@ -179,30 +212,39 @@ function toggle() {
   font-size: 16px;
 }
 
-/* Responsive: Ensure sidebar stays visible on small screens */
-@media (max-width: 720px) {
+/* Responsive: make sidebar act like a drawer on small-to-tablet screens */
+@media (max-width: 1024px) {
   .sidebar {
-    /* Keep sidebar visible - don't hide it */
-    display: flex !important;
+    display: flex !important; /* ensure visible */
     visibility: visible !important;
     opacity: 1 !important;
+    width: var(--sidebar-collapsed-width); /* compact by default */
+    z-index: 150; /* above content and backdrop */
   }
-  
-  /* Optional: Auto-collapse on mobile for more space */
   .sidebar:not(.collapsed) {
-    width: var(--sidebar-width);
+    width: 100vw; /* take full width when opened */
+  }
+  .sidebar-inner { padding: 0 14px; }
+}
+
+@media (max-width: 480px) {
+  .sidebar {
+    width: var(--sidebar-collapsed-width); /* keep compact */
+  }
+  .sidebar:not(.collapsed) {
+    width: 100vw; /* full-width drawer when opened */
   }
 }
 
-/* Extra small screens - you might want it collapsed by default */
-@media (max-width: 480px) {
-  /* Sidebar stays visible but you can adjust width if needed */
-  .sidebar {
-    width: var(--sidebar-collapsed-width);
-  }
-  
-  .sidebar:not(.collapsed) {
-    width: var(--sidebar-width);
-  }
+/* Backdrop sits behind the sidebar on mobile when open */
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: #000; /* fully opaque so background doesn't show through */
+  z-index: 140; /* below sidebar (150) but above content */
+  display: none;
+}
+@media (max-width: 1024px) {
+  .sidebar-backdrop { display: block; }
 }
 </style>

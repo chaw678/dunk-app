@@ -345,6 +345,14 @@ const createMatch = async () => {
     validatingCourt.value = false
     checkingOverlap.value = false
   }
+}catch (e) {
+    console.error('Error during match creation:', e)
+    popupType.value = 'error'
+    popupMessage.value = 'Error during match creation: ' + (e && e.message ? e.message : String(e))
+    showPopup.value = true
+    validatingCourt.value = false
+    checkingOverlap.value = false
+  }
 }
 </script>
 

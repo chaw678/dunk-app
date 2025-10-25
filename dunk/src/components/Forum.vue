@@ -71,13 +71,13 @@
         </div>
         <div class="d-flex justify-content-end gap-2 mt-3">
           <button class="btn btn-secondary" @click="cancelUploadModal">Cancel</button>
-          <button class="btn btn-warning" :disabled="!currentUserId" :title="currentUserId ? 'Create Post' : 'Sign in to create posts'" @click="submitUpload">Create Post</button>
+          <button class="btn btn-warning" :title="currentUserId ? 'Create Post' : 'Sign in to create posts'" @click="submitUpload">Create Post</button>
         </div>
       </div>
     </div>
 
     <!-- Floating pencil button to open modal -->
-    <button class="btn btn-warning fab-pencil" :disabled="!currentUserId" :title="currentUserId ? 'Create post' : 'Sign in to create posts'" @click="openUploadModal" aria-label="Create post">
+    <button class="btn btn-warning fab-pencil" :title="currentUserId ? 'Create post' : 'Sign in to create posts'" @click="openUploadModal" aria-label="Create post">
       <i class="bi bi-pencil" style="font-size:20px;color:#111"></i>
     </button>
 
@@ -96,7 +96,7 @@
       <div class="forum-item" v-for="file in filteredFiles" :key="file.id">
         <div class="card bg-dark text-white upload-card position-relative">
           <div class="card-body">
-            <div class="d-flex align-items-center gap-3 mb-2">
+            <div class="d-flex align-items-start gap-2 mb-2">
               <div class="avatar">
                 <template v-if="profilePathForFile(file)">
                   <router-link :to="profilePathForFile(file)"><img :src="file.avatar || '/src/assets/vue.svg'" alt="user"/></router-link>
@@ -105,7 +105,7 @@
                   <img :src="file.avatar || '/src/assets/vue.svg'" alt="user"/>
                 </template>
               </div>
-              <div>
+              <div class="flex-grow-1" style="margin-top: -2px;">
                 <div class="fw-bold">
                   <template v-if="profilePathForFile(file)">
                     <router-link :to="profilePathForFile(file)" class="text-reset text-decoration-none">{{ file.createdByName || file.author || file.username || 'Anonymous' }}</router-link>
@@ -116,7 +116,7 @@
                 </div>
                 <div class="small text-muted">{{ displayDate(file.createdAt) }}</div>
               </div>
-              <div class="ms-auto">
+              <div class="ms-auto align-self-start">
                 <span v-if="file.tag" class="badge bg-secondary">{{ file.tag }}</span>
               </div>
             </div>
@@ -486,7 +486,7 @@ function avatarForName(name) {
 async function toggleLike(file) {
   if (!file || !file.id) return
   if (!currentUserId.value) {
-    alert('Please sign in to like posts')
+    showPopup.value = true
     return
   }
   const uid = currentUserId.value
@@ -515,7 +515,7 @@ async function submitComment(file) {
   const text = (file._newComment || '').trim()
   if (!text) return
   if (!currentUserId.value) {
-    alert('Please sign in to comment')
+    showPopup.value = true
     return
   }
   const comment = {
@@ -558,7 +558,10 @@ async function submitReply(file, cid) {
   if (!file || !file.id || !file.comments || !file.comments[cid]) return
   const text = (file._replyText || '').trim()
   if (!text) return
-  if (!currentUserId.value) { alert('Please sign in to reply'); return }
+  if (!currentUserId.value) { 
+    showPopup.value = true
+    return 
+  }
   const reply = {
     author: currentUserId.value,
     authorName: currentUserName.value || 'Anon',
@@ -789,7 +792,10 @@ async function onFilesSelected(e) {
 }
 
 function openUploadModal() {
-  if (!currentUserId.value) { alert('Please sign in to create a post'); return }
+  if (!currentUserId.value) { 
+    showPopup.value = true
+    return 
+  }
   uploadTitle.value = ''
   uploadCaption.value = ''
   selectedUploadFiles.value = []
@@ -1252,17 +1258,9 @@ onUnmounted(() => {
   border-radius: 10px;
   display: block;
 }
-.avatar img {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-.avatar {
-  width: 36px;
-  height: 36px;
-  overflow: hidden;
-}
+/* Post avatar (single source of truth) */
+/* Note: consolidated to avoid duplicate rules causing visual double rings */
+/* The only orange outline should come from this border below */
 .like-btn {
   color: inherit;
 }
@@ -1305,13 +1303,7 @@ onUnmounted(() => {
   color: #c9d1d9;
 }
 
-/* Comment avatar styling */
-.comment-avatar img {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
-}
+/* Comment avatar styling consolidated below with replies */
 
 /* Layout for comment items */
 .comment-left {
@@ -1614,6 +1606,24 @@ input.comment-edit-input:-webkit-autofill:focus {
   height: 44px;
   border-radius: 50%;
   object-fit: cover;
+  border: 0; /* avoid double orange rings; ring drawn on container */
+  display: block;
+}
+.comment-avatar,
+.reply-avatar {
+  width: 44px;
+  height: 44px;
+  position: relative;
+  flex-shrink: 0;
+}
+.comment-avatar::before,
+.reply-avatar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid #FFAD1D; /* single orange ring */
+  border-radius: 50%;
+  pointer-events: none;
 }
 .comment-left { align-items: flex-start }
 .comment-body {
@@ -1626,8 +1636,10 @@ input.comment-edit-input:-webkit-autofill:focus {
   text-decoration: none;
 }
 .reply-input .reply-avatar img {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  display: block;
 }
 .reply-input .form-control { border-radius: 8px; }
 .comment-replies {
@@ -1752,15 +1764,33 @@ input.comment-edit-input:-webkit-autofill:focus {
 
 /* Avatar sizes */
 .avatar img {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   object-fit: cover;
+ /* avoid double orange rings */
+  display: block;
 }
 .avatar {
-  width: 36px;
-  height: 36px;
-  overflow: hidden;
+  margin-top: -10px;
+  width: 40px;
+  border: 0;
+  height: 40px;
+  overflow: visible;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #232830;
+  position: relative; /* for ring pseudo-element */
+}
+.avatar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 3px solid #FFAD1D; /* single orange ring */
+  border-radius: 50%;
+  pointer-events: none;
 }
 
 /* Dropdown menu dots styling */

@@ -1,5 +1,18 @@
 <template>
     <div class="page-bg">
+        <!-- Sign in popup -->
+        <div v-if="showPopup" class="success-overlay" @click.self="handlePopupClose">
+            <div class="success-popup">
+                <div class="success-icon" style="background:#e04747">✕</div>
+                <h3>Sign-in Required</h3>
+                <p>Please sign in to perform this action.</p>
+                <div class="popup-buttons">
+                    <button class="sign-in-btn" @click.stop="handleSignIn">Sign In with Google</button>
+                    <button class="close-btn" @click.stop="handlePopupClose">Close</button>
+                </div>
+            </div>
+        </div>
+        
         <div class="card large-card">
             <div v-if="!embedded" class="page-header matches-header">
                 <div>
@@ -7,7 +20,7 @@
                     <p class="matches-desc">Create and join public or private basketball games.</p>
                 </div>
                 <div>
-                    <button class="btn-create-match" :disabled="!currentUser" :title="currentUser ? 'Create a match' : 'Sign in to create matches'" @click="showAddMatchModal = true"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
+                    <button class="btn-create-match" :title="currentUser ? 'Create a match' : 'Sign in to create matches'" @click="handleCreateMatch"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
                 </div>
             </div>
 
@@ -15,7 +28,7 @@
             <div v-if="embedded" class="embedded-header">
                 <div class="embedded-title">Matches at {{ courtFilter || 'this court' }}</div>
                 <div>
-                    <button class="btn-create-match small" :disabled="!currentUser" :title="currentUser ? 'Create a match' : 'Sign in to create matches'" @click="showAddMatchModal = true"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
+                    <button class="btn-create-match small" :title="currentUser ? 'Create a match' : 'Sign in to create matches'" @click="handleCreateMatch"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
                 </div>
             </div>
 
@@ -232,7 +245,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
 const props = defineProps({
     courtFilter: { type: String, default: '' },
     embedded: { type: Boolean, default: false }
@@ -243,6 +257,11 @@ import { getDataFromFirebase, pushDataToFirebase, overwriteDataToFirebase, setCh
 import { onUserStateChanged } from '../firebase/auth'
 import AddMatchModal from './AddMatchModal.vue'
 import JoinedPlayersModal from './JoinedPlayersModal.vue'
+
+const showPopup = ref(false)
+const isSigningIn = ref(false)
+const auth = getAuth()
+
 const maxAvatars = 6
 const usersCache = ref({})
 
@@ -262,6 +281,79 @@ async function loadUsers() {
 const showPlayersModal = ref(false)
 const activePlayers = ref([])
 const activeTitle = ref('')
+
+// Google sign-in handler
+async function loginWithGoogle() {
+    const provider = new GoogleAuthProvider()
+    try {
+        const result = await signInWithPopup(auth, provider)
+        showPopup.value = false
+        return result.user
+    } catch (error) {
+        console.error('Google sign-in error:', error)
+        showPopup.value = true
+        throw error
+    }
+}
+
+// Handle sign-in
+async function handleSignIn() {
+    if (isSigningIn.value) return
+    isSigningIn.value = true
+    try {
+        await loginWithGoogle()
+    } catch (err) {
+        console.error('Google sign-in failed', err)
+        showPopup.value = true
+    } finally {
+        isSigningIn.value = false
+    }
+}
+
+// Handle popup close
+const handlePopupClose = (event) => {
+    if (!event) {
+        showPopup.value = false
+        return
+    }
+
+    const el = event.target || event.currentTarget
+
+    if (el.classList && el.classList.contains('success-overlay')) {
+        showPopup.value = false
+        return
+    }
+
+    if (el.classList && el.classList.contains('sign-in-btn')) {
+        handleSignIn()
+        return
+    }
+
+    if (el.classList && (el.classList.contains('close-btn'))) {
+        showPopup.value = false
+        return
+    }
+
+    if (el.closest) {
+        if (el.closest('.close-btn') || el.closest('.sign-in-btn')) {
+            showPopup.value = false
+            return
+        }
+    }
+}
+
+// Auth state integration: popup auto-closes after sign-in handled below
+
+// Handle create match button (show popup if not signed in)
+function handleCreateMatch() {
+    if (!currentUser.value) {
+        showPopup.value = true
+        return
+    }
+    showAddMatchModal.value = true
+}
+
+// (Join button is disabled when restricted; no popup on join)
 
 function openPlayersModal(match) {
     const out = []
@@ -343,6 +435,7 @@ onMounted(async () => {
     // listen for auth state and load user profile
     onUserStateChanged(async (u) => {
         currentUser.value = u
+        if (u) showPopup.value = false
         if (!u) return
         // load profile from Realtime DB
         try {
@@ -359,6 +452,7 @@ onMounted(async () => {
 // also refresh matches when auth state changes (so hosts see updated joined lists)
 onUserStateChanged(async (u) => {
     currentUser.value = u
+    if (u) showPopup.value = false
     // reload users and matches to reflect any joinedBy changes made while signed out
     try {
         await loadUsers()
@@ -1081,11 +1175,19 @@ function formatDate(match) {
 
 /* Host-created matches use the same visual highlight as the Create Match button */
 .match-card.host-match {
-    background: linear-gradient(180deg,#ff9a3c 0%, #ff9a3c 100%);
+    /* Keep bright orange background, improve foreground contrast */
+    background: linear-gradient(180deg, #ff9a3c 0%, #ff9a3c 100%);
     color: #111;
     border-color: rgba(0,0,0,0.12);
 }
 .match-card.host-match .match-title { color: #111 }
+/* Improve readability on bright orange: use dark text and darker pill backgrounds */
+.match-card.host-match .match-sub { color: #1a1a1a }
+.match-card.host-match .match-date { color: #111 }
+.match-card.host-match .match-meta-row .time-range { color: #111 }
+.match-card.host-match .meta-pill { background: rgba(0,0,0,0.10); color: #111 }
+.match-card.host-match .meta-pill.badge-type { background: rgba(0,0,0,0.18); color: #111 }
+.match-card.host-match .match-people { color: #111 }
 
 .section-heading { color: #ff9a3c; font-weight: 800; margin-top: 18px; margin-bottom: 12px }
 
@@ -1109,4 +1211,92 @@ function formatDate(match) {
 .embedded-empty-state .empty-card { background: #0f1418; border: 1px solid rgba(255,255,255,0.03); margin: 12px 0; }
 .embedded-empty-state .card-body { padding: 28px; }
 .embedded-empty-state p { color: #9fb0bf }
+
+/* Popup styles */
+.success-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(24, 28, 35, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.success-popup {
+    background-color: #000000;
+    padding: 30px;
+    border-radius: 10px;
+    text-align: center;
+    max-width: 400px;
+    margin: 0 20px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.success-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 1.5rem;
+    color: white;
+    background-color: #EF4444;
+}
+
+.success-popup h3 {
+    color: #ffffff;
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 0.75rem;
+}
+
+.success-popup p {
+    color: #747d89;
+    margin-bottom: 1.5rem;
+    font-size: 1rem;
+}
+
+.popup-buttons {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+}
+
+.sign-in-btn {
+    background-color: #FFAD1D;
+    color: #181C23;
+    font-weight: 600;
+    padding: 0.5rem 1.25rem;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 0.875rem;
+}
+
+.sign-in-btn:hover {
+    background-color: #FFB751;
+}
+
+.close-btn {
+    background-color: #374151;
+    color: white;
+    font-weight: 500;
+    padding: 0.5rem 1.25rem;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 0.875rem;
+}
+
+.close-btn:hover {
+    background-color: #4B5563;
+}
 </style>
