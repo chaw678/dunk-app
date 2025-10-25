@@ -22,15 +22,34 @@ function slugify(s) {
 }
 
 async function main() {
-  const serviceAccountPath = process.env.SERVICE_ACCOUNT || path.resolve(__dirname, '..', 'serviceAccountKey.json')
-  if (!fs.existsSync(serviceAccountPath)) {
-    console.error('Service account JSON not found at', serviceAccountPath)
-    console.error('Set SERVICE_ACCOUNT env var or place service account JSON at', serviceAccountPath)
-    process.exit(1)
-  }
-
   const admin = require('firebase-admin')
-  const serviceAccount = require(serviceAccountPath)
+
+  // Support three ways to supply the service account credentials:
+  // 1. SERVICE_ACCOUNT_JSON - raw JSON string (or base64-encoded JSON) in an env var
+  // 2. SERVICE_ACCOUNT - path to a local JSON file (not committed)
+  // 3. ./serviceAccountKey.json next to the repo (ignored by .gitignore)
+  let serviceAccount = null
+  if (process.env.SERVICE_ACCOUNT_JSON) {
+    // try raw JSON first, then base64
+    try {
+      serviceAccount = JSON.parse(process.env.SERVICE_ACCOUNT_JSON)
+    } catch (e) {
+      try {
+        serviceAccount = JSON.parse(Buffer.from(process.env.SERVICE_ACCOUNT_JSON, 'base64').toString('utf8'))
+      } catch (e2) {
+        console.error('SERVICE_ACCOUNT_JSON is set but could not be parsed as JSON (raw or base64)')
+        process.exit(1)
+      }
+    }
+  } else {
+    const serviceAccountPath = process.env.SERVICE_ACCOUNT || path.resolve(__dirname, '..', 'serviceAccountKey.json')
+    if (!fs.existsSync(serviceAccountPath)) {
+      console.error('Service account JSON not found at', serviceAccountPath)
+      console.error('Set SERVICE_ACCOUNT env var or place service account JSON at', serviceAccountPath)
+      process.exit(1)
+    }
+    serviceAccount = require(serviceAccountPath)
+  }
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
