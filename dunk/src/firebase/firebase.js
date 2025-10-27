@@ -94,6 +94,8 @@ export async function pushDataToFirebase(path, data) {
         const newDataRef = push(dataRef); // Create a new reference for the new data
         await set(newDataRef, data); // Set the data at the new reference
         console.log(`Data successfully pushed to Firebase at path: ${newDataRef.key}`);
+        // return the generated key so callers can reference the new node if needed
+        return newDataRef.key
     } catch (error) {
         console.error("Error pushing data to Firebase:", error);
         throw error;

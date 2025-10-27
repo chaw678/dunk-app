@@ -36,11 +36,11 @@
         <div v-if="courtList && courtList.length">
           <select ref="courtSelectRef" v-model="selectedCourt">
             <option value="" disabled>Select a court</option>
-            <option v-for="(c, i) in courtList" :key="i" :value="c.name">{{ c.name }}</option>
+            <option v-for="(c, i) in courtList" :key="i" :value="(c.id || c.key || c.name)">{{ c.name }}</option>
           </select>
         </div>
         <div v-else>
-          <p class="court-display">{{ selectedCourt }}</p>
+          <p class="court-display">{{ selectedCourtDisplayName }}</p>
         </div>
 
   <label>Date</label>
@@ -102,6 +102,54 @@ const selectedCourt = ref(props.courtName || '')
 const showPopup = ref(false)
 const popupType = ref('success')
 const popupMessage = ref('')
+
+function courtKeyOf(c) {
+  if (!c) return ''
+  return (c.id || c.key || c.name || '').toString()
+}
+
+function getDisplayNameForKey(key) {
+  if (!key) return ''
+  const list = props.courtList || []
+  const found = list.find(c => courtKeyOf(c).toString() === key.toString())
+  if (found) return found.name || found.title || key
+  // fallback: if parent provided courtName as a name, return it
+  if (props.courtName && props.courtName === key) return props.courtName
+  return key
+}
+
+const selectedCourtDisplayName = computed(() => getDisplayNameForKey(selectedCourt.value))
+
+// Try to prefill the selected court when a courtList and courtName are provided.
+function tryPrefillCourt() {
+  try {
+    const wanted = (props.courtName || '').toString().trim()
+    if (!wanted) return
+    const list = props.courtList || []
+    if (!list || !list.length) return
+    const lowerWanted = wanted.toLowerCase()
+    const found = list.find(c => {
+      if (!c) return false
+      const name = (c.name || c.title || '').toString().trim()
+      if (name && name.toLowerCase() === lowerWanted) return true
+      const id = (c.id || c.key || '').toString().trim()
+      if (id && id.toLowerCase() === lowerWanted) return true
+      return false
+    })
+    if (found) {
+      selectedCourt.value = courtKeyOf(found)
+    } else {
+      // fallback: set the raw string so the UI displays something
+      selectedCourt.value = props.courtName
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
+onMounted(() => tryPrefillCourt())
+watch(() => props.courtList, () => tryPrefillCourt())
+watch(() => props.courtName, () => tryPrefillCourt())
 
 // listen for auth state so we can record the creating user's uid
 const currentUser = ref(null)
@@ -205,13 +253,14 @@ async function isTimingOverlap() {
 
   try {
     // matches reorganized by court/date: matches/{courtKey}/{YYYY-MM-DD}/{matchId}
-    const raw = await getDataFromFirebase(`matches/${encodeURIComponent(selectedCourt.value)}/${matchDate.value}`)
+  const raw = await getDataFromFirebase(`matches/${encodeURIComponent(selectedCourt.value)}/${matchDate.value}`)
     const data = raw
     if (!data) return false
     const matches = Object.entries(data).map(([id, v]) => ({ id, ...v }))
     for (const m of matches) {
-      if (!m.court || !m.date) continue
-      if (m.court !== selectedCourt.value) continue
+  if (!m.court || !m.date) continue
+  // m.court in DB is a display name; compare against the computed display name for the selected key
+  if (m.court !== getDisplayNameForKey(selectedCourt.value)) continue
       if (m.date !== matchDate.value) continue
 
       let existStart = null
@@ -296,7 +345,8 @@ const createMatch = async () => {
 
     const newMatch = {
       title: matchTitle.value || 'Match at ' + selectedCourt.value,
-      court: selectedCourt.value,
+      // persist human-friendly display name in the match record
+    court: getDisplayNameForKey(selectedCourt.value),
       date: matchDate.value,
       time: startTime.value || matchTime.value,
       startTime: startTime.value,
@@ -331,11 +381,22 @@ const createMatch = async () => {
   // push under matches/{courtKey}/{YYYY-MM-DD}
   // guard against double-encoding: decode then encode once
   const courtKey = encodeURIComponent(decodeURIComponent(selectedCourt.value || ''))
-  await pushDataToFirebase(`matches/${courtKey}/${matchDate.value}`, newMatch)
-    alert('Match created and saved to Firebase!')
-    // notify parent to refresh list
-    emit('created')
-    closeModal()
+  // log intended DB path and payload for easier debugging
+  try {
+    console.debug('[AddMatchModal] Saving match to path:', `matches/${courtKey}/${matchDate.value}`)
+    console.debug('[AddMatchModal] Payload:', newMatch)
+  } catch (e) {}
+
+  const newKey = await pushDataToFirebase(`matches/${courtKey}/${matchDate.value}`, newMatch)
+  // optionally expose the DB path on the created object for consumers
+  try {
+    newMatch.__dbPath = `matches/${courtKey}/${matchDate.value}/${newKey}`
+  } catch (e) {}
+  console.log('Created match key:', newKey, 'path:', newMatch.__dbPath)
+  alert('Match created and saved to Firebase!')
+  // notify parent to refresh list
+  emit('created')
+  closeModal()
   } catch (error) {
     console.error('Failed to save match:', error)
     popupType.value = 'error'
