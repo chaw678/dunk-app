@@ -45,8 +45,9 @@
             <!-- Empty state when the selected tab has no matches -->
             <div v-if="isTabEmpty" class="embedded-empty-state" v-cloak>
                 <div class="empty-card card">
-                    <div class="card-body text-center">
-                        <p class="mb-2">{{ emptyMessage }}</p>
+                    <div class="card-body">
+                        <div class="empty-icon">🏀</div>
+                        <p class="lead mb-2">{{ emptyMessage }}</p>
                         <p class="text-muted small">Try switching tabs or create a match for this court.</p>
                     </div>
                 </div>
@@ -89,16 +90,16 @@
                                 <div class="mt-auto d-flex justify-content-between align-items-center">
                                     <div class="btn-group">
                                         <template v-if="isHost(match)">
-                                            <!-- For ongoing matches, host can Start the match (writes started flag) -->
-                                            <button type="button" class="btn btn-success btn-sm d-flex align-items-center" @click.prevent="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+                                            <!-- For ongoing matches, host can Start the match and invite players -->
+                                            
+                                            <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
                                         </template>
                                         <template v-else-if="isJoined(match)">
-                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
                                             <template v-if="match.started || match._started">
-                                                <button type="button" class="btn btn-primary btn-sm ms-2 d-flex align-items-center" @click.prevent="playMatch(match)"><i class="bi bi-controller me-2"></i>Play</button>
+                                                <button type="button" class="btn btn-primary btn-sm d-flex align-items-center" @click.prevent="playMatch(match)"><i class="bi bi-controller me-2"></i>Play</button>
                                             </template>
                                             <template v-else>
-                                                <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                                <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                             </template>
                                         </template>
                                         <template v-else>
@@ -152,10 +153,11 @@
                                 <div class="mt-auto d-flex justify-content-between align-items-center">
                                     <div class="btn-group">
                                         <template v-if="isHost(match)">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
                                             <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                         </template>
                                         <template v-else-if="isJoined(match)">
-                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                         </template>
                                         <template v-else>
@@ -212,7 +214,7 @@
                                             <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                         </template>
                                         <template v-else-if="isJoined(match)">
-                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                         </template>
                                         <template v-else>
@@ -231,7 +233,8 @@
                 <h3 class="section-heading">Past</h3>
                 <div class="empty-card card">
                     <div class="card-body">
-                        <p class="mb-2">You have no past matches.</p>
+                        <div class="empty-icon">🏀</div>
+                        <p class="lead mb-2">You have no past matches.</p>
                         <p class="text-muted small">Past matches you hosted or joined will appear here. Try checking <strong>All Matches</strong> to find upcoming games.</p>
                     </div>
                 </div>
@@ -240,7 +243,8 @@
 
     <!-- render modal inside template so Vue can mount it -->
     <AddMatchModal v-if="showAddMatchModal" :courtList="courts" :courtName="courtFilter || ''" @close="showAddMatchModal = false" @created="onMatchCreated" />
-        <JoinedPlayersModal v-if="showPlayersModal" :players="activePlayers" :title="activeTitle" @close="closePlayersModal" />
+    <InviteModal v-if="showInviteModal" :match="inviteMatch" :users="usersCache.value" :me="currentUser" @close="showInviteModal = false" @sent="onInvitesSent" />
+    <JoinedPlayersModal v-if="showPlayersModal" :players="activePlayers" :title="activeTitle" @close="closePlayersModal" />
     </div>
 </template>
 
@@ -257,6 +261,7 @@ import { getDataFromFirebase, pushDataToFirebase, overwriteDataToFirebase, setCh
 import { onUserStateChanged } from '../firebase/auth'
 import AddMatchModal from './AddMatchModal.vue'
 import JoinedPlayersModal from './JoinedPlayersModal.vue'
+import InviteModal from './InviteModal.vue'
 
 const showPopup = ref(false)
 const isSigningIn = ref(false)
@@ -427,6 +432,21 @@ const courts = ref([])
 const showAddMatchModal = ref(false)
 const currentUser = ref(null)
 const currentUserProfile = ref({ skill: 'Open', gender: 'All' })
+const showInviteModal = ref(false)
+const inviteMatch = ref(null)
+
+function openInvite(match) {
+    if (!currentUser.value) {
+        showPopup.value = true
+        return
+    }
+    inviteMatch.value = match
+    showInviteModal.value = true
+}
+
+function onInvitesSent(uids) {
+    console.log('Invites sent to', uids)
+}
 
 onMounted(async () => {
     await loadUsers()
@@ -1219,9 +1239,43 @@ function formatDate(match) {
 }
 .embedded-title { font-size: 1.25rem; font-weight: 800; color: #fff }
 .btn-create-match.small { padding: 8px 12px; font-size: 0.95rem }
-.embedded-empty-state .empty-card { background: #0f1418; border: 1px solid rgba(255,255,255,0.03); margin: 12px 0; }
-.embedded-empty-state .card-body { padding: 28px; }
-.embedded-empty-state p { color: #9fb0bf }
+.embedded-empty-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px; /* even padding around empty state */
+}
+.embedded-empty-state .empty-card {
+    background: linear-gradient(180deg,#0f1418 0%, #0c0f12 100%);
+    border: 1px solid rgba(255,255,255,0.03);
+    margin: 0;
+    width: 100%;
+    max-width: 760px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+    border-radius: 12px;
+}
+.embedded-empty-state .card-body {
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+}
+.embedded-empty-state .empty-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,154,60,0.08);
+    color: #ff9a3c;
+    font-size: 26px;
+}
+.embedded-empty-state p { color: #9fb0bf; margin: 0 }
+.embedded-empty-state p.lead { color: #ffffff; font-weight: 700; font-size: 1.05rem }
 
 /* Popup styles */
 .success-overlay {
