@@ -53,6 +53,8 @@ import { ref, onMounted, watch } from 'vue'
 
 const autocompleteInput = ref(null)
 const courtAddress = ref('')
+const selectedLat = ref(null)
+const selectedLon = ref(null)
 
 
 const regionKeywords = {
@@ -115,9 +117,12 @@ onMounted(() => {
       courtAddress.value = place.formatted_address || ''
       region.value = matchRegion(courtAddress.value)
       if (place.geometry && place.geometry.location) {
+        selectedLat.value = place.geometry.location.lat()
+        selectedLon.value = place.geometry.location.lng()
+        // if parent passed coordinates object, update it as well
         if (props.coordinates) {
-          props.coordinates.lat = place.geometry.location.lat()
-          props.coordinates.lon = place.geometry.location.lng()
+          props.coordinates.lat = selectedLat.value
+          props.coordinates.lon = selectedLon.value
         }
       }
     })
@@ -165,22 +170,26 @@ onMounted(() => {
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace()
       if (place.formatted_address) {
-        courtAddress.value = place.formatted_address
-        // Optionally set coordinates based on place
-        if (
-          place.geometry &&
-          place.geometry.location &&
-          !props.coordinates // only if not already picking map pin
-        ) {
-          props.coordinates.lat = place.geometry.location.lat()
-          props.coordinates.lon = place.geometry.location.lng()
+          courtAddress.value = place.formatted_address
+          // Optionally set coordinates based on place
+          if (place.geometry && place.geometry.location) {
+            selectedLat.value = place.geometry.location.lat()
+            selectedLon.value = place.geometry.location.lng()
+            if (!props.coordinates) {
+              // no parent coordinates object; keep selectedLat/selectedLon locally
+            } else {
+              props.coordinates.lat = selectedLat.value
+              props.coordinates.lon = selectedLon.value
+            }
+          }
         }
-      }
     })
   }
 
   // Reverse geocode as before
   if (props.coordinates?.lat && props.coordinates?.lon) {
+    selectedLat.value = props.coordinates.lat
+    selectedLon.value = props.coordinates.lon
     const geocoder = new google.maps.Geocoder()
     const latlng = { lat: props.coordinates.lat, lng: props.coordinates.lon }
     geocoder.geocode({ location: latlng }, (results, status) => {
@@ -196,6 +205,9 @@ onMounted(() => {
 
 onMounted(() => {
   if (props.coordinates?.lat && props.coordinates?.lon) {
+    // ensure selected coords are set if parent supplied them
+    selectedLat.value = props.coordinates.lat
+    selectedLon.value = props.coordinates.lon
     const geocoder = new google.maps.Geocoder()
     const latlng = { lat: props.coordinates.lat, lng: props.coordinates.lon }
 
@@ -215,10 +227,13 @@ const createCourt = async () => {
     return
   }
 
+  const latToSave = (selectedLat.value != null) ? Number(selectedLat.value) : (props.coordinates?.lat != null ? Number(props.coordinates.lat) : null)
+  const lonToSave = (selectedLon.value != null) ? Number(selectedLon.value) : (props.coordinates?.lon != null ? Number(props.coordinates.lon) : null)
+
   const newCourt = {
     name: courtName.value,
-    lat: props.coordinates.lat,
-    lon: props.coordinates.lon,
+    lat: latToSave,
+    lon: lonToSave,
     address: courtAddress.value,
     indoor: isIndoor.value,
     region: region.value,
