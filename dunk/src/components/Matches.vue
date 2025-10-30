@@ -12,6 +12,17 @@
                 </div>
             </div>
         </div>
+        <!-- Success popup shown after creating a match -->
+        <div v-if="showCreatedPopup" class="success-overlay" @click.self="closeCreatedPopup">
+            <div class="success-popup">
+                <div class="success-icon" style="background:#16a34a">✓</div>
+                <h3>Match created</h3>
+                <p>Match has been created!</p>
+                <div class="popup-buttons">
+                    <button class="sign-in-btn" @click.stop="closeCreatedPopup">OK</button>
+                </div>
+            </div>
+        </div>
         
         <div class="card large-card">
             <div v-if="!embedded" class="page-header matches-header">
@@ -281,6 +292,11 @@ async function loadUsers() {
 const showPlayersModal = ref(false)
 const activePlayers = ref([])
 const activeTitle = ref('')
+const showCreatedPopup = ref(false)
+
+function closeCreatedPopup() {
+    showCreatedPopup.value = false
+}
 
 // Google sign-in handler
 async function loginWithGoogle() {
@@ -470,6 +486,9 @@ async function onMatchCreated() {
         console.warn('onMatchCreated: failed to reload matches', e)
     } finally {
         showAddMatchModal.value = false
+        // show success popup briefly
+        showCreatedPopup.value = true
+        setTimeout(() => { showCreatedPopup.value = false }, 2500)
     }
 }
 

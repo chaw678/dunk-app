@@ -393,7 +393,8 @@ const createMatch = async () => {
     newMatch.__dbPath = `matches/${courtKey}/${matchDate.value}/${newKey}`
   } catch (e) {}
   console.log('Created match key:', newKey, 'path:', newMatch.__dbPath)
-  alert('Match created and saved to Firebase!')
+  // Use non-blocking log instead of alert (UI shows popup in parent)
+  console.log('Match created and saved to Firebase')
   // notify parent to refresh list
   emit('created')
   closeModal()
