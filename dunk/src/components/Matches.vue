@@ -56,63 +56,68 @@
                 <h3 class="section-heading">Ongoing</h3>
                 <div class="row g-3 matches-grid">
                     <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.ongoing ? groupedMatches.ongoing : [])" :key="match?.id || idx">
-                        <div :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']">
-                            <div class="card-header match-card-header">
-                                <h3 class="match-title mb-1">{{ match.title }}</h3>
-                                <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
-                            </div>
-                            <div class="card-body d-flex flex-column h-100 p-4">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div>
-                                        <div class="match-sub small">{{ match.location }}</div>
-                                        <div class="match-date">{{ formatDate(match) }}</div>
-                                    </div>
-                                    <div></div>
-                                </div>
+  <div
+    :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']"
+    role="button"
+    tabindex="0"
+    @click="openMatch(match)"
+    @keydown.enter="openMatch(match)"
+  >
+    <div class="card-header match-card-header">
+      <h3 class="match-title mb-1">{{ match.title }}</h3>
+      <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+    </div>
+    <div class="card-body d-flex flex-column h-100 p-4">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          <div class="match-sub small">{{ match.location }}</div>
+          <div class="match-date">{{ formatDate(match) }}</div>
+        </div>
+        <div></div>
+      </div>
 
-                                <div class="match-meta-row mb-3">
-                                    <div class="time-range">{{ formatTimeRange(match) }}</div>
-                                    <div class="meta-pill">{{ match.gender || 'All' }}</div>
-                                    <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-                                    <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
-                                </div>
+      <div class="match-meta-row mb-3">
+        <div class="time-range">{{ formatTimeRange(match) }}</div>
+        <div class="meta-pill">{{ match.gender || 'All' }}</div>
+        <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
+        <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+      </div>
 
-                                <div class="avatars mb-3">
-                                    <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
-                                        <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
-                                            <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
-                                            <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
-                                        </template>
-                                        <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
-                                    </div>
-                                </div>
+      <div class="avatars mb-3">
+        <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
+          <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
+            <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
+            <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
+          </template>
+          <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
+        </div>
+      </div>
 
-                                <div class="mt-auto d-flex justify-content-between align-items-center">
-                                    <div class="btn-group">
-                                        <template v-if="isHost(match)">
-                                            <!-- For ongoing matches, host can Start the match and invite players -->
-                                            
-                                            <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
-                                        </template>
-                                        <template v-else-if="isJoined(match)">
-                                            <template v-if="match.started || match._started">
-                                                <button type="button" class="btn btn-primary btn-sm d-flex align-items-center" @click.prevent="playMatch(match)"><i class="bi bi-controller me-2"></i>Play</button>
-                                            </template>
-                                            <template v-else>
-                                                <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
-                                            </template>
-                                        </template>
-                                        <template v-else>
-                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent="joinMatch(match)">Join</button>
-                                        </template>
-                                    </div>
-                                    <div></div>
-                                </div>
-                            </div>
-                        </div>
+      <div class="mt-auto d-flex justify-content-between align-items-center">
+        <div class="btn-group">
+          <template v-if="isHost(match)">
+            <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+          </template>
+          <template v-else-if="isJoined(match)">
+            <template v-if="match.started || match._started">
+              <button type="button" class="btn btn-primary btn-sm d-flex align-items-center" @click.prevent.stop="playMatch(match)"><i class="bi bi-controller me-2"></i>Play</button>
+            </template>
+            <template v-else>
+              <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+            </template>
+          </template>
+          <template v-else>
+            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
+          </template>
+        </div>
+        <div></div>
+      </div>
+    </div>
+  </div>
+</div>
                     </div>
                 </div>
-            </div>
+
 
             <div v-if="groupedMatches && groupedMatches.scheduled && groupedMatches.scheduled.length">
                 <h3 class="section-heading">Scheduled</h3>
@@ -249,8 +254,10 @@
 </template>
 
 <script setup>
+
 import { ref, computed, onMounted, watch } from 'vue'
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
+import { useRouter } from 'vue-router'
 const props = defineProps({
     courtFilter: { type: String, default: '' },
     embedded: { type: Boolean, default: false }
@@ -286,6 +293,18 @@ async function loadUsers() {
 const showPlayersModal = ref(false)
 const activePlayers = ref([])
 const activeTitle = ref('')
+
+const router = useRouter()
+
+function openMatch(match) {
+    if (!match) return
+    // prefer named route, fallback to path
+    try {
+        router.push({ name: 'MatchRoom', params: { id: match.id } })
+    } catch (e) {
+        router.push(`/match/${match.id}`)
+    }
+}
 
 // Google sign-in handler
 async function loginWithGoogle() {
@@ -910,11 +929,16 @@ async function startMatch(match) {
             const path = parts.join('/')
             await setChildData(`${path}/${id}`, 'started', true)
             await setChildData(`${path}/${id}`, 'startedAt', new Date().toISOString())
+            // after successfully starting, navigate to the MatchRoom
+            try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
         } catch (e) {
             console.error('Failed to set started flag', e)
             alert('Failed to start match — try again')
             match._started = false
         }
+    } else {
+        // no DB path: still navigate to match room
+        try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
     }
 }
 

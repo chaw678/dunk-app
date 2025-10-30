@@ -12,6 +12,8 @@ import dunkLogo from '../assets/dunk-ball.svg'
 
 
 
+
+
 const user = ref(null)
 const error = ref('')
 const followingCount = ref(0)
@@ -42,8 +44,13 @@ const photoSrc = computed(() => {
   // Derive a username from the email local-part when available.
   const u = user.value
   const username = (u && (u.email ? u.email.split('@')[0] : (u.displayName || u.uid))) || 'anon'
-  return `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(username)}`
-})
+  if (u?.gender?.toLowerCase() === 'female') {
+    return `https://avatar.iran.liara.run/public/girl?username=${encodeURIComponent(username)}`;
+  } else {
+    // Default male avatar
+    return `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(username)}`;
+  }
+});
 
 const imgErrored = ref(false)
 

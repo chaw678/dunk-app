@@ -235,7 +235,7 @@ onBeforeMount(() => { window.scrollTo(0,0) })
 
 const route = useRoute()
 const router = useRouter()
-const uid = route.params.uid
+const uid = computed(() => route.params.uid)
 
 const profile = ref({
   name: '',
@@ -351,14 +351,14 @@ watch([followersList, followingList], () => {
 
 // load profile + users map and start a short poll to refresh profile
 onMounted(async () => {
-  if (!uid) return
+  if (!uid.value) return
   try {
     const users = await getDataFromFirebase('users')
-    if (users && users[uid]) profile.value = { ...profile.value, ...users[uid] }
+    if (users && users[uid.value]) profile.value = { ...profile.value, ...users[uid.value] }
     await loadUsersMap()
 
     if (profilePollRef.value) clearInterval(profilePollRef.value)
-    profilePollRef.value = setInterval(async () => { try { await fetchProfile(uid) } catch(e){} }, 5000)
+    profilePollRef.value = setInterval(async () => { try { await fetchProfile(uid.value) } catch(e){} }, 5000)
   } catch (e) {
     console.warn('Failed to initialize profile', e)
   }
@@ -438,7 +438,7 @@ async function toggleFollow() {
   if (!currentUser.value) { alert('Please sign in to follow users'); return }
   const myUid = currentUser.value.uid
   if (!myUid) { alert('Please sign in'); return }
-  if (myUid === uid) return
+  if (myUid === uid.value) return
 
   if (!profile.value.followers) profile.value.followers = {}
   if (!profile.value.following) profile.value.following = {}
@@ -447,22 +447,22 @@ async function toggleFollow() {
     const users = await getDataFromFirebase('users')
     if (!users) return
     const me = users[myUid] || {}
-    const already = Boolean(me.following && me.following[uid])
+    const already = Boolean(me.following && me.following[uid.value])
     if (already) {
-      await deleteChildData(`users/${myUid}/following`, uid)
-      await deleteChildData(`users/${uid}/followers`, myUid)
+      await deleteChildData(`users/${myUid}/following`, uid.value)
+      await deleteChildData(`users/${uid.value}/followers`, myUid)
       if (profile.value && profile.value.followers) {
         const updated = { ...profile.value }
         if (updated.followers) delete updated.followers[myUid]
         profile.value = updated
-        try { window.dispatchEvent(new CustomEvent('user-follow-changed', { detail: { action: 'unfollow', targetUid: uid } })) } catch(e) {}
+        try { window.dispatchEvent(new CustomEvent('user-follow-changed', { detail: { action: 'unfollow', targetUid: uid.value } })) } catch(e) {}
       }
     } else {
       const payload = { at: Date.now() }
-      await setChildData(`users/${myUid}/following`, uid, payload)
-      await setChildData(`users/${uid}/followers`, myUid, payload)
+      await setChildData(`users/${myUid}/following`, uid.value, payload)
+      await setChildData(`users/${uid.value}/followers`, myUid, payload)
       profile.value = { ...profile.value, followers: { ...(profile.value.followers || {}), [myUid]: payload } }
-      try { window.dispatchEvent(new CustomEvent('user-follow-changed', { detail: { action: 'follow', targetUid: uid } })) } catch(e) {}
+      try { window.dispatchEvent(new CustomEvent('user-follow-changed', { detail: { action: 'follow', targetUid: uid.value } })) } catch(e) {}
     }
   } catch (e) {
     console.error('Failed to toggle follow', e)
@@ -483,10 +483,10 @@ function confirmRemoveFollower(uidToRemove) {
   confirmMessage.value = 'Are you sure you want to remove this follower?'
   confirmAction.value = async () => {
     try {
-      await deleteChildData(`users/${uid}/followers/${uidToRemove}`, null) // delete child via helper
-      await deleteChildData(`users/${uidToRemove}/following/${uid}`, null)
+      await deleteChildData(`users/${uid.value}/followers/${uidToRemove}`, null) // delete child via helper
+      await deleteChildData(`users/${uidToRemove}/following/${uid.value}`, null)
       // reload profile from DB
-      await fetchProfile(uid)
+      await fetchProfile(uid.value)
       showConfirmPopup.value = false
     } catch (e) { console.error(e) }
   }
