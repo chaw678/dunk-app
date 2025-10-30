@@ -538,6 +538,7 @@ async function handleLogout() {
 // change 28: handle popup close on click
 function handleClosePopup() {
   showLoginPopup.value = false;
+  showLogoutPopup.value = false;
   // Optional: clear the auto timer if still active
   if (popupTimer) clearTimeout(popupTimer);
 }
@@ -636,7 +637,7 @@ watch(animateBars, (v) => { if (v) animateCounts() })
     
     <!-- change 9: Logout success popup -->
     <!-- Logout Success Popup Overlay -->
-    <div v-if="showLogoutPopup" class="login-popup-overlay">
+    <div v-if="showLogoutPopup" class="login-popup-overlay" @click.self="handleClosePopup">
       <div class="login-popup-content">
         <img :src="dunkLogo" alt="Dunk+ Logo" class="basketball-anim" />
         <h2 class="popup-title">See You Next Time!</h2>
