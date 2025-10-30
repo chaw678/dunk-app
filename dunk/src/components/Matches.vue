@@ -36,8 +36,50 @@
                 <div class="tabs-pill" role="tablist" aria-label="Match tabs">
                     <button :class="['tab-pill', selectedTab === 'all' ? 'active' : '']" @click="selectedTab = 'all'">All Matches</button>
                     <button :class="['tab-pill', selectedTab === 'hosts' ? 'active' : '']" @click="selectedTab = 'hosts'">My Matches</button>
-                    <button :class="['tab-pill', selectedTab === 'joined' ? 'active' : '']" @click="selectedTab = 'joined'">Joined Matches</button>
+                    <button :class="['tab-pill', selectedTab === 'joined' ? 'active' : '']" @click="selectedTab = 'joined'">
+                        Joined Matches
+                    </button>
+                    <button :class="['tab-pill', selectedTab === 'invites' ? 'active' : '']" @click="selectedTab = 'invites'">
+                        Pending Invites
+                        <span v-if="invitationsCount > 0" class="notification-badge">{{ invitationsCount }}</span>
+                    </button>
                     <button :class="['tab-pill', selectedTab === 'past' ? 'active' : '']" @click="selectedTab = 'past'">Past Matches</button>
+                </div>
+            </div>
+
+            <!-- Invitations Section - Show when user has pending invitations -->
+            <div v-if="invitations.length > 0 && selectedTab === 'invites'" class="invitations-wrapper mb-4">
+                <div class="invitations-section">
+                    <h3 class="section-heading">
+                        <i class="bi bi-bell-fill me-2"></i>Match Invitations
+                    </h3>
+                    <div class="invitations-grid">
+                        <div class="invitation-card-wrapper" v-for="inv in invitations" :key="inv.id">
+                            <div class="card invitation-card">
+                                <div class="card-body">
+                                    <h5 class="invitation-title">{{ inv.title }}</h5>
+                                    <div class="invitation-details">
+                                        <div class="invitation-detail-item">
+                                            <i class="bi bi-geo-alt-fill"></i>
+                                            <span>{{ inv.court || 'Unknown court' }}</span>
+                                        </div>
+                                        <div class="invitation-detail-item">
+                                            <i class="bi bi-calendar-fill"></i>
+                                            <span>{{ formatInvitationDate(inv.date) }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="invitation-actions">
+                                        <button class="btn btn-success btn-sm" @click="acceptInvite(inv)">
+                                            <i class="bi bi-check-lg me-1"></i>Accept
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm" @click="declineInvite(inv)">
+                                            <i class="bi bi-x-lg me-1"></i>Decline
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -153,8 +195,8 @@
                                 <div class="mt-auto d-flex justify-content-between align-items-center">
                                     <div class="btn-group">
                                         <template v-if="isHost(match)">
-                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                            <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                            <button type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                         </template>
                                         <template v-else-if="isJoined(match)">
                                             <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
@@ -211,7 +253,8 @@
                                 <div class="mt-auto d-flex justify-content-between align-items-center">
                                     <div class="btn-group">
                                         <template v-if="isHost(match)">
-                                            <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                            <button type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                         </template>
                                         <template v-else-if="isJoined(match)">
                                             <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
@@ -249,7 +292,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
 const props = defineProps({
     courtFilter: { type: String, default: '' },
@@ -257,7 +300,7 @@ const props = defineProps({
 })
 // expose convenient local bindings for template/script
 const { courtFilter, embedded } = props
-import { getDataFromFirebase, pushDataToFirebase, overwriteDataToFirebase, setChildData, deleteChildData } from '../firebase/firebase'
+import { getDataFromFirebase, pushDataToFirebase, overwriteDataToFirebase, setChildData, deleteChildData, onDataChange } from '../firebase/firebase'
 import { onUserStateChanged } from '../firebase/auth'
 import AddMatchModal from './AddMatchModal.vue'
 import JoinedPlayersModal from './JoinedPlayersModal.vue'
@@ -434,6 +477,30 @@ const currentUser = ref(null)
 const currentUserProfile = ref({ skill: 'Open', gender: 'All' })
 const showInviteModal = ref(false)
 const inviteMatch = ref(null)
+const invitations = ref([])
+const invitationsCount = computed(() => invitations.value.length)
+
+// Realtime subscription for invitations
+let invitesUnsub = null
+function subscribeInvitationsRealtime(uid) {
+    // Clean up any existing listener
+    if (invitesUnsub) {
+        try { invitesUnsub() } catch (e) {}
+        invitesUnsub = null
+    }
+    if (!uid) {
+        invitations.value = []
+        return
+    }
+    invitesUnsub = onDataChange(`users/${uid}/invitations`, (invData) => {
+        if (!invData) {
+            invitations.value = []
+            return
+        }
+        const arr = Object.keys(invData).map(id => ({ id, ...invData[id] }))
+        invitations.value = arr
+    })
+}
 
 function openInvite(match) {
     if (!currentUser.value) {
@@ -448,6 +515,104 @@ function onInvitesSent(uids) {
     console.log('Invites sent to', uids)
 }
 
+// Load invitations for the current user
+async function loadInvitations() {
+    if (!currentUser.value) {
+        invitations.value = []
+        return
+    }
+    try {
+        const invData = await getDataFromFirebase(`users/${currentUser.value.uid}/invitations`)
+        if (!invData) {
+            invitations.value = []
+            return
+        }
+        // Convert object to array
+        const invArray = Object.keys(invData).map(matchId => ({
+            id: matchId,
+            ...invData[matchId]
+        }))
+        invitations.value = invArray
+    } catch (err) {
+        console.error('Failed to load invitations', err)
+        invitations.value = []
+    }
+}
+
+// Accept an invitation - join the match and remove the invitation
+async function acceptInvite(invitation) {
+    if (!currentUser.value) return
+    
+    try {
+        // Find the match using the matchPath or construct it from the invitation data
+        const matchPath = invitation.matchPath
+        if (!matchPath) {
+            console.error('No match path in invitation')
+            return
+        }
+        
+        // Get the match data
+        const matchData = await getDataFromFirebase(matchPath)
+        if (!matchData) {
+            alert('Match no longer exists')
+            await declineInvite(invitation)
+            return
+        }
+        
+        // Add user to the match's joinedBy and playersMap
+        await setChildData(`${matchPath}/joinedBy`, currentUser.value.uid, true)
+        
+        const playerData = {
+            uid: currentUser.value.uid,
+            name: currentUser.value.displayName || currentUser.value.email || 'Player',
+            avatar: currentUser.value.photoURL || '',
+            joinedAt: Date.now()
+        }
+        await setChildData(`${matchPath}/playersMap`, currentUser.value.uid, playerData)
+        
+        // Remove the invitation
+        await deleteChildData(`users/${currentUser.value.uid}/invitations`, invitation.id)
+        
+        // Reload invitations and matches
+        await loadInvitations()
+        await loadMatches()
+        
+        alert('You have joined the match!')
+    } catch (err) {
+        console.error('Failed to accept invitation', err)
+        alert('Failed to join match')
+    }
+}
+
+// Decline an invitation - just remove it
+async function declineInvite(invitation) {
+    if (!currentUser.value) return
+    
+    try {
+        await deleteChildData(`users/${currentUser.value.uid}/invitations`, invitation.id)
+        await loadInvitations()
+    } catch (err) {
+        console.error('Failed to decline invitation', err)
+    }
+}
+
+// Format invitation date for display
+function formatInvitationDate(dateStr) {
+    if (!dateStr) return 'Unknown date'
+    try {
+        const date = new Date(dateStr)
+        return date.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        })
+    } catch (err) {
+        return dateStr
+    }
+}
+
 onMounted(async () => {
     await loadUsers()
     await loadMatches()
@@ -456,7 +621,11 @@ onMounted(async () => {
     onUserStateChanged(async (u) => {
         currentUser.value = u
         if (u) showPopup.value = false
-        if (!u) return
+        if (!u) {
+            invitations.value = []
+            subscribeInvitationsRealtime(null)
+            return
+        }
         // load profile from Realtime DB
         try {
             const users = await getDataFromFirebase('users')
@@ -466,6 +635,10 @@ onMounted(async () => {
         } catch (e) {
             console.warn('Failed to load user profile', e)
         }
+        // Load invitations for the signed-in user
+        await loadInvitations()
+        // Start realtime subscription so new invites appear without refresh
+        subscribeInvitationsRealtime(u.uid)
     })
 })
 
@@ -477,8 +650,23 @@ onUserStateChanged(async (u) => {
     try {
         await loadUsers()
         await loadMatches()
+        if (u) {
+            await loadInvitations()
+            subscribeInvitationsRealtime(u.uid)
+        } else {
+            invitations.value = []
+            subscribeInvitationsRealtime(null)
+        }
     } catch (e) {
         console.warn('Failed to refresh matches on auth change', e)
+    }
+})
+
+// Clean up realtime listeners when component unmounts
+onUnmounted(() => {
+    if (invitesUnsub) {
+        try { invitesUnsub() } catch (e) {}
+        invitesUnsub = null
     }
 })
 
@@ -640,9 +828,15 @@ const matchesForTab = computed(() => {
             return isHost(m) || joined
         })
     }
-    if (!currentUser.value) return []
+    if (!currentUser.value) {
+        // For the invites tab we don't show matches at all; it's a separate list
+        if (selectedTab.value === 'invites') return []
+        return []
+    }
     if (selectedTab.value === 'hosts') return base.filter(m => isHost(m) && !isPast(m))
     if (selectedTab.value === 'joined') return base.filter(m => !isHost(m) && Boolean(m.joinedBy && currentUser.value && m.joinedBy[currentUser.value.uid]) && !isPast(m))
+    // Pending Invites tab renders its own container; do not show matches here
+    if (selectedTab.value === 'invites') return []
     return base.filter(m => !isPast(m))
 })
 
@@ -677,6 +871,10 @@ const groupedMatches = computed(() => {
 })
 
 const isTabEmpty = computed(() => {
+    // For the invites tab, emptiness depends on invitations, not matches
+    if (selectedTab.value === 'invites') {
+        return !(invitations.value && invitations.value.length)
+    }
     // matchesForTab already applies the selectedTab logic and excludes past where appropriate
     try {
         return !(matchesForTab.value && matchesForTab.value.length)
@@ -690,6 +888,7 @@ const emptyMessage = computed(() => {
     if (t === 'hosts') return "You haven't created any upcoming matches."
     if (t === 'joined') return "You haven't joined any upcoming matches."
     if (t === 'past') return 'You have no past matches.'
+    if (t === 'invites') return 'You have no pending invitations.'
     return 'No upcoming matches found.'
 })
 
@@ -1188,6 +1387,22 @@ function formatDate(match) {
 }
 .btn-join[disabled] { opacity: 0.45; cursor: not-allowed }
 
+.btn-invite {
+    background: #ff9a3c;
+    color: #111;
+    border: 2px solid #111;
+    font-weight: 700;
+    transition: all 0.2s ease;
+}
+
+.btn-invite:hover {
+    background: #ffb26a;
+    border-color: #111;
+    color: #111;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 154, 60, 0.3);
+}
+
 @media (min-width: 768px) {
     .match-card {
         flex-direction: column
@@ -1363,5 +1578,135 @@ function formatDate(match) {
 
 .close-btn:hover {
     background-color: #4B5563;
+}
+
+/* Invitations Section */
+.invitations-wrapper {
+    width: 100%;
+}
+
+.invitations-section {
+    padding: 24px;
+    background: rgba(255, 154, 60, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 154, 60, 0.15);
+}
+
+.invitations-section .section-heading {
+    margin-top: 0;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.invitations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    width: 100%;
+}
+
+.invitation-card-wrapper {
+    display: flex;
+    justify-content: center;
+}
+
+.invitation-card {
+    background: linear-gradient(180deg, #0b0f12, #0d1114);
+    border: 1px solid rgba(255, 154, 60, 0.2);
+    border-radius: 10px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    width: 100%;
+    max-width: 400px;
+}
+
+.invitation-card .card-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.invitation-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 154, 60, 0.15);
+}
+
+.invitation-title {
+    color: #ff9a3c;
+    font-weight: 700;
+    font-size: 1.15rem;
+    text-align: center;
+    margin: 0;
+}
+
+.invitation-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.invitation-detail-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #9fb0bf;
+    font-size: 0.9rem;
+}
+
+.invitation-detail-item i {
+    color: #ff9a3c;
+    font-size: 1rem;
+}
+
+.invitation-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.invitation-actions button {
+    flex: 1;
+    padding: 10px 16px;
+    font-weight: 600;
+}
+
+/* Responsive breakpoints */
+@media (min-width: 768px) {
+    .invitations-grid {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+}
+
+@media (min-width: 1200px) {
+    .invitations-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Notification Badge */
+.notification-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #ff3c3c;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    margin-left: 8px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
 }
 </style>
