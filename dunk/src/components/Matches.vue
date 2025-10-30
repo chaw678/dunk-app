@@ -98,7 +98,7 @@
                     </div>
                 </div>
             </div>
-            <div v-if="groupedMatches && groupedMatches.ongoing && groupedMatches.ongoing.length">
+            <div v-if="selectedTab !== 'past' && groupedMatches && groupedMatches.ongoing && groupedMatches.ongoing.length">
                 <h3 class="section-heading">Ongoing</h3>
                 <div class="row g-3 matches-grid">
                     <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.ongoing ? groupedMatches.ongoing : [])" :key="match?.id || idx">
@@ -111,7 +111,10 @@
   >
     <div class="card-header match-card-header">
       <h3 class="match-title mb-1">{{ match.title }}</h3>
-      <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                                <div class="match-header-right">
+                                    <span v-if="(match.started || match._started) && !isPast(match)" class="match-started-badge">LIVE</span>
+          <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                                </div>
     </div>
     <div class="card-body d-flex flex-column h-100 p-4">
       <div class="d-flex justify-content-between align-items-start mb-2">
@@ -164,8 +167,7 @@
                     </div>
                 </div>
 
-
-            <div v-if="groupedMatches && groupedMatches.scheduled && groupedMatches.scheduled.length">
+            <div v-if="selectedTab !== 'past' && groupedMatches && groupedMatches.scheduled && groupedMatches.scheduled.length">
                 <h3 class="section-heading">Scheduled</h3>
                 <div class="row g-3 matches-grid">
                     <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.scheduled ? groupedMatches.scheduled : [])" :key="match?.id || idx">
@@ -173,7 +175,10 @@
                         <div :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']">
                             <div class="card-header match-card-header">
                                 <h3 class="match-title mb-1">{{ match.title }}</h3>
-                                <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                                <div class="match-header-right">
+                                    <span v-if="(match.started || match._started) && !isPast(match)" class="match-started-badge">STARTED</span>
+                                    <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                                </div>
                             </div>
                             <div class="card-body d-flex flex-column h-100 p-4">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
@@ -231,7 +236,10 @@
                         <div :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']">
                             <div class="card-header match-card-header">
                                 <h3 class="match-title mb-1">{{ match.title }}</h3>
-                                <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                                <div class="match-header-right">
+                                    <span v-if="(match.started || match._started) && !isPast(match)" class="match-started-badge">STARTED</span>
+                                    <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                                </div>
                             </div>
                             <div class="card-body d-flex flex-column h-100 p-4">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
@@ -1026,6 +1034,10 @@ function playersCount(match) {
 }
 
 function isPast(match) {
+    // If an explicit endedAt/endedAtISO exists, treat as past immediately
+    try {
+        if (match && (match.endedAt || match.endedAtISO)) return true
+    } catch (e) {}
     const { start, end } = getMatchStartEnd(match)
     const now = new Date()
     if (end && end instanceof Date && !isNaN(end.getTime())) return end < now
@@ -1145,9 +1157,31 @@ async function startMatch(match) {
             alert('Failed to start match — try again')
             match._started = false
         }
-    } else {
-        // no DB path: still navigate to match room
-        try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
+    }
+}
+
+async function endMatch(match) {
+    if (!currentUser.value) { alert('Please sign in'); return }
+    if (!isHost(match)) { alert('Only the host may end this match'); return }
+    if (!confirm('End this match now?')) return
+    // optimistic local update
+    match._started = false
+    match.started = false
+    // mark ended locally so UI treats it as past immediately
+    try { match.endedAt = new Date().toISOString(); match.endAtISO = match.endedAt } catch (_) {}
+    if (match.__dbPath) {
+        try {
+            const parts = match.__dbPath.split('/')
+            const id = parts.pop()
+            const path = parts.join('/')
+            await setChildData(`${path}/${id}`, 'started', false)
+            await setChildData(`${path}/${id}`, 'endedAt', new Date().toISOString())
+        } catch (e) {
+            console.error('Failed to end match', e)
+            alert('Failed to end match — try again')
+            // if the write failed, we may want to revert optimistic change
+            try { match.started = true } catch(_){}
+        }
     }
 }
 
@@ -1348,6 +1382,32 @@ function formatDate(match) {
 
 .match-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.03); }
 .match-people { display: flex; align-items: center; gap: 6px }
+
+/* header right area that contains the STARTED badge and people count */
+.match-header-right { display:flex; align-items:center; gap:12px }
+
+.match-started-badge {
+    display: inline-block;
+    background: linear-gradient(180deg, #a83a3a 0%, #c84b4b 100%);
+    color: rgba(255, 210, 210, 0.95);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border: 1px solid rgba(0,0,0,0.4);
+    box-shadow: inset 0 2px 0 rgba(255,255,255,0.03), 0 6px 18px rgba(200,50,50,0.12);
+    animation: live-blink 2.6s ease-in-out infinite;
+}
+
+/* reuse previously defined keyframes name to keep animation across badges */
+@keyframes live-blink {
+    0% { opacity: 1; transform: translateZ(0) scale(1); }
+    45% { opacity: 0.5; transform: translateZ(0) scale(0.995); }
+    55% { opacity: 0.5; transform: translateZ(0) scale(0.995); }
+    100% { opacity: 1; transform: translateZ(0) scale(1); }
+}
 
 .match-sub {
     color: #cbd6df;
