@@ -50,6 +50,7 @@
 
 import { pushDataToFirebase } from '../firebase/firebase'
 import { ref, onMounted, watch } from 'vue'
+import { getAuth } from 'firebase/auth'
 
 const autocompleteInput = ref(null)
 const courtAddress = ref('')
@@ -230,6 +231,10 @@ const createCourt = async () => {
   const latToSave = (selectedLat.value != null) ? Number(selectedLat.value) : (props.coordinates?.lat != null ? Number(props.coordinates.lat) : null)
   const lonToSave = (selectedLon.value != null) ? Number(selectedLon.value) : (props.coordinates?.lon != null ? Number(props.coordinates.lon) : null)
 
+  // Get current user from Firebase Auth
+  const auth = getAuth()
+  const currentUser = auth.currentUser
+
   const newCourt = {
     name: courtName.value,
     lat: latToSave,
@@ -238,7 +243,8 @@ const createCourt = async () => {
     indoor: isIndoor.value,
     region: region.value,
     keywords: [],
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    createdBy: currentUser ? currentUser.uid : null
   }
 
   try {

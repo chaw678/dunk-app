@@ -87,6 +87,7 @@
               </div>
               <div class="court-actions">
                 <button class="view-matches-link" @click="toggleCourtExpand(court)">{{ expandedCourts[courtKey(court)] ? 'Hide Matches' : 'View Matches' }}</button>
+                <button v-if="canRemoveCourt(court)" class="remove-court-btn" @click="removeCourt(court)" title="Remove this court"><i class="bi bi-trash"></i></button>
               </div>
             </div>
 
@@ -365,6 +366,27 @@ function courtFormatDate(match) {
   }
   if (match.time) return match.time
   return ''
+}
+
+function countScheduledAndOngoingMatches(court) {
+  const key = courtKey(court)
+  const matches = matchesCache.value[key] || []
+  const now = new Date()
+  let scheduled = 0
+  let ongoing = 0
+  
+  for (const match of matches) {
+    const { start, end } = getMatchStartEnd(match)
+    if (start && end) {
+      if (now >= start && now <= end) {
+        ongoing++
+      } else if (start > now) {
+        scheduled++
+      }
+    }
+  }
+  
+  return { scheduled, ongoing }
 }
 
 function courtFormatTimeRange(match) {
@@ -721,7 +743,7 @@ async function handleMatchCreated() {
 // }
 
 
-const addMarkers = courtsList => {
+const addMarkers = async courtsList => {
 // Clear existing markers exactly once
 markers.value.forEach(m => m.setMap(null));
 markers.value = [];
@@ -731,12 +753,16 @@ if (!courtsList || !courtsList.length) {
   return;
 }
 
-courtsList.forEach(court => {
+for (const court of courtsList) {
   const lat = Number(court.lat);
   const lon = Number(court.lon);
-  if (!isFinite(lat) || !isFinite(lon)) return;
+  if (!isFinite(lat) || !isFinite(lon)) continue;
 
-    const marker = new google.maps.Marker({
+  // Load matches for this court to get counts
+  await loadMatchesForCourt(court);
+  const { scheduled, ongoing } = countScheduledAndOngoingMatches(court);
+
+  const marker = new google.maps.Marker({
     position: { lat, lng: lon },
     map: map.value,
     title: court.name || '',
@@ -755,7 +781,8 @@ courtsList.forEach(court => {
       <div style="font-family: Arial; font-size: 14px;">
         <strong>${court.name}</strong><br/>
         <em>Region:</em> ${court.region}<br/>
-        <em>Coordinates:</em> ${isFinite(lat) ? lat.toFixed(4) : 'N/A'}, ${isFinite(lon) ? lon.toFixed(4) : 'N/A'}
+        <em>Scheduled:</em> ${scheduled} match${scheduled !== 1 ? 'es' : ''}<br/>
+        <em>Ongoing:</em> ${ongoing} match${ongoing !== 1 ? 'es' : ''}
       </div>
     `
   });
@@ -791,7 +818,7 @@ courtsList.forEach(court => {
   });
 
   markers.value.push(marker);
-});
+}
 
 console.log('Current markers:', markers.value.length, markers.value.map(m => m.getTitle()));
 };
@@ -975,6 +1002,37 @@ function openCreateMatchForCourt(court) {
     // fallback
     selectedCourt = court
     showAddMatchModal = true
+  }
+}
+
+function canRemoveCourt(court) {
+  // Only allow removal if:
+  // 1. User is signed in
+  // 2. Court has a createdBy field (meaning it was user-created, not from existing database)
+  // 3. The createdBy matches the current user's UID
+  if (!currentUser.value) return false
+  if (!court.createdBy) return false
+  return court.createdBy === currentUser.value.uid
+}
+
+async function removeCourt(court) {
+  if (!canRemoveCourt(court)) {
+    alert('You do not have permission to remove this court.')
+    return
+  }
+  
+  if (!confirm(`Are you sure you want to remove "${court.name}"? This action cannot be undone.`)) {
+    return
+  }
+  
+  try {
+    const { deleteChildData } = await import('../firebase/firebase')
+    await deleteChildData('courts', court.id)
+    alert('Court removed successfully!')
+    await loadCourtsFromFirebase()
+  } catch (error) {
+    console.error('Failed to remove court:', error)
+    alert('Failed to remove court: ' + error.message)
   }
 }
 
@@ -1382,7 +1440,25 @@ color: orange;
 .court-rating { color:#ffb14d; margin-top:6px }
 .stars { color:#ffb14d; letter-spacing: 1px; margin-right:8px }
 .reviews { color:#9fb0bf; font-size:0.85rem }
+.court-actions { display: flex; gap: 12px; align-items: center; }
 .view-matches-link { background:transparent; border:none; color:#ffb14d; font-weight:700; cursor:pointer }
+.remove-court-btn { 
+  background: transparent; 
+  border: 1px solid #ff5252; 
+  color: #ff5252; 
+  padding: 6px 10px; 
+  border-radius: 6px; 
+  cursor: pointer; 
+  font-weight: 600;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.remove-court-btn:hover { 
+  background: #ff5252; 
+  color: #fff; 
+}
 .mini-matches { margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.03) }
 .mini-match { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.02) }
 .mini-left { flex:1 }

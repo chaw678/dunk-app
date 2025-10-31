@@ -47,8 +47,54 @@
                 <div class="tabs-pill" role="tablist" aria-label="Match tabs">
                     <button :class="['tab-pill', selectedTab === 'all' ? 'active' : '']" @click="selectedTab = 'all'">All Matches</button>
                     <button :class="['tab-pill', selectedTab === 'hosts' ? 'active' : '']" @click="selectedTab = 'hosts'">My Matches</button>
-                    <button :class="['tab-pill', selectedTab === 'joined' ? 'active' : '']" @click="selectedTab = 'joined'">Joined Matches</button>
+                    <button :class="['tab-pill', selectedTab === 'joined' ? 'active' : '']" @click="selectedTab = 'joined'">
+                        Joined Matches
+                    </button>
+                    <button :class="['tab-pill', selectedTab === 'invites' ? 'active' : '']" @click="selectedTab = 'invites'">
+                        Pending Invites
+                        <span v-if="invitationsCount > 0" class="notification-badge">{{ invitationsCount }}</span>
+                    </button>
                     <button :class="['tab-pill', selectedTab === 'past' ? 'active' : '']" @click="selectedTab = 'past'">Past Matches</button>
+                </div>
+            </div>
+
+            <!-- Invitations Section - Show when user has pending invitations -->
+            <div v-if="invitations.length > 0 && selectedTab === 'invites'" class="invitations-wrapper mb-4">
+                <div class="invitations-section">
+                    <h3 class="section-heading">
+                        <i class="bi bi-bell-fill me-2"></i>Match Invitations
+                    </h3>
+                    <div class="invitations-grid">
+                        <div class="invitation-card-wrapper" v-for="inv in invitations" :key="inv.id">
+                            <div class="invitation-card">
+                                <div class="invitation-header">
+                                    <h3 class="invitation-match-title">{{ inv.title }}</h3>
+                                
+                                </div>
+                                <div class="invitation-body">
+                                    <div class="invitation-court-name">{{ inv.court || 'Unknown court' }}</div>
+                                    <div class="invitation-date">{{ formatInvitationDate(inv.date) }}</div>
+                                    <div class="invitation-time">{{ formatInvitationTime(inv.startTime, inv.endTime) }}</div>
+                                    <div class="invitation-tags">
+                                        <span class="invitation-tag">{{ inv.gender || 'All' }}</span>
+                                        <span class="invitation-tag">{{ inv.type || 'Open' }}</span>
+                                    </div>
+                                    <div class="invitation-inviter">
+                                        <i class="bi bi-person-circle"></i>
+                                        <span>Invited by {{ inv.inviterName || 'Unknown' }}</span>
+                                    </div>
+                                    <div class="invitation-actions">
+                                        <button class="btn-accept" @click="acceptInvite(inv)">
+                                            <i class="bi bi-check-lg"></i> Accept
+                                        </button>
+                                        <button class="btn-decline" @click="declineInvite(inv)">
+                                            <i class="bi bi-x-lg"></i> Decline
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -56,8 +102,9 @@
             <!-- Empty state when the selected tab has no matches -->
             <div v-if="isTabEmpty" class="embedded-empty-state" v-cloak>
                 <div class="empty-card card">
-                    <div class="card-body text-center">
-                        <p class="mb-2">{{ emptyMessage }}</p>
+                    <div class="card-body">
+                        <div class="empty-icon">🏀</div>
+                        <p class="lead mb-2">{{ emptyMessage }}</p>
                         <p class="text-muted small">Try switching tabs or create a match for this court.</p>
                     </div>
                 </div>
@@ -66,63 +113,68 @@
                 <h3 class="section-heading">Ongoing</h3>
                 <div class="row g-3 matches-grid">
                     <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.ongoing ? groupedMatches.ongoing : [])" :key="match?.id || idx">
-                        <div :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']">
-                            <div class="card-header match-card-header">
-                                <h3 class="match-title mb-1">{{ match.title }}</h3>
-                                <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
-                            </div>
-                            <div class="card-body d-flex flex-column h-100 p-4">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div>
-                                        <div class="match-sub small">{{ match.location }}</div>
-                                        <div class="match-date">{{ formatDate(match) }}</div>
-                                    </div>
-                                    <div></div>
-                                </div>
+  <div
+    :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']"
+    role="button"
+    tabindex="0"
+    @click="openMatch(match)"
+    @keydown.enter="openMatch(match)"
+  >
+    <div class="card-header match-card-header">
+      <h3 class="match-title mb-1">{{ match.title }}</h3>
+      <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+    </div>
+    <div class="card-body d-flex flex-column h-100 p-4">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          <div class="match-sub small">{{ match.location }}</div>
+          <div class="match-date">{{ formatDate(match) }}</div>
+        </div>
+        <div></div>
+      </div>
 
-                                <div class="match-meta-row mb-3">
-                                    <div class="time-range">{{ formatTimeRange(match) }}</div>
-                                    <div class="meta-pill">{{ match.gender || 'All' }}</div>
-                                    <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-                                    <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
-                                </div>
+      <div class="match-meta-row mb-3">
+        <div class="time-range">{{ formatTimeRange(match) }}</div>
+        <div class="meta-pill">{{ match.gender || 'All' }}</div>
+        <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
+        <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+      </div>
 
-                                <div class="avatars mb-3">
-                                    <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
-                                        <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
-                                            <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
-                                            <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
-                                        </template>
-                                        <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
-                                    </div>
-                                </div>
+      <div class="avatars mb-3">
+        <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
+          <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
+            <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
+            <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
+          </template>
+          <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
+        </div>
+      </div>
 
-                                <div class="mt-auto d-flex justify-content-between align-items-center">
-                                    <div class="btn-group">
-                                        <template v-if="isHost(match)">
-                                            <!-- For ongoing matches, host can Start the match (writes started flag) -->
-                                            <button type="button" class="btn btn-success btn-sm d-flex align-items-center" @click.prevent="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
-                                        </template>
-                                        <template v-else-if="isJoined(match)">
-                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                            <template v-if="match.started || match._started">
-                                                <button type="button" class="btn btn-primary btn-sm ms-2 d-flex align-items-center" @click.prevent="playMatch(match)"><i class="bi bi-controller me-2"></i>Play</button>
-                                            </template>
-                                            <template v-else>
-                                                <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
-                                            </template>
-                                        </template>
-                                        <template v-else>
-                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent="joinMatch(match)">Join</button>
-                                        </template>
-                                    </div>
-                                    <div></div>
-                                </div>
-                            </div>
-                        </div>
+      <div class="mt-auto d-flex justify-content-between align-items-center">
+        <div class="btn-group">
+          <template v-if="isHost(match)">
+            <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+          </template>
+          <template v-else-if="isJoined(match)">
+            <template v-if="match.started || match._started">
+              <button type="button" class="btn btn-primary btn-sm d-flex align-items-center" @click.prevent.stop="playMatch(match)"><i class="bi bi-controller me-2"></i>Play</button>
+            </template>
+            <template v-else>
+              <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+            </template>
+          </template>
+          <template v-else>
+            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
+          </template>
+        </div>
+        <div></div>
+      </div>
+    </div>
+  </div>
+</div>
                     </div>
                 </div>
-            </div>
+
 
             <div v-if="groupedMatches && groupedMatches.scheduled && groupedMatches.scheduled.length">
                 <h3 class="section-heading">Scheduled</h3>
@@ -163,10 +215,11 @@
                                 <div class="mt-auto d-flex justify-content-between align-items-center">
                                     <div class="btn-group">
                                         <template v-if="isHost(match)">
-                                            <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                            <button type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                         </template>
                                         <template v-else-if="isJoined(match)">
-                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                         </template>
                                         <template v-else>
@@ -220,10 +273,11 @@
                                 <div class="mt-auto d-flex justify-content-between align-items-center">
                                     <div class="btn-group">
                                         <template v-if="isHost(match)">
-                                            <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                            <button type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                         </template>
                                         <template v-else-if="isJoined(match)">
-                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                         </template>
                                         <template v-else>
@@ -242,7 +296,8 @@
                 <h3 class="section-heading">Past</h3>
                 <div class="empty-card card">
                     <div class="card-body">
-                        <p class="mb-2">You have no past matches.</p>
+                        <div class="empty-icon">🏀</div>
+                        <p class="lead mb-2">You have no past matches.</p>
                         <p class="text-muted small">Past matches you hosted or joined will appear here. Try checking <strong>All Matches</strong> to find upcoming games.</p>
                     </div>
                 </div>
@@ -251,23 +306,27 @@
 
     <!-- render modal inside template so Vue can mount it -->
     <AddMatchModal v-if="showAddMatchModal" :courtList="courts" :courtName="courtFilter || ''" @close="showAddMatchModal = false" @created="onMatchCreated" />
-        <JoinedPlayersModal v-if="showPlayersModal" :players="activePlayers" :title="activeTitle" @close="closePlayersModal" />
+    <InviteModal v-if="showInviteModal" :match="inviteMatch" :users="usersCache.value" :me="currentUser" @close="showInviteModal = false" @sent="onInvitesSent" />
+    <JoinedPlayersModal v-if="showPlayersModal" :players="activePlayers" :title="activeTitle" @close="closePlayersModal" />
     </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
+import { useRouter } from 'vue-router'
 const props = defineProps({
     courtFilter: { type: String, default: '' },
     embedded: { type: Boolean, default: false }
 })
 // expose convenient local bindings for template/script
 const { courtFilter, embedded } = props
-import { getDataFromFirebase, pushDataToFirebase, overwriteDataToFirebase, setChildData, deleteChildData } from '../firebase/firebase'
+import { getDataFromFirebase, pushDataToFirebase, overwriteDataToFirebase, setChildData, deleteChildData, onDataChange } from '../firebase/firebase'
 import { onUserStateChanged } from '../firebase/auth'
 import AddMatchModal from './AddMatchModal.vue'
 import JoinedPlayersModal from './JoinedPlayersModal.vue'
+import InviteModal from './InviteModal.vue'
 
 const showPopup = ref(false)
 const isSigningIn = ref(false)
@@ -296,6 +355,18 @@ const showCreatedPopup = ref(false)
 
 function closeCreatedPopup() {
     showCreatedPopup.value = false
+}
+
+const router = useRouter()
+
+function openMatch(match) {
+    if (!match) return
+    // prefer named route, fallback to path
+    try {
+        router.push({ name: 'MatchRoom', params: { id: match.id } })
+    } catch (e) {
+        router.push(`/match/${match.id}`)
+    }
 }
 
 // Google sign-in handler
@@ -443,6 +514,149 @@ const courts = ref([])
 const showAddMatchModal = ref(false)
 const currentUser = ref(null)
 const currentUserProfile = ref({ skill: 'Open', gender: 'All' })
+const showInviteModal = ref(false)
+const inviteMatch = ref(null)
+const invitations = ref([])
+const invitationsCount = computed(() => invitations.value.length)
+
+// Realtime subscription for invitations
+let invitesUnsub = null
+function subscribeInvitationsRealtime(uid) {
+    // Clean up any existing listener
+    if (invitesUnsub) {
+        try { invitesUnsub() } catch (e) {}
+        invitesUnsub = null
+    }
+    if (!uid) {
+        invitations.value = []
+        return
+    }
+    invitesUnsub = onDataChange(`users/${uid}/invitations`, (invData) => {
+        if (!invData) {
+            invitations.value = []
+            return
+        }
+        const arr = Object.keys(invData).map(id => ({ id, ...invData[id] }))
+        invitations.value = arr
+    })
+}
+
+function openInvite(match) {
+    if (!currentUser.value) {
+        showPopup.value = true
+        return
+    }
+    inviteMatch.value = match
+    showInviteModal.value = true
+}
+
+function onInvitesSent(uids) {
+    console.log('Invites sent to', uids)
+}
+
+// Load invitations for the current user
+async function loadInvitations() {
+    if (!currentUser.value) {
+        invitations.value = []
+        return
+    }
+    try {
+        const invData = await getDataFromFirebase(`users/${currentUser.value.uid}/invitations`)
+        if (!invData) {
+            invitations.value = []
+            return
+        }
+        // Convert object to array
+        const invArray = Object.keys(invData).map(matchId => ({
+            id: matchId,
+            ...invData[matchId]
+        }))
+        invitations.value = invArray
+    } catch (err) {
+        console.error('Failed to load invitations', err)
+        invitations.value = []
+    }
+}
+
+// Accept an invitation - join the match and remove the invitation
+async function acceptInvite(invitation) {
+    if (!currentUser.value) return
+    
+    try {
+        // Find the match using the matchPath or construct it from the invitation data
+        const matchPath = invitation.matchPath
+        if (!matchPath) {
+            console.error('No match path in invitation')
+            return
+        }
+        
+        // Get the match data
+        const matchData = await getDataFromFirebase(matchPath)
+        if (!matchData) {
+            alert('Match no longer exists')
+            await declineInvite(invitation)
+            return
+        }
+        
+        // Add user to the match's joinedBy and playersMap
+        await setChildData(`${matchPath}/joinedBy`, currentUser.value.uid, true)
+        
+        const playerData = {
+            uid: currentUser.value.uid,
+            name: currentUser.value.displayName || currentUser.value.email || 'Player',
+            avatar: currentUser.value.photoURL || '',
+            joinedAt: Date.now()
+        }
+        await setChildData(`${matchPath}/playersMap`, currentUser.value.uid, playerData)
+        
+        // Remove the invitation
+        await deleteChildData(`users/${currentUser.value.uid}/invitations`, invitation.id)
+        
+        // Reload invitations and matches
+        await loadInvitations()
+        await loadMatches()
+        
+        alert('You have joined the match!')
+    } catch (err) {
+        console.error('Failed to accept invitation', err)
+        alert('Failed to join match')
+    }
+}
+
+// Decline an invitation - just remove it
+async function declineInvite(invitation) {
+    if (!currentUser.value) return
+    
+    try {
+        await deleteChildData(`users/${currentUser.value.uid}/invitations`, invitation.id)
+        await loadInvitations()
+    } catch (err) {
+        console.error('Failed to decline invitation', err)
+    }
+}
+
+// Format invitation date for display
+function formatInvitationDate(dateStr) {
+    if (!dateStr) return 'Unknown date'
+    try {
+        const date = new Date(dateStr)
+        return date.toLocaleDateString('en-US', { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric'
+        })
+    } catch (err) {
+        return dateStr
+    }
+}
+
+// Format time display for invitations
+function formatInvitationTime(startTime, endTime) {
+    if (!startTime && !endTime) return 'Time TBD'
+    if (startTime && endTime) return `${startTime} — ${endTime}`
+    if (startTime) return `${startTime}`
+    return 'Time TBD'
+}
 
 onMounted(async () => {
     await loadUsers()
@@ -452,7 +666,11 @@ onMounted(async () => {
     onUserStateChanged(async (u) => {
         currentUser.value = u
         if (u) showPopup.value = false
-        if (!u) return
+        if (!u) {
+            invitations.value = []
+            subscribeInvitationsRealtime(null)
+            return
+        }
         // load profile from Realtime DB
         try {
             const users = await getDataFromFirebase('users')
@@ -462,6 +680,10 @@ onMounted(async () => {
         } catch (e) {
             console.warn('Failed to load user profile', e)
         }
+        // Load invitations for the signed-in user
+        await loadInvitations()
+        // Start realtime subscription so new invites appear without refresh
+        subscribeInvitationsRealtime(u.uid)
     })
 })
 
@@ -473,8 +695,23 @@ onUserStateChanged(async (u) => {
     try {
         await loadUsers()
         await loadMatches()
+        if (u) {
+            await loadInvitations()
+            subscribeInvitationsRealtime(u.uid)
+        } else {
+            invitations.value = []
+            subscribeInvitationsRealtime(null)
+        }
     } catch (e) {
         console.warn('Failed to refresh matches on auth change', e)
+    }
+})
+
+// Clean up realtime listeners when component unmounts
+onUnmounted(() => {
+    if (invitesUnsub) {
+        try { invitesUnsub() } catch (e) {}
+        invitesUnsub = null
     }
 })
 
@@ -639,9 +876,15 @@ const matchesForTab = computed(() => {
             return isHost(m) || joined
         })
     }
-    if (!currentUser.value) return []
+    if (!currentUser.value) {
+        // For the invites tab we don't show matches at all; it's a separate list
+        if (selectedTab.value === 'invites') return []
+        return []
+    }
     if (selectedTab.value === 'hosts') return base.filter(m => isHost(m) && !isPast(m))
     if (selectedTab.value === 'joined') return base.filter(m => !isHost(m) && Boolean(m.joinedBy && currentUser.value && m.joinedBy[currentUser.value.uid]) && !isPast(m))
+    // Pending Invites tab renders its own container; do not show matches here
+    if (selectedTab.value === 'invites') return []
     return base.filter(m => !isPast(m))
 })
 
@@ -676,6 +919,10 @@ const groupedMatches = computed(() => {
 })
 
 const isTabEmpty = computed(() => {
+    // For the invites tab, emptiness depends on invitations, not matches
+    if (selectedTab.value === 'invites') {
+        return !(invitations.value && invitations.value.length)
+    }
     // matchesForTab already applies the selectedTab logic and excludes past where appropriate
     try {
         return !(matchesForTab.value && matchesForTab.value.length)
@@ -689,6 +936,7 @@ const emptyMessage = computed(() => {
     if (t === 'hosts') return "You haven't created any upcoming matches."
     if (t === 'joined') return "You haven't joined any upcoming matches."
     if (t === 'past') return 'You have no past matches.'
+    if (t === 'invites') return 'You have no pending invitations.'
     return 'No upcoming matches found.'
 })
 
@@ -909,11 +1157,16 @@ async function startMatch(match) {
             const path = parts.join('/')
             await setChildData(`${path}/${id}`, 'started', true)
             await setChildData(`${path}/${id}`, 'startedAt', new Date().toISOString())
+            // after successfully starting, navigate to the MatchRoom
+            try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
         } catch (e) {
             console.error('Failed to set started flag', e)
             alert('Failed to start match — try again')
             match._started = false
         }
+    } else {
+        // no DB path: still navigate to match room
+        try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
     }
 }
 
@@ -1187,6 +1440,22 @@ function formatDate(match) {
 }
 .btn-join[disabled] { opacity: 0.45; cursor: not-allowed }
 
+.btn-invite {
+    background: #ff9a3c;
+    color: #111;
+    border: 2px solid #111;
+    font-weight: 700;
+    transition: all 0.2s ease;
+}
+
+.btn-invite:hover {
+    background: #ffb26a;
+    border-color: #111;
+    color: #111;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 154, 60, 0.3);
+}
+
 @media (min-width: 768px) {
     .match-card {
         flex-direction: column
@@ -1238,9 +1507,43 @@ function formatDate(match) {
 }
 .embedded-title { font-size: 1.25rem; font-weight: 800; color: #fff }
 .btn-create-match.small { padding: 8px 12px; font-size: 0.95rem }
-.embedded-empty-state .empty-card { background: #0f1418; border: 1px solid rgba(255,255,255,0.03); margin: 12px 0; }
-.embedded-empty-state .card-body { padding: 28px; }
-.embedded-empty-state p { color: #9fb0bf }
+.embedded-empty-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px; /* even padding around empty state */
+}
+.embedded-empty-state .empty-card {
+    background: linear-gradient(180deg,#0f1418 0%, #0c0f12 100%);
+    border: 1px solid rgba(255,255,255,0.03);
+    margin: 0;
+    width: 100%;
+    max-width: 760px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+    border-radius: 12px;
+}
+.embedded-empty-state .card-body {
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+}
+.embedded-empty-state .empty-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,154,60,0.08);
+    color: #ff9a3c;
+    font-size: 26px;
+}
+.embedded-empty-state p { color: #9fb0bf; margin: 0 }
+.embedded-empty-state p.lead { color: #ffffff; font-weight: 700; font-size: 1.05rem }
 
 /* Popup styles */
 .success-overlay {
@@ -1328,5 +1631,219 @@ function formatDate(match) {
 
 .close-btn:hover {
     background-color: #4B5563;
+}
+
+/* Invitations Section */
+.invitations-wrapper {
+    width: 100%;
+}
+
+.invitations-section {
+    padding: 24px;
+    background: rgba(255, 154, 60, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 154, 60, 0.15);
+}
+
+.invitations-section .section-heading {
+    margin-top: 0;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.invitations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    width: 100%;
+}
+
+.invitation-card-wrapper {
+    display: flex;
+    justify-content: center;
+}
+
+.invitation-card {
+    background: linear-gradient(135deg, #FF9A3C 0%, #FF8C1A 100%);
+    border-radius: 16px;
+    overflow: hidden;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s;
+}
+
+.invitation-card:hover {
+    transform: translateY(-2px);
+}
+
+.invitation-header {
+    padding: 20px 20px 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.invitation-match-title {
+    color: #000;
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin: 0;
+    flex: 1;
+}
+
+.invitation-invite-btn {
+    background: rgba(255, 255, 255, 0.25);
+    border: none;
+    color: #000;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: default;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.invitation-body {
+    background: #1a1d23;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-radius: 0 0 16px 16px;
+}
+
+.invitation-court-name {
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.invitation-date {
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+.invitation-time {
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.invitation-tags {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.invitation-tag {
+    background: rgba(255, 154, 60, 0.15);
+    color: #ff9a3c;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.invitation-inviter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #9fb0bf;
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.invitation-inviter i {
+    font-size: 1.2rem;
+}
+
+.invitation-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.invitation-actions .btn-accept,
+.invitation-actions .btn-decline {
+    flex: 1;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.invitation-actions .btn-accept {
+    background: #10b981;
+    color: #fff;
+}
+
+.invitation-actions .btn-accept:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+.invitation-actions .btn-decline {
+    background: transparent;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.invitation-actions .btn-decline:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+/* Responsive breakpoints */
+@media (min-width: 768px) {
+    .invitations-grid {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+}
+
+@media (min-width: 1200px) {
+    .invitations-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Notification Badge */
+.notification-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #ff3c3c;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    margin-left: 8px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
 }
 </style>
