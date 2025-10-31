@@ -15,7 +15,7 @@ const history = createWebHistory()
 const routes = [
     { path: '/', component: MainMenu },
     { path: '/home', component: Home },
-    { path: '/match/:matchid', component: MatchRoom, name: 'MatchRoom' },
+    { path: '/match/:id', component: MatchRoom, name: 'MatchRoom' },
     { path: '/upload', component: Upload },
     { path: '/court-finder', component: CourtFinder },
     { path: '/matches', component: Matches },
