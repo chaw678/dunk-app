@@ -369,27 +369,6 @@ function courtFormatDate(match) {
   return ''
 }
 
-function countScheduledAndOngoingMatches(court) {
-  const key = courtKey(court)
-  const matches = matchesCache.value[key] || []
-  const now = new Date()
-  let scheduled = 0
-  let ongoing = 0
-  
-  for (const match of matches) {
-    const { start, end } = getMatchStartEnd(match)
-    if (start && end) {
-      if (now >= start && now <= end) {
-        ongoing++
-      } else if (start > now) {
-        scheduled++
-      }
-    }
-  }
-  
-  return { scheduled, ongoing }
-}
-
 function courtFormatTimeRange(match) {
   if (!match) return ''
   const opts = { hour: 'numeric', minute: '2-digit', hour12: true }
@@ -744,7 +723,7 @@ async function handleMatchCreated() {
 // }
 
 
-const addMarkers = async courtsList => {
+const addMarkers = courtsList => {
 // Clear existing markers exactly once
 markers.value.forEach(m => m.setMap(null));
 markers.value = [];
@@ -754,16 +733,12 @@ if (!courtsList || !courtsList.length) {
   return;
 }
 
-for (const court of courtsList) {
+courtsList.forEach(court => {
   const lat = Number(court.lat);
   const lon = Number(court.lon);
-  if (!isFinite(lat) || !isFinite(lon)) continue;
+  if (!isFinite(lat) || !isFinite(lon)) return;
 
-  // Load matches for this court to get counts
-  await loadMatchesForCourt(court);
-  const { scheduled, ongoing } = countScheduledAndOngoingMatches(court);
-
-  const marker = new google.maps.Marker({
+    const marker = new google.maps.Marker({
     position: { lat, lng: lon },
     map: map.value,
     title: court.name || '',
@@ -782,8 +757,7 @@ for (const court of courtsList) {
       <div style="font-family: Arial; font-size: 14px;">
         <strong>${court.name}</strong><br/>
         <em>Region:</em> ${court.region}<br/>
-        <em>Scheduled:</em> ${scheduled} match${scheduled !== 1 ? 'es' : ''}<br/>
-        <em>Ongoing:</em> ${ongoing} match${ongoing !== 1 ? 'es' : ''}
+        <em>Coordinates:</em> ${isFinite(lat) ? lat.toFixed(4) : 'N/A'}, ${isFinite(lon) ? lon.toFixed(4) : 'N/A'}
       </div>
     `
   });
@@ -819,7 +793,7 @@ for (const court of courtsList) {
   });
 
   markers.value.push(marker);
-}
+});
 
 console.log('Current markers:', markers.value.length, markers.value.map(m => m.getTitle()));
 };

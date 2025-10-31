@@ -66,29 +66,25 @@
                     </h3>
                     <div class="invitations-grid">
                         <div class="invitation-card-wrapper" v-for="inv in invitations" :key="inv.id">
-                            <div class="invitation-card">
-                                <div class="invitation-header">
-                                    <h3 class="invitation-match-title">{{ inv.title }}</h3>
-                                
-                                </div>
-                                <div class="invitation-body">
-                                    <div class="invitation-court-name">{{ inv.court || 'Unknown court' }}</div>
-                                    <div class="invitation-date">{{ formatInvitationDate(inv.date) }}</div>
-                                    <div class="invitation-time">{{ formatInvitationTime(inv.startTime, inv.endTime) }}</div>
-                                    <div class="invitation-tags">
-                                        <span class="invitation-tag">{{ inv.gender || 'All' }}</span>
-                                        <span class="invitation-tag">{{ inv.type || 'Open' }}</span>
-                                    </div>
-                                    <div class="invitation-inviter">
-                                        <i class="bi bi-person-circle"></i>
-                                        <span>Invited by {{ inv.inviterName || 'Unknown' }}</span>
+                            <div class="card invitation-card">
+                                <div class="card-body">
+                                    <h5 class="invitation-title">{{ inv.title }}</h5>
+                                    <div class="invitation-details">
+                                        <div class="invitation-detail-item">
+                                            <i class="bi bi-geo-alt-fill"></i>
+                                            <span>{{ inv.court || 'Unknown court' }}</span>
+                                        </div>
+                                        <div class="invitation-detail-item">
+                                            <i class="bi bi-calendar-fill"></i>
+                                            <span>{{ formatInvitationDate(inv.date) }}</span>
+                                        </div>
                                     </div>
                                     <div class="invitation-actions">
-                                        <button class="btn-accept" @click="acceptInvite(inv)">
-                                            <i class="bi bi-check-lg"></i> Accept
+                                        <button class="btn btn-success btn-sm" @click="acceptInvite(inv)">
+                                            <i class="bi bi-check-lg me-1"></i>Accept
                                         </button>
-                                        <button class="btn-decline" @click="declineInvite(inv)">
-                                            <i class="bi bi-x-lg"></i> Decline
+                                        <button class="btn btn-outline-secondary btn-sm" @click="declineInvite(inv)">
+                                            <i class="bi bi-x-lg me-1"></i>Decline
                                         </button>
                                     </div>
                                 </div>
@@ -652,19 +648,13 @@ function formatInvitationDate(dateStr) {
         return date.toLocaleDateString('en-US', { 
             weekday: 'short', 
             month: 'short', 
-            day: 'numeric'
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
         })
     } catch (err) {
         return dateStr
     }
-}
-
-// Format time display for invitations
-function formatInvitationTime(startTime, endTime) {
-    if (!startTime && !endTime) return 'Time TBD'
-    if (startTime && endTime) return `${startTime} — ${endTime}`
-    if (startTime) return `${startTime}`
-    return 'Time TBD'
 }
 
 onMounted(async () => {
@@ -1718,7 +1708,7 @@ function formatDate(match) {
 .invitations-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 20px;
+    gap: 16px;
     width: 100%;
 }
 
@@ -1728,148 +1718,64 @@ function formatDate(match) {
 }
 
 .invitation-card {
-    background: linear-gradient(135deg, #FF9A3C 0%, #FF8C1A 100%);
-    border-radius: 16px;
-    overflow: hidden;
+    background: linear-gradient(180deg, #0b0f12, #0d1114);
+    border: 1px solid rgba(255, 154, 60, 0.2);
+    border-radius: 10px;
+    transition: transform 0.2s, box-shadow 0.2s;
     width: 100%;
     max-width: 400px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    transition: transform 0.2s;
+}
+
+.invitation-card .card-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 .invitation-card:hover {
     transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 154, 60, 0.15);
 }
 
-.invitation-header {
-    padding: 20px 20px 16px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-}
-
-.invitation-match-title {
-    color: #000;
+.invitation-title {
+    color: #ff9a3c;
     font-weight: 700;
-    font-size: 1.25rem;
+    font-size: 1.15rem;
+    text-align: center;
     margin: 0;
-    flex: 1;
 }
 
-.invitation-invite-btn {
-    background: rgba(255, 255, 255, 0.25);
-    border: none;
-    color: #000;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: default;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.invitation-body {
-    background: #1a1d23;
-    padding: 20px;
+.invitation-details {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    border-radius: 0 0 16px 16px;
-}
-
-.invitation-court-name {
-    color: #fff;
-    font-size: 0.95rem;
-    font-weight: 600;
-}
-
-.invitation-date {
-    color: #fff;
-    font-size: 1rem;
-    font-weight: 700;
-    margin-top: 4px;
-}
-
-.invitation-time {
-    color: #fff;
-    font-size: 0.95rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-}
-
-.invitation-tags {
-    display: flex;
     gap: 8px;
-    margin-bottom: 8px;
 }
 
-.invitation-tag {
-    background: rgba(255, 154, 60, 0.15);
-    color: #ff9a3c;
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-
-.invitation-inviter {
+.invitation-detail-item {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     color: #9fb0bf;
     font-size: 0.9rem;
-    margin-bottom: 12px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.invitation-inviter i {
-    font-size: 1.2rem;
+.invitation-detail-item i {
+    color: #ff9a3c;
+    font-size: 1rem;
 }
 
 .invitation-actions {
     display: flex;
     gap: 12px;
+    margin-top: 4px;
 }
 
-.invitation-actions .btn-accept,
-.invitation-actions .btn-decline {
+.invitation-actions button {
     flex: 1;
-    padding: 12px 16px;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 0.95rem;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-}
-
-.invitation-actions .btn-accept {
-    background: #10b981;
-    color: #fff;
-}
-
-.invitation-actions .btn-accept:hover {
-    background: #059669;
-    transform: translateY(-1px);
-}
-
-.invitation-actions .btn-decline {
-    background: transparent;
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.invitation-actions .btn-decline:hover {
-    background: rgba(239, 68, 68, 0.2);
-    border-color: #ef4444;
-    color: #ef4444;
+    padding: 10px 16px;
+    font-weight: 600;
 }
 
 /* Responsive breakpoints */
