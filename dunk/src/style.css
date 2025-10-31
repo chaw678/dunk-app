@@ -36,6 +36,13 @@ body {
   color: #e6eef8;
 }
 
+/* Make sure the entire page (including html and #app) is black */
+html, body, #app {
+  background: #000 !important;
+  color: #e6eef8 !important;
+  height: 100%;
+}
+
 /* App-wide backgrounds and main layout */
 html, body, #app {
   background: #000; /* full app black */
@@ -43,6 +50,9 @@ html, body, #app {
   width: 100%;
   height: 100%;
 }
+
+/* Used to disable scroll when overlays (like mobile sidebar) are open */
+.no-scroll { overflow: hidden !important }
 
 /* Main content cards (consistent across pages) */
 .page-bg {
@@ -88,36 +98,11 @@ html, body, #app {
 }
 
 @media (max-width: 720px) {
-  /* Mobile: sidebar overlays content. Remove left margin and show backdrop when sidebar open */
-  .main-content { padding: 20px; margin-left: 0 !important }
+  /* Mobile tweaks: keep sidebar visible in its collapsed state; spacing adjustments for content */
+  .main-content { padding: 20px }
   .page-bg { padding: 20px 12px }
-
-  /* Sidebar overlay behavior: hidden when collapsed, visible when expanded */
-  .sidebar {
-    transform: translateX(-100%);
-    transition: transform 0.25s ease;
-    /* overlay width on mobile */
-    width: 80vw !important;
-  }
-  .sidebar:not(.collapsed) {
-    transform: translateX(0);
-    position: fixed;
-    left: 0;
-    top: 0;
-    height: 100vh;
-    z-index: 90;
-  }
-
-  /* Backdrop: shown when sidebar is open (main-content not collapsed) */
-  .main-content:not(.collapsed)::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.55);
-    z-index: 80;
-  }
-
-  /* Make card almost full width on mobile when overlaying */
+  /* Let Sidebar.vue control sidebar sizing/behavior on mobile. No global transform/hide here. */
+  /* Make card almost full width on mobile */
   .card { width: calc(95vw - 24px); max-width: 1000px }
 }
 

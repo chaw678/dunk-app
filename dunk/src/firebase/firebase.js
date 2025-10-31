@@ -17,7 +17,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
 const storage = getStorage(app)
-import { getDatabase, ref, set, get, child, push, remove } from "firebase/database";
+import { getDatabase, ref, set, get, child, push, remove, update, onValue } from "firebase/database";
 import { Database } from 'lucide-vue-next'
 
 const db = getDatabase(app);
@@ -63,6 +63,29 @@ export async function getDataFromFirebase(table) {
     }
 }
 
+/**
+ * Resolve a user's display name / username from their uid in Realtime Database.
+ * Returns the best available string (username, name, displayName, or email local-part) or null.
+ */
+export async function getUserName(uid) {
+    if (!uid) return null
+    try {
+        const dbRef = ref(db)
+        const snap = await get(child(dbRef, `users/${uid}`))
+        if (!snap || !snap.exists()) return null
+        const u = snap.val()
+        // prefer username, then name, then displayName, then email local-part
+        if (u.username) return u.username
+        if (u.name) return u.name
+        if (u.displayName) return u.displayName
+        if (u.email) return u.email.split('@')[0]
+        return null
+    } catch (err) {
+        console.error('getUserName error', err)
+        return null
+    }
+}
+
 export async function pushDataToFirebase(path, data) {
     // instructions
     // data: input in only the json data don't put a key/id
@@ -71,6 +94,8 @@ export async function pushDataToFirebase(path, data) {
         const newDataRef = push(dataRef); // Create a new reference for the new data
         await set(newDataRef, data); // Set the data at the new reference
         console.log(`Data successfully pushed to Firebase at path: ${newDataRef.key}`);
+        // return the generated key so callers can reference the new node if needed
+        return newDataRef.key
     } catch (error) {
         console.error("Error pushing data to Firebase:", error);
         throw error;
@@ -90,6 +115,51 @@ export async function overwriteDataToFirebase(id, path, data) {
     }
 }
 
+/**
+ * Update a node with a partial payload (shallow merge) at the given path.
+ * Example: updateDataToFirebase('users/uid', { score: 10 })
+ */
+export async function updateDataToFirebase(path, data) {
+    try {
+        const dataRef = ref(db, path);
+        await update(dataRef, data);
+        console.log(`Data successfully updated at path: ${path}`);
+    } catch (error) {
+        console.error("Error updating data to Firebase:", error);
+        throw error;
+    }
+}
+
+/**
+ * Set a child key under a path. Useful to write only one child without touching siblings.
+ * Example: setChildData('users/uid/following', otherUid, { at: 123 })
+ */
+export async function setChildData(path, key, data) {
+    try {
+        const dataRef = ref(db, `${path}/${key}`);
+        await set(dataRef, data);
+        console.log(`Child data set at ${path}/${key}`);
+    } catch (error) {
+        console.error("Error setting child data to Firebase:", error);
+        throw error;
+    }
+}
+
+/**
+ * Remove a child key under a path.
+ * Example: deleteChildData('users/uid/following', otherUid)
+ */
+export async function deleteChildData(path, key) {
+    try {
+        const dataRef = ref(db, `${path}/${key}`);
+        await remove(dataRef);
+        console.log(`Child data removed at ${path}/${key}`);
+    } catch (error) {
+        console.error("Error removing child data from Firebase:", error);
+        throw error;
+    }
+}
+
 // Function to delete data from Firebase Realtime Database
 export async function deleteDataFromFirebase(path) {
     try {
@@ -104,5 +174,20 @@ export async function deleteDataFromFirebase(path) {
 }
 
 export { app, auth, storage }
+
+/**
+ * Subscribe to realtime changes at a path. Returns the unsubscribe function.
+ * cb will be called with snapshot.val() (or null) whenever the data changes.
+ */
+export function onDataChange(path, cb) {
+    const refPath = ref(db, path)
+    const off = onValue(refPath, (snap) => {
+        cb(snap.exists() ? snap.val() : null)
+    }, (err) => {
+        console.error('onDataChange error', err)
+    })
+    // onValue returns an unsubscribe function in firebase v9 when used like this
+    return off
+}
 
 

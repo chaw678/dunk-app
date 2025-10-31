@@ -1,14 +1,15 @@
 <template>
-  <div class="main-menu page">
-    <h1>Welcome to Dunk</h1>
-    <p>This is the main landing page. Use the sidebar to navigate.</p>
-  </div>
+  <Sidebar />
+  <router-view />
 </template>
 
 <script setup>
+import Sidebar from './Sidebar.vue'
 </script>
 
 <style scoped>
-.page { padding: 24px; color: #fff }
-</style>
+#app {
+  background-color: black;
+  height: 100vh; /* Ensure it covers the whole viewport height */
 }
+</style>
