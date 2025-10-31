@@ -77,8 +77,8 @@
         <div class="court-list">
           <div v-for="(court, idx) in visibleCourts" :key="court.id || court.name" class="court-card" :data-court-key="courtKey(court)" :data-court-index="idx">
             <div class="court-card-row">
-              <div class="court-info">
-                <h3 class="court-name">{{ court.name }}</h3>
+                <div class="court-info">
+                <h3 class="court-name">{{ court.name }} <span v-if="isCourtLive(court)" class="court-live-badge">LIVE</span></h3>
                 <div class="court-sub">{{ court.region ? (court.region.charAt(0).toUpperCase() + court.region.slice(1)) : '' }}</div>
                 <div class="court-rating"> 
                   <span class="stars">★★★★★</span>
@@ -165,6 +165,7 @@ const selectedCourt = ref(null)
 const currentUser = ref(null)
 const expandedCourts = ref({})
 const matchesCache = ref({})
+const courtLiveMap = ref({})
 const showPopup = ref(false)
 const isSigningIn = ref(false)
 //change 1: to allow more thna one filtering
@@ -975,11 +976,34 @@ async function loadMatchesForCourt(court) {
       return sa - sb
     })
     matchesCache.value[key] = filtered
+    // determine whether any of these matches are currently live/started
+    try {
+      const now = new Date()
+      const live = filtered.some(m => {
+        if (m.started) return true
+        const { start, end } = getMatchStartEnd(m)
+        if (start && end) return now >= start && now <= end
+        return false
+      })
+      courtLiveMap.value[key] = !!live
+    } catch (e) {
+      courtLiveMap.value[key] = false
+    }
     return filtered
   } catch (e) {
     console.error('Failed to load matches for court', e)
     matchesCache.value[key] = []
+    courtLiveMap.value[key] = false
     return []
+  }
+}
+
+function isCourtLive(court) {
+  try {
+    const key = courtKey(court)
+    return !!courtLiveMap.value[key]
+  } catch (e) {
+    return false
   }
 }
 
@@ -1429,6 +1453,30 @@ font-size: 1.22rem;
 font-weight: bold;
 margin-bottom: 8px;
 color: orange;
+}
+
+/* small LIVE badge shown beside court title when a match at that court is live */
+.court-live-badge {
+  display: inline-block;
+  margin-left: 12px;
+  background: linear-gradient(180deg, #a83a3a 0%, #c84b4b 100%);
+  color: rgba(255, 220, 220, 0.95);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid rgba(0,0,0,0.38);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 6px 12px rgba(200,50,50,0.12);
+  animation: court-live-blink 2.6s ease-in-out infinite;
+}
+
+@keyframes court-live-blink {
+  0% { opacity: 1; transform: translateZ(0) scale(1); }
+  45% { opacity: 0.45; transform: translateZ(0) scale(0.995); }
+  55% { opacity: 0.45; transform: translateZ(0) scale(0.995); }
+  100% { opacity: 1; transform: translateZ(0) scale(1); }
 }
 
 /* Court list and mini matches */
