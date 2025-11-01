@@ -156,7 +156,15 @@
       <div class="mt-auto d-flex justify-content-between align-items-center">
         <div class="btn-group">
           <template v-if="isHost(match)">
-            <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+            <template v-if="match.started || match._started">
+              <!-- Host can still invite even after the match has started -->
+              <button type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+              <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="endMatch(match)"><i class="bi bi-stop-fill me-2"></i>End Match</button>
+            </template>
+            <template v-else>
+              <button type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+              <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+            </template>
           </template>
           <template v-else-if="isJoined(match)">
             <template v-if="match.started || match._started">

@@ -28,6 +28,7 @@
   v-model="searchQuery"
   placeholder="Search courts by keyword..."
   class="search-input"
+  @focus="$event.target.select()"
 />
 <ul v-if="suggestions && suggestions.length" class="suggestions-list">
   <li
@@ -377,13 +378,38 @@ function countScheduledAndOngoingMatches(court) {
   let ongoing = 0
   
   for (const match of matches) {
+    // Check if match was explicitly ended early
+    if (match && match.endedAt) {
+      try {
+        const endedTime = new Date(match.endedAt)
+        if (!isNaN(endedTime.getTime()) && now >= endedTime) {
+          // Match has ended, skip it (don't count as ongoing or scheduled)
+          continue
+        }
+      } catch (e) {
+        // If parsing fails, continue with normal logic
+      }
+    }
+
     const { start, end } = getMatchStartEnd(match)
-    if (start && end) {
-      if (now >= start && now <= end) {
+    const withinWindow = Boolean(start && end && now >= start && now <= end)
+    const isFuture = Boolean(start && start > now)
+
+    // If host toggled started, only treat as ongoing when we're within the time window
+    if (match && (match.started || match._started)) {
+      if (withinWindow) {
         ongoing++
-      } else if (start > now) {
+      } else if (isFuture) {
         scheduled++
       }
+      continue
+    }
+
+    // No started flag: rely purely on window
+    if (withinWindow) {
+      ongoing++
+    } else if (isFuture) {
+      scheduled++
     }
   }
   
@@ -980,7 +1006,28 @@ async function loadMatchesForCourt(court) {
     try {
       const now = new Date()
       const live = filtered.some(m => {
-        if (m.started) return true
+        // If match was explicitly ended, it's not live anymore
+        if (m.endedAt) {
+          try {
+            const endedTime = new Date(m.endedAt)
+            if (!isNaN(endedTime.getTime()) && now >= endedTime) {
+              return false
+            }
+          } catch (e) {
+            // If parsing fails, continue with normal logic
+          }
+        }
+        
+        // Check if started flag is set
+        if (m.started || m._started) {
+          const { start, end } = getMatchStartEnd(m)
+          // Only count as live if within the time window
+          if (start && end) return now >= start && now <= end
+          // If no valid window but started, consider live
+          return true
+        }
+        
+        // Not started yet, check time window
         const { start, end } = getMatchStartEnd(m)
         if (start && end) return now >= start && now <= end
         return false
@@ -1001,7 +1048,35 @@ async function loadMatchesForCourt(court) {
 function isCourtLive(court) {
   try {
     const key = courtKey(court)
-    return !!courtLiveMap.value[key]
+    const matches = matchesCache.value[key] || []
+    const now = new Date()
+    
+    // Check each match individually with strict criteria
+    for (const m of matches) {
+      // Skip if explicitly ended
+      if (m && m.endedAt) {
+        try {
+          const endedTime = new Date(m.endedAt)
+          if (!isNaN(endedTime.getTime()) && now >= endedTime) {
+            continue // Match ended, skip it
+          }
+        } catch (e) {
+          // parsing failed, check other conditions
+        }
+      }
+      
+      // Get the time window
+      const { start, end } = getMatchStartEnd(m)
+      
+      // Only count as live if we have valid times AND currently within window
+      if (start && end && !isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        if (now >= start && now <= end) {
+          return true // Found an ongoing match
+        }
+      }
+    }
+    
+    return false // No ongoing matches found
   } catch (e) {
     return false
   }
@@ -1019,14 +1094,8 @@ async function toggleCourtExpand(court) {
 }
 
 function openCreateMatchForCourt(court) {
-  try {
-    selectedCourt.value = court
-    showAddMatchModal.value = true
-  } catch (e) {
-    // fallback
-    selectedCourt = court
-    showAddMatchModal = true
-  }
+  selectedCourt.value = court
+  showAddMatchModal.value = true
 }
 
 function canRemoveCourt(court) {

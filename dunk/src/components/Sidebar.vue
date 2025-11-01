@@ -29,6 +29,10 @@
             <span class="icon" aria-hidden="true"><Trophy /></span>
             <span class="label" v-show="!collapsed">Matches</span>
           </router-link>
+          <router-link class="nav-item" to="/leaderboard" active-class="router-link-active">
+            <span class="icon" aria-hidden="true"><Award /></span>
+            <span class="label" v-show="!collapsed">Leaderboard</span>
+          </router-link>
           <router-link class="nav-item" to="/forum" active-class="router-link-active">
             <span class="icon" aria-hidden="true"><MessageCircle /></span>
             <span class="label" v-show="!collapsed">Forum</span>
@@ -58,7 +62,7 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { defineProps, defineEmits, watch, onBeforeUnmount } from 'vue'
-import { Grid2x2, Trophy, Users, MessageCircle } from 'lucide-vue-next'
+import { Grid2x2, Trophy, Users, MessageCircle, Award } from 'lucide-vue-next'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false }
