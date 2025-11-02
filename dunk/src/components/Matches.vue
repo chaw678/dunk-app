@@ -310,17 +310,6 @@
                     </div>
                 </div>
             </div>
-            <!-- Empty state for Past Matches when user has none -->
-            <div v-if="selectedTab === 'past' && groupedMatches && (!groupedMatches.past || groupedMatches.past.length === 0)" class="past-empty-state">
-                <h3 class="section-heading">Past</h3>
-                <div class="empty-card card">
-                    <div class="card-body">
-                        <div class="empty-icon">🏀</div>
-                        <p class="lead mb-2">You have no past matches.</p>
-                        <p class="text-muted small">Past matches you hosted or joined will appear here. Try checking <strong>All Matches</strong> to find upcoming games.</p>
-                    </div>
-                </div>
-            </div>
         </div>
 
     <!-- render modal inside template so Vue can mount it -->
@@ -992,7 +981,7 @@ const groupedMatches = computed(() => {
     const now = new Date()
     const out = { ongoing: [], scheduled: [], past: [] }
     const list = (matchesForTab.value || []).slice()
-    // sort by start time where possible (earliest first)
+    // sort by start time where possible (earliest first for ongoing/scheduled)
     list.sort((a, b) => {
         const aa = getMatchStartEnd(a).start
         const bb = getMatchStartEnd(b).start
@@ -1002,6 +991,12 @@ const groupedMatches = computed(() => {
         return aa - bb
     })
     for (const m of list) {
+        // First check if match was manually ended
+        if (isPast(m)) {
+            out.past.push(m)
+            continue
+        }
+        
         const { start, end } = getMatchStartEnd(m)
         if (start && end) {
             if (now >= start && now <= end) out.ongoing.push(m)
@@ -1015,6 +1010,17 @@ const groupedMatches = computed(() => {
             out.scheduled.push(m)
         }
     }
+    
+    // Sort past matches by most recent first (reverse chronological order)
+    out.past.sort((a, b) => {
+        const aa = getMatchStartEnd(a).start
+        const bb = getMatchStartEnd(b).start
+        if (!aa && !bb) return 0
+        if (!aa) return 1
+        if (!bb) return -1
+        return bb - aa  // Reversed: most recent first
+    })
+    
     return out
 })
 

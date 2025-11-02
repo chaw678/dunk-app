@@ -119,25 +119,42 @@
           <p class="lead-text">This player has <span class="text-warning fw-semibold">{{ totalWins }}</span> wins across all levels.</p>
           <div class="chart-grid-lines" aria-hidden="true"></div>
           <div class="stats-chart d-flex align-items-end justify-content-between">
-            <div class="chart-bar">
+            <div class="chart-bar"
+                 @mouseenter="showBarTooltip($event, 'Open', statsFromProfile.open_wins)"
+                 @mouseleave="hideBarTooltip">
               <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.open_wins) : '8px'), transitionDelay: '0ms' }" aria-hidden="true"></div>
               <div class="bar-value">{{ displayOpen }}</div>
               <div class="bar-label">Open</div>
             </div>
 
-            <div class="chart-bar">
+            <div class="chart-bar"
+                 @mouseenter="showBarTooltip($event, 'Intermediate', statsFromProfile.intermediate_wins)"
+                 @mouseleave="hideBarTooltip">
               <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.intermediate_wins) : '8px'), transitionDelay: '90ms' }" aria-hidden="true"></div>
               <div class="bar-value">{{ displayIntermediate }}</div>
               <div class="bar-label">Intermediate</div>
             </div>
 
-            <div class="chart-bar">
+            <div class="chart-bar"
+                 @mouseenter="showBarTooltip($event, 'Professional', statsFromProfile.professional_wins)"
+                 @mouseleave="hideBarTooltip">
               <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.professional_wins) : '8px'), transitionDelay: '180ms' }" aria-hidden="true"></div>
               <div class="bar-value">{{ displayProfessional }}</div>
               <div class="bar-label">Professional</div>
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Tooltip -->
+      <div v-if="showTooltip" 
+           class="chart-tooltip" 
+           :style="{ 
+             left: tooltipPosition.x + 'px', 
+             top: tooltipPosition.y + 'px',
+             transform: 'translateX(-50%)' 
+           }">
+        {{ tooltipContent }}
       </div>
 
       
@@ -489,6 +506,12 @@ function barHeight(value) {
   return `${px}px`
 }
 const animateBars = ref(false)
+
+// tooltip state
+const showTooltip = ref(false)
+const tooltipContent = ref('')
+const tooltipPosition = ref({ x: 0, y: 0 })
+
 const displayOpen = ref(0)
 const displayIntermediate = ref(0)
 const displayProfessional = ref(0)
@@ -516,6 +539,21 @@ function animateCounts(duration = 700) {
 }
 onMounted(() => { setTimeout(() => { animateBars.value = true }, 80) })
 watch(animateBars, (v) => { if (v) animateCounts() })
+
+// tooltip functions
+function showBarTooltip(event, skillLevel, wins) {
+  const rect = event.target.getBoundingClientRect()
+  tooltipPosition.value = {
+    x: rect.left + rect.width / 2,
+    y: rect.top - 45
+  }
+  tooltipContent.value = `${skillLevel}: ${wins} win${wins !== 1 ? 's' : ''}`
+  showTooltip.value = true
+}
+
+function hideBarTooltip() {
+  showTooltip.value = false
+}
 
 // Follow / Unfollow logic (keeps the behavior from earlier Profile.vue)
 async function toggleFollow() {
@@ -645,6 +683,47 @@ function openPublicProfile(targetUid) {
 .bar-fill { width: 60%; background: linear-gradient(180deg,#ffca6a,#ffad1d); border-radius: 8px 8px 4px 4px; transition: height 360ms cubic-bezier(.2,.9,.3,1); display:flex; align-items:flex-start; justify-content:center; padding-top:8px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
 .bar-value { color: #081017; font-weight:800; font-size:0.98rem; margin-bottom:6px }
 .bar-label { color:#9CA3AF; margin-top:10px; font-size:0.95rem }
+
+/* Chart Tooltip */
+.chart-tooltip {
+  position: fixed;
+  background: rgba(20, 25, 35, 0.95);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 202, 106, 0.3);
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+
+.chart-tooltip::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: rgba(20, 25, 35, 0.95);
+}
+
+/* Add hover effects to chart bars */
+.chart-bar {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.chart-bar:hover {
+  transform: translateY(-2px);
+}
+
+.chart-bar:hover .bar-fill {
+  box-shadow: 0 8px 24px rgba(255, 173, 29, 0.4);
+}
 
 /* Follow modal styles (LoginPage styled) */
 .modal-overlay { position: fixed; inset: 0; background: rgba(20,20,20,0.85); display: flex; justify-content: center; align-items: center; z-index: 9999; }

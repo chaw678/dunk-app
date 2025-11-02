@@ -28,6 +28,7 @@
   v-model="searchQuery"
   placeholder="Search courts by keyword..."
   class="search-input"
+  @click="selectAllText"
 />
 <ul v-if="suggestions && suggestions.length" class="suggestions-list">
   <li
@@ -78,7 +79,10 @@
           <div v-for="(court, idx) in visibleCourts" :key="court.id || court.name" class="court-card" :data-court-key="courtKey(court)" :data-court-index="idx">
             <div class="court-card-row">
               <div class="court-info">
-                <h3 class="court-name">{{ court.name }}</h3>
+                <h3 class="court-name clickable-court-name" @click="zoomToCourtMarker(court)">
+                  {{ court.name }}
+                  <span v-if="hasOngoingMatches(court)" class="live-indicator">LIVE</span>
+                </h3>
                 <div class="court-sub">{{ court.region ? (court.region.charAt(0).toUpperCase() + court.region.slice(1)) : '' }}</div>
                 <div class="court-rating"> 
                   <span class="stars">★★★★★</span>
@@ -141,7 +145,7 @@ v-if="showAddCourtModal"
 
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, onUnmounted } from 'vue'
 import { onUserStateChanged } from '../firebase/auth'
 import { getDataFromFirebase } from '../firebase/firebase'
 import AddCourtModal2 from './AddCourtModal2.vue'
@@ -174,6 +178,9 @@ const autocompleteInput = ref(null)
 const isDroppingPin = ref(false)
 const matchEventToShow = ref(null)
 const suggestions = ref([])
+const allMatches = ref([])
+const courtsWithOngoingMatches = ref(new Set())
+let ongoingMatchesInterval = null
 
 const courts = ref([]);
 
@@ -267,10 +274,21 @@ suggestions.value = allCourts.value.filter(court =>
 console.log('Suggestions updated:', suggestions.value)
 }
 
+function selectAllText(event) {
+  // Select all text in the input when clicked
+  if (event.target && event.target.select) {
+    event.target.select()
+  }
+}
+
 function selectSuggestion(court) {
 searchQuery.value = court.name
 selectedCourt.value = court
-suggestions.value = []
+
+// Clear suggestions after a short delay to allow the selection to be visible
+setTimeout(() => {
+  suggestions.value = []
+}, 150)
 
 // Zoom map and pan to selected court coordinates
 if (map.value && court.lat && court.lon) {
@@ -287,6 +305,31 @@ if (map.value && court.lat && court.lon) {
     icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' }
   })
 }}
+
+// Function to zoom to a specific court when court name is clicked
+function zoomToCourtMarker(court) {
+  if (map.value && court.lat && court.lon) {
+    const position = { lat: Number(court.lat), lng: Number(court.lon) }
+    map.value.setCenter(position)
+    map.value.setZoom(16)  // Same zoom level as suggestion selection
+    
+    // Find the corresponding marker and trigger its info window briefly
+    const targetMarker = markers.value.find(marker => {
+      const markerPos = marker.getPosition()
+      return markerPos && 
+             Math.abs(markerPos.lat() - position.lat) < 0.0001 && 
+             Math.abs(markerPos.lng() - position.lng) < 0.0001
+    })
+    
+    if (targetMarker) {
+      // Briefly highlight the marker by simulating a mouse over
+      google.maps.event.trigger(targetMarker, 'mouseover')
+      setTimeout(() => {
+        google.maps.event.trigger(targetMarker, 'mouseout')
+      }, 2000) // Show info window for 2 seconds
+    }
+  }
+}
 
 const applyFilters = () => {
   if (!map.value) {
@@ -375,6 +418,18 @@ onMounted(() => {
   })
 
   loadCourtsFromFirebase()
+  loadAllMatchesAndDetermineOngoing()
+  
+  // Update ongoing matches every 30 seconds
+  ongoingMatchesInterval = setInterval(() => {
+    updateCourtsWithOngoingMatches()
+  }, 30000)
+})
+
+onUnmounted(() => {
+  if (ongoingMatchesInterval) {
+    clearInterval(ongoingMatchesInterval)
+  }
 })
 
 // --- Mini-match helpers (lightweight, local copies from Matches.vue) ---
@@ -484,6 +539,64 @@ function courtDisplayedPlayers(match) {
 function courtVisiblePlayers(arr) {
   if (!arr) return []
   return arr.slice(0, maxAvatarsSmall)
+}
+
+// Function to load all matches and determine ongoing matches by court
+async function loadAllMatchesAndDetermineOngoing() {
+  try {
+    const data = await getDataFromFirebase('matches')
+    const matches = []
+    if (data && typeof data === 'object') {
+      for (const [k1, v1] of Object.entries(data)) {
+        if (!v1) continue
+        if (typeof v1 === 'object') {
+          for (const [k2, v2] of Object.entries(v1)) {
+            if (!v2) continue
+            if (typeof v2 === 'object') {
+              for (const [mid, mv] of Object.entries(v2)) {
+                const copy = { id: mid, __dbPath: `matches/${k1}/${k2}/${mid}`, ...mv }
+                matches.push(copy)
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    allMatches.value = matches
+    updateCourtsWithOngoingMatches()
+  } catch (e) {
+    console.error('Failed to load all matches', e)
+  }
+}
+
+// Function to determine which courts have ongoing matches
+function updateCourtsWithOngoingMatches() {
+  const now = new Date()
+  const ongoingCourts = new Set()
+  
+  allMatches.value.forEach(match => {
+    // Check if match was manually ended
+    if (match.endedAt || match.endedAtISO) return
+    
+    const { start, end } = getMatchStartEnd(match)
+    const isOngoing = start && end && now >= start && now <= end
+    
+    if (isOngoing) {
+      const courtName = (match.court || '').toString().toLowerCase()
+      if (courtName) {
+        ongoingCourts.add(courtName)
+      }
+    }
+  })
+  
+  courtsWithOngoingMatches.value = ongoingCourts
+}
+
+// Function to check if a court has ongoing matches
+function hasOngoingMatches(court) {
+  const courtName = (court.name || '').toString().toLowerCase()
+  return courtsWithOngoingMatches.value.has(courtName)
 }
 
 // Perform search or update markers if needed
@@ -782,10 +895,26 @@ courtsList.forEach(court => {
 
   const infoWindow = new google.maps.InfoWindow({
     content: `
-      <div style="font-family: Arial; font-size: 14px;">
-        <strong>${court.name}</strong><br/>
-        <em>Region:</em> ${court.region}<br/>
-        <em>Coordinates:</em> ${isFinite(lat) ? lat.toFixed(4) : 'N/A'}, ${isFinite(lon) ? lon.toFixed(4) : 'N/A'}
+      <div style="font-family: Arial; font-size: 14px; padding: 3px 8px 6px 8px; margin: 0; line-height: 1.2;">
+        <div style="display: flex; align-items: center; gap: 8px; margin: 0 0 2px 0;">
+          <strong style="margin: 0;">${court.name}</strong>
+          ${hasOngoingMatches(court) ? `
+            <span style="
+              display: inline-block;
+              background: linear-gradient(180deg, #a83a3a 0%, #c84b4b 100%);
+              color: rgba(255, 210, 210, 0.95);
+              padding: 2px 6px;
+              border-radius: 999px;
+              font-weight: 800;
+              font-size: 0.65rem;
+              text-transform: uppercase;
+              letter-spacing: 0.06em;
+              border: 1px solid rgba(0,0,0,0.4);
+              box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 3px 9px rgba(200,50,50,0.12);
+            ">LIVE</span>
+          ` : ''}
+        </div>
+        <span style="color: #666; margin: 0;"><em>Region:</em> ${court.region}</span>
       </div>
     `
   });
@@ -1365,6 +1494,41 @@ margin-bottom: 8px;
 color: orange;
 }
 
+.clickable-court-name {
+cursor: pointer;
+transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+.clickable-court-name:hover {
+color: #ffad1d;
+text-shadow: 0 0 8px rgba(255, 173, 29, 0.4);
+text-decoration: underline;
+}
+
+.live-indicator {
+    display: inline-block;
+    background: linear-gradient(180deg, #a83a3a 0%, #c84b4b 100%);
+    color: rgba(255, 210, 210, 0.95);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border: 1px solid rgba(0,0,0,0.4);
+    box-shadow: inset 0 2px 0 rgba(255,255,255,0.03), 0 6px 18px rgba(200,50,50,0.12);
+    animation: live-blink 2.6s ease-in-out infinite;
+    margin-left: 8px;
+    text-shadow: none;
+}
+
+@keyframes live-blink {
+    0% { opacity: 1; transform: translateZ(0) scale(1); }
+    45% { opacity: 0.5; transform: translateZ(0) scale(0.995); }
+    55% { opacity: 0.5; transform: translateZ(0) scale(0.995); }
+    100% { opacity: 1; transform: translateZ(0) scale(1); }
+}
+
 /* Court list and mini matches */
 .court-list { margin-top: 18px }
 .court-card { padding: 16px; margin-bottom: 12px }
@@ -1417,7 +1581,7 @@ color: #232830;
 position: relative;
 display: flex;
 align-items: center;
-max-width: 390px;
+max-width: 650px;
 margin: 0 auto 26px auto;
 }
 
