@@ -91,13 +91,16 @@
               </div>
               <div class="court-actions">
                 <button class="view-matches-link" @click="toggleCourtExpand(court)">{{ expandedCourts[courtKey(court)] ? 'Hide Matches' : 'View Matches' }}</button>
+                <button v-if="isCourtCreator(court)" class="delete-court-btn" @click="deleteCourt(court)" title="Delete this court">
+                  <i class="bi bi-trash"></i>
+                </button>
               </div>
             </div>
 
             <div v-if="expandedCourts[courtKey(court)]" class="mini-matches">
               <!-- outer header removed to avoid duplication with embedded Matches header -->
               <div class="expanded-matches">
-                      <Matches :courtFilter="court.name" :embedded="true" />
+                      <Matches :key="matchesRefreshKey" :courtFilter="court.name" :embedded="true" />
               </div>
             </div>
           </div>
@@ -147,7 +150,7 @@ v-if="showAddCourtModal"
 <script setup>
 import { ref, onMounted, watch, computed, onUnmounted } from 'vue'
 import { onUserStateChanged } from '../firebase/auth'
-import { getDataFromFirebase } from '../firebase/firebase'
+import { getDataFromFirebase, deleteDataFromFirebase } from '../firebase/firebase'
 import AddCourtModal2 from './AddCourtModal2.vue'
 import AddCourtModal from './AddCourtModal.vue'
 import AddMatchModal from './AddMatchModal.vue'
@@ -180,6 +183,7 @@ const matchEventToShow = ref(null)
 const suggestions = ref([])
 const allMatches = ref([])
 const courtsWithOngoingMatches = ref(new Set())
+const matchesRefreshKey = ref(0) // Key to force Matches component refresh
 let ongoingMatchesInterval = null
 
 const courts = ref([]);
@@ -599,6 +603,67 @@ function hasOngoingMatches(court) {
   return courtsWithOngoingMatches.value.has(courtName)
 }
 
+// Function to check if current user is the creator of the court
+function isCourtCreator(court) {
+  if (!currentUser.value || !court.createdBy) return false
+  return currentUser.value.uid === court.createdBy
+}
+
+// Function to delete a court
+async function deleteCourt(court) {
+  if (!currentUser.value) {
+    alert('Please sign in to delete courts.')
+    return
+  }
+  
+  if (!isCourtCreator(court)) {
+    alert('You can only delete courts that you created.')
+    return
+  }
+  
+  if (!confirm(`Are you sure you want to delete "${court.name}"? This action cannot be undone.`)) {
+    return
+  }
+  
+  try {
+    // Find the court in Firebase by matching the court data
+    const courtsData = await getDataFromFirebase('courts')
+    let courtKey = null
+    
+    if (courtsData && typeof courtsData === 'object') {
+      for (const [key, courtData] of Object.entries(courtsData)) {
+        if (courtData && 
+            courtData.name === court.name && 
+            courtData.lat === court.lat && 
+            courtData.lon === court.lon &&
+            courtData.createdBy === court.createdBy) {
+          courtKey = key
+          break
+        }
+      }
+    }
+    
+    if (!courtKey) {
+      alert('Court not found in database.')
+      return
+    }
+    
+    // Delete the court from Firebase
+    const success = await deleteDataFromFirebase(`courts/${courtKey}`)
+    
+    if (success) {
+      alert('Court deleted successfully!')
+      // Refresh the courts list
+      await loadCourtsFromFirebase()
+    } else {
+      alert('Failed to delete court. Please try again.')
+    }
+  } catch (error) {
+    console.error('Error deleting court:', error)
+    alert('Failed to delete court: ' + error.message)
+  }
+}
+
 // Perform search or update markers if needed
 handleSearch()
 
@@ -788,6 +853,15 @@ function regionCount(region) {
 // Called when AddMatchModal emits 'created' — refresh matches for the selected court so embedded lists update
 async function handleMatchCreated() {
   try {
+    // Clear all cache to ensure fresh data is loaded
+    matchesCache.value = {}
+    
+    // Refresh all matches to ensure global state is updated
+    await loadAllMatchesAndDetermineOngoing()
+    
+    // Force embedded Matches component to refresh
+    matchesRefreshKey.value++
+    
     if (selectedCourt.value) {
       await loadMatchesForCourt(selectedCourt.value)
       // ensure the court's expanded matches view is visible
@@ -1538,7 +1612,22 @@ text-decoration: underline;
 .court-rating { color:#ffb14d; margin-top:6px }
 .stars { color:#ffb14d; letter-spacing: 1px; margin-right:8px }
 .reviews { color:#9fb0bf; font-size:0.85rem }
+.court-actions { display: flex; align-items: center; gap: 8px; }
 .view-matches-link { background:transparent; border:none; color:#ffb14d; font-weight:700; cursor:pointer }
+.delete-court-btn { 
+  background: transparent; 
+  border: none; 
+  color: #dc2626; 
+  cursor: pointer; 
+  padding: 4px 8px; 
+  border-radius: 4px; 
+  transition: background-color 0.2s, color 0.2s;
+  font-size: 1rem;
+}
+.delete-court-btn:hover { 
+  background-color: rgba(220, 38, 38, 0.1); 
+  color: #ef4444; 
+}
 .mini-matches { margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.03) }
 .mini-match { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.02) }
 .mini-left { flex:1 }

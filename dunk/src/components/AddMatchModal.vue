@@ -357,24 +357,19 @@ function skillRank(skill) {
 
 // Gender options based on user's profile
 const availableGenders = computed(() => {
-  const ug = (currentUserProfile.value && currentUserProfile.value.gender) ? ('' + currentUserProfile.value.gender).trim() : ''
-  if (!ug) return ['All', 'Female', 'Male']
-  // if user has a gender, allow 'All' and their gender only
-  const cap = ug.charAt(0).toUpperCase() + ug.slice(1).toLowerCase()
-  return ['All', cap]
+  // Always allow all gender options for match creation
+  // Users should be able to create matches for any gender preference
+  return ['All', 'Female', 'Male']
 })
 
-// Canonical match types (match "levels") — Beginner is a player rank, not a match type.
-const canonicalMatchTypes = ['Open', 'Intermediate', 'Professional']
+// Canonical match types (match "levels") — include all skill levels for match creation
+const canonicalMatchTypes = ['Open', 'Beginner', 'Intermediate', 'Professional']
 
-// Match type options limited by user's rank: allow creating matches whose required rank <= user's rank
+// Match type options: allow creating matches at any skill level
 const availableMatchTypes = computed(() => {
-  // Prefer ranking (newer field), fall back to legacy skill
-  const raw = (currentUserProfile.value && (currentUserProfile.value.ranking || currentUserProfile.value.skill)) || ''
-  const userSkill = normalizeSkill(raw)
-  const ur = skillRank(userSkill)
-  // Filter canonical match types by required rank
-  return canonicalMatchTypes.filter(t => skillRank(t) <= ur)
+  // Users can create matches at any skill level, not just at or below their own level
+  // This allows for more flexibility in organizing games
+  return canonicalMatchTypes
 })
 
 // Ensure selected values remain valid when profile changes

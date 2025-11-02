@@ -7,7 +7,7 @@
     <header class="topbar" :class="{ collapsed }"
       :style="{ '--sidebar-current-width': collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)' }">
       <div class="topbar-inner">
-        <div class="brand-left">
+        <div class="brand-left" @click="navigateToHomePage" style="cursor: pointer;">
           <div class="top-logo" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -32,9 +32,15 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 
 const collapsed = ref(false)
+const router = useRouter()
+
+const navigateToHomePage = () => {
+  router.push('/homepage')
+}
 </script>
 
 
