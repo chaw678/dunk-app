@@ -1192,23 +1192,24 @@ async function startMatch(match) {
     if (!confirm('Start this match now?')) return
     // optimistic local flag
     match._started = true
-    if (match.__dbPath) {
-        try {
-            const parts = match.__dbPath.split('/')
-            const id = parts.pop()
-            const path = parts.join('/')
-            await setChildData(`${path}/${id}`, 'started', true)
-            await setChildData(`${path}/${id}`, 'startedAt', new Date().toISOString())
-            // after successfully starting, navigate to the MatchRoom
-            try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
-        } catch (e) {
-            console.error('Failed to set started flag', e)
-            alert('Failed to start match — try again')
-            match._started = false
-        }
+            if (match.__dbPath) {
+                try {
+                    const parts = match.__dbPath.split('/')
+                    const id = parts.pop()
+                    const path = parts.join('/')
+                    await setChildData(`${path}/${id}`, 'started', true)
+                    await setChildData(`${path}/${id}`, 'startedAt', new Date().toISOString())
+                    // after successfully starting, navigate to the MatchRoom
+                    const query = { path: match.__dbPath }
+                    try { router.push({ name: 'MatchRoom', params: { id: match.id }, query }) } catch(e) { router.push({ path: `/match/${match.id}`, query }) }
+                } catch (e) {
+                    console.error('Failed to set started flag', e)
+                    alert('Failed to start match — try again')
+                    match._started = false
+                }
     } else {
         // no DB path: still navigate to match room
-        try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
+                try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
     }
 }
 

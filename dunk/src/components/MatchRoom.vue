@@ -6,6 +6,8 @@
       <button @click="onEndMatch" class="end-match-btn">End Match</button>
     </header>
 
+    <!-- wins chart moved below teams grid -->
+
     <!-- Bench Section -->
     <section class="bench-section">
       <h2>Bench</h2>
@@ -34,94 +36,24 @@
 
 
     <div class="center-timer">
-      <div class="timer-card">
-        <div class="timer-header">Round Timer</div>
-
-        <div class="timer-main">
-          <!-- Inline setter inside the card when timer not set -->
-          <div class="timer-setter-inline" v-if="!timerSet && !roundActive">
-      <div class="setter-row">
-        <div class="time-inputs-inline">
-          <input class="time-input" type="number" min="0" v-model.number="timerMinutes" placeholder="Min" />
-          <span class="colon">:</span>
-          <input class="time-input" type="number" min="0" max="59" v-model.number="timerSeconds" placeholder="Sec" />
-          <!-- Set button pulses when teamsLocked but timer not set -->
+      <!-- Simple round controls (timer removed; control lives in RoundStarted) -->
+      <div class="center-controls">
+        <div class="controls" style="display:flex;justify-content:center;gap:12px;margin:18px 0 24px;">
           <button
-            class="btn-set-inline"
-            :class="{ pulsate: setShouldPulse }"
-            @click="setTimer"
-            :disabled="!validTimerInput"
-          >Set</button>
-        </div>
-        <div class="preset-buttons-inline">
-          <button class="preset" :class="{ pulsate: setShouldPulse }" @click="applyPreset(60)">1:00</button>
-          <button class="preset" :class="{ pulsate: setShouldPulse }" @click="applyPreset(120)">2:00</button>
-          <button class="preset" :class="{ pulsate: setShouldPulse }" @click="applyPreset(300)">5:00</button>
-          <button class="preset" :class="{ pulsate: setShouldPulse }" @click="applyPreset(600)">10:00</button>
-        </div>
-      </div>
-    </div>
-
-          <!-- Large display + progress bar -->
-          <div class="time-large">{{ timerDisplay }}</div>
-          <div class="progress-wrap" aria-hidden="true">
-            <div class="progress-bar" :style="{ width: timerTotal.value ? ((timerTotal.value - timerRemaining.value) / timerTotal.value * 100) + '%' : '0%' }"></div>
-          </div>
-        </div>
-
-        <div class="timer-controls">
-          <!-- <button class="btn-start" v-if="!roundActive" @click="startRound" :disabled="!(teamsLocked && timerSet)">Start Match</button> -->
-           <button
             class="btn-start"
             v-if="!roundActive"
             @click="startRound"
             :disabled="!startEnabled"
             :class="{ 'disabled-btn': !startEnabled, pulsate: startShouldPulse }"
-          >Start Match</button>
-          <button class="btn" v-if="roundActive && !timerPaused" @click="pauseTimer">Pause</button>
-          <button class="btn" v-if="roundActive && timerPaused" @click="resumeTimer">Resume</button>
-          <button class="btn-reset" v-if="!roundActive && timerSet" @click="resetTimer">Reset</button>
+          >Start Round</button>
           <button class="btn-end" v-if="roundActive" @click.prevent.stop="endRound(true)">End Round</button>
         </div>
       </div>
+
+      
     </div>
 
-    <!-- <div class="timer-state">
-      <div class="state-row">
-        <div class="state-item"><strong>Set:</strong> {{ timerSet ? 'Yes' : 'No' }}</div>
-        <div class="state-item"><strong>Status:</strong> {{ roundActive ? (timerPaused ? 'Paused' : 'Running') : (timerSet ? 'Ready' : 'Not set') }}</div>
-        <div class="state-item"><strong>Remaining:</strong> {{ timerSet ? timerDisplay : '--:--' }}</div>
-        <div class="state-item" v-if="timerTotal && !roundActive"><strong>Length:</strong> {{ timerTotal ? (Math.floor(timerTotal/60).toString().padStart(2,'0') + ':' + (timerTotal%60).toString().padStart(2,'0')) : '--:--' }}</div>
-      </div>
-    </div> -->
-
-    <!-- <div class="timer-panel">
-        <div class="timer-setter" v-if="!timerSet && !roundActive">
-          <label>Set Round Time</label>
-          <div class="time-inputs">
-            <input type="number" min="0" v-model.number="timerMinutes" placeholder="Min" /> :
-           <input type="number" min="0" max="59" v-model.number="timerSeconds" placeholder="Sec" />
-            <button @click="setTimer" :disabled="!validTimerInput">Set</button>
-        </div>
-          <div class="preset-buttons">
-            <button @click="applyPreset(60)">1:00</button>
-            <button @click="applyPreset(120)">2:00</button>
-            <button @click="applyPreset(300)">5:00</button>
-            <button @click="applyPreset(600)">10:00</button>
-          </div>
-        </div>
-
-        <div class="timer-display">
-          <div class="time-large">{{ timerDisplay }}</div>
-          <div class="timer-actions">
-            <button v-if="!roundActive" @click="startRound" :disabled="!(teamsLocked && timerSet)">Start Round</button>
-            <button v-if="roundActive && !timerPaused" @click="pauseTimer">Pause</button>
-            <button v-if="roundActive && timerPaused" @click="resumeTimer">Resume</button>
-            <button v-if="!roundActive && timerSet" @click="resetTimer">Reset</button>
-            <button v-if="roundActive" @click="endRound">End Round</button>
-          </div>
-        </div>
-      </div> -->
+  
 
     <!-- Teams Grid -->
     <section class="teams-grid">
@@ -160,7 +92,9 @@
     </section>
 
     <!-- Match Controls -->
-<footer class="actions-row">
+    <!-- wins chart moved below match controls -->
+
+    <footer class="actions-row">
       <div class="controls-left">
         <!-- <button @click="randomizeTeams" :disabled="teamsLocked">Randomize Teams</button>
         <button @click="confirmTeams" :disabled="teamsLocked || !(teamA.length && teamB.length)">Confirm Teams</button> -->
@@ -176,6 +110,23 @@
     
     </footer>
 
+    <!-- Wins bar chart (mirrors RoundStarted) - placed below controls as requested -->
+    <section class="wins-chart">
+      <h1 class="wins-title">Match Wins</h1>
+      <div class="chart-row">
+        <div class="chart-item">
+          <div class="bar-label">Team A</div>
+          <div class="bar-outer"><div :class="['bar-inner', { pop: animateA }]" :style="{ height: winsPercentA + '%' }"></div></div>
+          <div class="bar-count">{{ winsA }}</div>
+        </div>
+        <div class="chart-item">
+          <div class="bar-label">Team B</div>
+          <div class="bar-outer"><div :class="['bar-inner','bar-b', { pop: animateB }]" :style="{ height: winsPercentB + '%' }"></div></div>
+          <div class="bar-count">{{ winsB }}</div>
+        </div>
+      </div>
+    </section>
+
     <!-- Stats Modal -->
     <StatisticsModal v-if="showStats" :stats="computedStats" @close="showStats=false" />
   </div>
@@ -189,7 +140,7 @@
 import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
  import draggable from 'vuedraggable'
  import { useRoute, useRouter } from 'vue-router'
- import { getDataFromFirebase, setChildData } from '../firebase/firebase'
+import { getDataFromFirebase, setChildData, onDataChange } from '../firebase/firebase'
 // import your StatisticsModal if you want fancy end-of-match stats
 
 const route = useRoute()
@@ -346,6 +297,43 @@ const displayTitle = computed(() => {
   return t || 'Untitled Match'
 })
 
+// --- wins chart (live) ---
+const winsA = ref(0)
+const winsB = ref(0)
+const winsTotal = computed(() => (Number(winsA.value) || 0) + (Number(winsB.value) || 0))
+const winsPercentA = computed(() => { const t = winsTotal.value; return t ? Math.round((winsA.value / t) * 100) : 0 })
+const winsPercentB = computed(() => { const t = winsTotal.value; return t ? Math.round((winsB.value / t) * 100) : 0 })
+const animateA = ref(false)
+const animateB = ref(false)
+
+watch(winsA, (nv, ov) => { if (nv !== ov) { animateA.value = true; setTimeout(() => (animateA.value = false), 650) } })
+watch(winsB, (nv, ov) => { if (nv !== ov) { animateB.value = true; setTimeout(() => (animateB.value = false), 650) } })
+
+let winsUnsub = null
+async function loadWins() {
+  try {
+    // prefer stored __dbPath when available
+    const dbPath = (matchData.value && matchData.value.__dbPath) ? matchData.value.__dbPath : (matchId.value ? `matches/${matchId.value}` : null)
+    if (!dbPath) return
+    // subscribe to realtime wins updates
+    if (winsUnsub) {
+      try { winsUnsub() } catch (e) {}
+      winsUnsub = null
+    }
+    winsUnsub = onDataChange(`${dbPath}/wins`, (val) => {
+      winsA.value = (val && val.A) ? Number(val.A) : 0
+      winsB.value = (val && val.B) ? Number(val.B) : 0
+    })
+  } catch (e) { console.warn('loadWins failed', e) }
+}
+
+// computed stats object used by the optional StatisticsModal
+const computedStats = computed(() => ({
+  wins: { A: Number(winsA.value) || 0, B: Number(winsB.value) || 0, total: Number(winsTotal.value) || 0 },
+  teams: { teamA: teamA.value || [], teamB: teamB.value || [] },
+  match: matchData.value || {}
+}))
+
 
 onMounted(async () => {
   if (!matchId.value && !route.query.path) return
@@ -382,7 +370,9 @@ onMounted(async () => {
       }
     }
     // ensure bench populates after matchData set
-    await populateBenchFromMatch(matchData.value)
+      await populateBenchFromMatch(matchData.value)
+      // subscribe to live wins updates for this match
+      await loadWins()
   } catch (e) {
     console.error('Failed to load match data', e)
   }
@@ -397,103 +387,10 @@ const showStats = ref(false)
 
 const teamReady = computed(() => (teamA.value.length > 0 && teamB.value.length > 0))
 const confirmShouldPulse = computed(() => teamReady.value && !teamsLocked.value)
-const setShouldPulse = computed(() => teamsLocked.value && !timerSet.value)
-const startEnabled = computed(() => teamsLocked.value && timerSet.value)
+const startEnabled = computed(() => teamsLocked.value)
 const startShouldPulse = computed(() => startEnabled.value && !roundActive.value)
 
-// Timer state
-const timerMinutes = ref(0)
-const timerSeconds = ref(0)
-const timerTotal = ref(0)        // total seconds set for round
-const timerRemaining = ref(0)    // seconds left
-const timerSet = ref(false)
-const timerInterval = ref(null)
-const timerPaused = ref(false)
-
-const validTimerInput = computed(() => {
-  const m = Number(timerMinutes.value) || 0
-  const s = Number(timerSeconds.value) || 0
-  return (m > 0 || s > 0) && s >= 0 && s < 60
-})
-
-const timerDisplay = computed(() => {
-  const secs = timerRemaining.value || timerTotal.value || 0
-  const mm = Math.floor(secs / 60).toString().padStart(2, '0')
-  const ss = (secs % 60).toString().padStart(2, '0')
-  return `${mm}:${ss}`
-})
-
-function applyPreset(seconds) {
-  timerMinutes.value = Math.floor(seconds / 60)
-  timerSeconds.value = seconds % 60
-  setTimer()
-}
-
-function setTimer() {
-  const m = Number(timerMinutes.value) || 0
-  const s = Number(timerSeconds.value) || 0
-  const total = m * 60 + s
-  if (!total) return
-  timerTotal.value = total
-  timerRemaining.value = total
-  timerSet.value = true
-  timerPaused.value = false
-}
-
-function resetTimer() {
-  clearInterval(timerInterval.value)
-  timerInterval.value = null
-  timerRemaining.value = timerTotal.value
-  timerPaused.value = false
-  timerSet.value = false
-  timerMinutes.value = 0
-  timerSeconds.value = 0
-}
-
-function clearTimerToZero() {
-  if (timerInterval.value) {
-    clearInterval(timerInterval.value)
-    timerInterval.value = null
-  }
-  timerPaused.value = false
-  timerSet.value = false
-  timerRemaining.value = 0
-  timerTotal.value = 0
-  timerMinutes.value = 0
-  timerSeconds.value = 0
-}
-
-function startTimer() {
-  if (!timerSet.value || timerRemaining.value <= 0) return
-  clearInterval(timerInterval.value)
-  timerPaused.value = false
-  timerInterval.value = setInterval(() => {
-    if (timerPaused.value) return
-    if (timerRemaining.value > 0) {
-      timerRemaining.value -= 1
-    } else {
-      clearInterval(timerInterval.value)
-      timerInterval.value = null
-      // round ended automatically
-      roundActive.value = false
-      timerSet.value = false
-      // optionally show stats or notification
-      showStats.value = true
-      // reset timer to zero when round ends automatically
-      clearTimerToZero()
-    }
-  }, 1000)
-}
-
-
-function pauseTimer() {
-  timerPaused.value = true
-}
-
-function resumeTimer() {
-  if (!timerSet.value) return
-  timerPaused.value = false
-}
+// timer removed: startEnabled depends only on teamsLocked; keep startShouldPulse
 
 
 /** Computed classes for team outlines */
@@ -503,6 +400,57 @@ const teamAOutlineClass = computed(() =>
 const teamBOutlineClass = computed(() =>
   teamB.value.length ? (roundActive.value ? 'active-pulse' : 'active-outline') : 'inactive-outline'
 )
+
+// async function resolveMatchDbPath() {
+//   // prefer explicit __dbPath, otherwise construct from matches/<id>
+//   const p = matchData.value && matchData.value.__dbPath
+//   if (p) return p
+//   if (matchId.value) return `matches/${matchId.value}`
+//   return null
+// }
+
+async function resolveMatchDbPath() {
+  if (matchData.value && matchData.value.__dbPath) return matchData.value.__dbPath
+  if (matchId.value) return `matches/${matchId.value}`
+  return null
+}
+
+/* --- save teams to realtime DB --- */
+// async function saveTeamsToDB() {
+//   try {
+//     const dbPath = await resolveMatchDbPath()
+//     if (!dbPath) return
+//     // write teams as arrays of uids (and optionally full objects)
+//     const payload = {
+//       teams: {
+//         teamA: teamA.value.map(p => p.uid || p.name || p),
+//         teamB: teamB.value.map(p => p.uid || p.name || p)
+//       }
+//     }
+//     // setChildData on dbPath children individually to avoid overwriting other fields
+//     await setChildData(dbPath, 'teams', payload.teams)
+//     // optionally persist playersMap entries for display
+//     // await setChildData(dbPath, 'teamsMap', { teamA: teamA.value, teamB: teamB.value })
+//   } catch (e) {
+//     console.warn('saveTeamsToDB failed', e)
+//   }
+// }
+
+async function saveTeamsToDB() {
+  try {
+    const dbPath = await resolveMatchDbPath()
+    if (!dbPath) return
+    const payload = {
+      teams: {
+        teamA: teamA.value.map(p => p.uid || p.name || p),
+        teamB: teamB.value.map(p => p.uid || p.name || p)
+      }
+    }
+    await setChildData(dbPath, 'teams', payload.teams)
+  } catch (e) {
+    console.warn('saveTeamsToDB failed', e)
+  }
+}
 
 /** Shuffle bench/randomise teams and assign */
 function randomizeTeams() {
@@ -516,30 +464,74 @@ function randomizeTeams() {
 }
 // You can annotate: "randomizeTeams() splits all players randomly between Team A and Team B"
 
-function confirmTeams() { teamsLocked.value = true }
-function startRound() {
-  if (!teamsLocked.value) { alert('Confirm teams before starting a round'); return }
-  if (!timerSet.value || (timerRemaining.value <= 0 && timerTotal.value <= 0)) { alert('Set the round timer first'); return }
-  roundActive.value = true
-  startTimer()
+async function confirmTeams() {
+  console.log('confirmTeams() called', { teamA: teamA.value.length, teamB: teamB.value.length, matchId: matchId?.value })
+  if (!(teamA.value.length && teamB.value.length)) {
+    console.warn('Cannot confirm - teams not filled')
+    return
+  }
+  teamsLocked.value = true
+
+  // remove confirmed players from bench
+  const removed = new Set([...(teamA.value.map(p => p.uid || p.name)), ...(teamB.value.map(p => p.uid || p.name))])
+  bench.value = bench.value.filter(p => !removed.has(p.uid || p.name))
+
+  try {
+    await saveTeamsToDB()
+    console.log('Teams saved to DB')
+  } catch (e) {
+    console.error('saveTeamsToDB error', e)
+  }
+
+  // navigate to RoundStarted
+  try {
+    if (!router) { console.error('router is undefined') }
+  // prefer named route and pass the match DB path so RoundStarted can return to the exact same DB node
+  const navState = { teams: { teamA: teamA.value.map(p => p.uid || p.name || p), teamB: teamB.value.map(p => p.uid || p.name || p) } }
+  if (matchData.value && matchData.value.__dbPath) navState.matchPath = matchData.value.__dbPath
+  const query = {}
+  if (matchData.value && matchData.value.__dbPath) query.path = matchData.value.__dbPath
+  // prefer named route and include history state + query path
+  await router.push({ name: 'RoundStarted', params: { id: matchId.value }, query, state: navState })
+    console.log('Navigated via named route to RoundStarted')
+  } catch (err) {
+    console.warn('Named route push failed, trying path push', err)
+    try {
+      await router.push(`/match/${encodeURIComponent(String(matchId.value))}/round`)
+      console.log('Navigated via path to /match/:id/round')
+    } catch (err2) {
+      console.error('Navigation failed', err2)
+      alert('Navigation failed — check console for details')
+    }
+  }
 }
-function endRound(requireConfirm = true) {
+
+async function startRound() {
+  if (!teamsLocked.value) { alert('Confirm teams before starting a round'); return }
+  roundActive.value = true
+  // persist active flag so other clients can react
+  try {
+    const dbPath = await resolveMatchDbPath()
+    if (dbPath) {
+      await setChildData(dbPath, 'roundActive', true)
+      await setChildData(dbPath, 'lastRoundStartedAt', new Date().toISOString())
+    }
+  } catch (e) { /* ignore persistence errors */ }
+}
+
+async function endRound(requireConfirm = true) {
   if (requireConfirm) {
     if (!confirm('End this round now?')) return
   }
-  // stop countdown
-  if (timerInterval.value) {
-    clearInterval(timerInterval.value)
-    timerInterval.value = null
-  }
-  timerPaused.value = false
   roundActive.value = false
-  // mark timer as no longer active (leave remaining for review) and show stats
-  timerSet.value = false
   showStats.value = true
-
-  // reset timer to zero when round is ended manually
-  clearTimerToZero()
+  try {
+    const dbPath = await resolveMatchDbPath()
+    if (dbPath) {
+      await setChildData(dbPath, 'roundActive', false)
+      await setChildData(dbPath, 'lastRoundEndedAt', new Date().toISOString())
+    }
+  } catch (e) { /* ignore */ }
 }
 
 function addRound() { teamsLocked.value = false }
@@ -548,18 +540,27 @@ function selectWinner(team) {
     alert(`Team ${team} wins! (implement real logic here)`)
   }
 }
-function onEndMatch() {
+async function onEndMatch() {
   // optionally confirm ending match
   if (!confirm('End the match now?')) return
   showStats.value = true
-  // ensure timer cleared to zero when match ends
-  clearTimerToZero()
+  // persist match end state and ensure roundActive is false
+  try {
+    const dbPath = await resolveMatchDbPath()
+    if (dbPath) {
+      await setChildData(dbPath, 'roundActive', false)
+      await setChildData(dbPath, 'lastRoundEndedAt', new Date().toISOString())
+    }
+  } catch (e) { /* ignore persistence errors */ }
 }
 
 function goBack() { router.back() }
 
 onBeforeUnmount(() => {
-  if (timerInterval.value) clearInterval(timerInterval.value)
+  if (winsUnsub) {
+    try { winsUnsub() } catch (e) {}
+    winsUnsub = null
+  }
 })
 
 </script>
@@ -677,4 +678,26 @@ header { display: flex; align-items: center; justify-content: space-between; }
 .back-btn, .end-match-btn { border:none; background:#B23B3B; color: #fff; border-radius: 8px; padding:9px 18px; font-weight:700; }
 .bench-section p { font-size: 0.96rem; color: #ccc; margin-bottom:16px; }
 .teams-grid { display: flex; gap: 34px; align-items: flex-start; justify-content: center; }
+
+/* Wins chart (copied small subset from RoundStarted.vue) */
+.wins-chart { max-width:700px; margin: 18px auto; }
+.chart-row { display:flex; gap:28px; justify-content:center; align-items:end; }
+.chart-item { display:flex; flex-direction:column; align-items:center; gap:8px; }
+.bar-outer { width:120px; height:180px; background:rgba(255,255,255,0.03); border-radius:8px; display:flex; align-items:flex-end; overflow:hidden; border:1px solid rgba(255,255,255,0.03); }
+.bar-inner { width:100%; background:linear-gradient(180deg,#ffad1d,#ffda99); transition:height 400ms ease; }
+.bar-inner.bar-b { background:linear-gradient(180deg,#ff8a8a,#ff5a5a); }
+.bar-inner.pop {
+  animation: bar-pop 620ms cubic-bezier(.2,.9,.2,1);
+  transform-origin: bottom center;
+  box-shadow: 0 8px 24px rgba(255,173,29,0.10);
+}
+@keyframes bar-pop {
+  0% { transform: scaleY(0.9); filter: blur(0px); }
+  45% { transform: scaleY(1.06); }
+  70% { transform: scaleY(0.98); }
+  100% { transform: scaleY(1); filter: blur(0px); }
+}
+.bar-label { color:#f3e6c2; font-weight:700; }
+.wins-title { text-align:center; margin-top:8px; color:#ffda99; font-size:2.6rem; font-weight:800; }
+.bar-count { color:#fff; font-weight:900; font-size:2rem; margin-top:10px; }
 </style>
