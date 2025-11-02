@@ -80,10 +80,7 @@
               <div class="court-info">
                 <h3 class="court-name">{{ court.name }}</h3>
                 <div class="court-sub">{{ court.region ? (court.region.charAt(0).toUpperCase() + court.region.slice(1)) : '' }}</div>
-                <div class="court-rating"> 
-                  <span class="stars">★★★★★</span>
-                  <span class="reviews">(120 reviews)</span>
-                </div>
+                
               </div>
               <div class="court-actions">
                 <button class="view-matches-link" @click="toggleCourtExpand(court)">{{ expandedCourts[courtKey(court)] ? 'Hide Matches' : 'View Matches' }}</button>
@@ -1371,9 +1368,6 @@ color: orange;
 .court-card-row { display:flex; justify-content:space-between; align-items:center }
 .court-info { display:flex; flex-direction:column }
 .court-sub { color:#9fb0bf; font-size:0.95rem }
-.court-rating { color:#ffb14d; margin-top:6px }
-.stars { color:#ffb14d; letter-spacing: 1px; margin-right:8px }
-.reviews { color:#9fb0bf; font-size:0.85rem }
 .view-matches-link { background:transparent; border:none; color:#ffb14d; font-weight:700; cursor:pointer }
 .mini-matches { margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.03) }
 .mini-match { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.02) }
