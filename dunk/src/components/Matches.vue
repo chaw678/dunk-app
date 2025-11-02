@@ -1430,7 +1430,7 @@ function formatDate(match) {
 }
 
 .tab {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(195, 67, 67, 0.03);
     color: #d7e3f6;
     padding: 8px 12px;
     border-radius: 8px;
