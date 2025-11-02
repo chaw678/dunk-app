@@ -370,8 +370,34 @@ function closeCreatedPopup() {
 
 const router = useRouter()
 
-function openMatch(match, event) {
-    if (!match) return
+// function openMatch(match, event) {
+//     if (!match) return
+//     // prefer named route, fallback to path
+//     try {
+//         router.push({ name: 'MatchRoom', params: { id: match.id } })
+//     } catch (e) {
+//         router.push(`/match/${match.id}`)
+//     }
+// }
+
+// function openMatch(match) {
+//   if (!match) return
+//   // prefer common id names, fallback to __dbPath last segment or .key
+//   const id = match.id || match.key || match._id || match['.key'] || (match.__dbPath ? match.__dbPath.split('/').pop() : null)
+//   if (!id) {
+//     console.warn('openMatch: no id found on match object', match)
+//     return
+//   }
+//   try {
+//     router.push({ name: 'MatchRoom', params: { id: String(id) } })
+//   } catch (e) {
+//     router.push(`/match/${encodeURIComponent(String(id))}`)
+//   }
+// }
+
+async function openMatch(match) {
+  console.log('openMatch called with match:', match)
+  if (!match) return
     // If the click originated from an interactive child (button, link, avatar, tooltip wrapper,
     // or other control), do not navigate — the child should handle the action.
     try {
@@ -391,12 +417,47 @@ function openMatch(match, event) {
     } catch (e) {
         // conservative default: do not block navigation on error
     }
-    // prefer named route, fallback to path
+
+  // common id locations on match objects
+  let id = match.id || match.key || match['.key'] || match._id || (match.__dbPath ? String(match.__dbPath).split('/').pop() : null)
+
+  // If we still don't have an id, try to infer it from the matches collection using title/id fields
+  if (!id) {
     try {
-        router.push({ name: 'MatchRoom', params: { id: match.id } })
+      const all = await getDataFromFirebase('matches')
+      if (all && typeof all === 'object') {
+        // try direct key lookup (unlikely since id was falsy) then search values
+        const byKey = all[match] || all[match?.title]
+        if (byKey) id = match?.title || match
+        if (!id) {
+          const foundEntry = Object.entries(all).find(([k, v]) => {
+            if (!v || typeof v !== 'object') return false
+            // match by known fields: id, key, title, name
+            return String(v.id) === String(match.id)
+              || String(v.key) === String(match.key)
+              || String(v.title) === String(match.title)
+              || String(v.name) === String(match.title)
+              || String(k) === String(match.title)
+          })
+          if (foundEntry) id = foundEntry[0]
+        }
+      }
     } catch (e) {
-        router.push(`/match/${match.id}`)
+      console.warn('openMatch: failed to fetch matches to infer id', e)
     }
+  }
+
+  if (!id) {
+    console.warn('openMatch: could not find a DB id for match object', match)
+    return
+  }
+
+  const strId = String(id)
+  try {
+    outer.push({ name: 'MatchRoom', params: { id: strId }, query: { path: match.__dbPath || '' } })
+  } catch (e) {
+    router.push({ path: `/match/${encodeURIComponent(strId)}`, query: { path: match.__dbPath || '' } })
+  }
 }
 
 // Google sign-in handler
@@ -1252,23 +1313,24 @@ async function startMatch(match) {
     if (!confirm('Start this match now?')) return
     // optimistic local flag
     match._started = true
-    if (match.__dbPath) {
-        try {
-            const parts = match.__dbPath.split('/')
-            const id = parts.pop()
-            const path = parts.join('/')
-            await setChildData(`${path}/${id}`, 'started', true)
-            await setChildData(`${path}/${id}`, 'startedAt', new Date().toISOString())
-            // after successfully starting, navigate to the MatchRoom
-            try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
-        } catch (e) {
-            console.error('Failed to set started flag', e)
-            alert('Failed to start match — try again')
-            match._started = false
-        }
+            if (match.__dbPath) {
+                try {
+                    const parts = match.__dbPath.split('/')
+                    const id = parts.pop()
+                    const path = parts.join('/')
+                    await setChildData(`${path}/${id}`, 'started', true)
+                    await setChildData(`${path}/${id}`, 'startedAt', new Date().toISOString())
+                    // after successfully starting, navigate to the MatchRoom
+                    const query = { path: match.__dbPath }
+                    try { router.push({ name: 'MatchRoom', params: { id: match.id }, query }) } catch(e) { router.push({ path: `/match/${match.id}`, query }) }
+                } catch (e) {
+                    console.error('Failed to set started flag', e)
+                    alert('Failed to start match — try again')
+                    match._started = false
+                }
     } else {
         // no DB path: still navigate to match room
-        try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
+                try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
     }
 }
 
