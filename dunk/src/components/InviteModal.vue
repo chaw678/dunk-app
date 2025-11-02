@@ -124,6 +124,14 @@ const filteredCandidates = computed(() => {
       // ignore check errors and continue
     }
 
+    // Only include users who are eligible for this match (gender + rank requirements)
+    try {
+      if (!isEligibleForMatch(u)) continue
+    } catch (e) {
+      // if eligibility check fails, skip this user
+      continue
+    }
+
     pool.push(u)
   }
 
@@ -191,6 +199,49 @@ function profileSubtitle(u) {
   if (rank) parts.push(capitalize(rank))
   if (gender) parts.push(capitalize(gender))
   return parts.join(' ')
+}
+
+// Eligibility helpers: only invite users who meet the match's gender and rank requirements
+function normalizeMatchType(t) {
+  if (!t) return 'Open'
+  const s = ('' + t).toLowerCase()
+  if (s === 'beginner') return 'Open'
+  if (s.includes('open') || s === 'open') return 'Open'
+  if (s.includes('intermediate')) return 'Intermediate'
+  if (s.includes('professional') || s.includes('pro')) return 'Professional'
+  return 'Open'
+}
+
+function rankLevel(r) {
+  const s = ('' + (r || '')).toLowerCase()
+  if (s.includes('professional') || s.includes('pro')) return 3
+  if (s.includes('intermediate') || s.includes('inter')) return 2
+  return 1 // Beginner / Open
+}
+
+function isEligibleForMatch(u) {
+  try {
+    const m = props.match || {}
+    // gender check: match may be 'All' or specific 'Male'/'Female'
+    const matchGender = (m.gender || 'All').toString().trim()
+    if (matchGender && matchGender.toLowerCase() !== 'all') {
+      // require user to have a matching gender set
+      if (!u || !u.gender) return false
+      if (u.gender.toString().trim().toLowerCase() !== matchGender.toLowerCase()) return false
+    }
+
+    // rank/level check
+    const matchTypeRaw = m.type || m.level || m.matchType || 'Open'
+    const matchType = normalizeMatchType(matchTypeRaw)
+    if (matchType === 'Open') return true
+    const userRankRaw = u && (u.ranking || u.skill) ? (u.ranking || u.skill) : 'Beginner'
+    const userLevel = rankLevel(userRankRaw)
+    const neededLevel = rankLevel(matchType)
+    return userLevel >= neededLevel
+  } catch (e) {
+    // in case of unexpected data, be conservative and exclude
+    return false
+  }
 }
 
 watch(selectAll, (v) => {
@@ -261,9 +312,42 @@ function close() { emit('close') }
 .inv-modal .card-header { padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.10); color:#fff }
 .inv-modal .card-header .small { color: #e6eef6; opacity: 1; font-size: 0.95rem; font-weight: 500; margin-top:4px }
 .inv-modal .invite-row { padding:12px 10px; border-bottom:1px solid rgba(255,255,255,0.02); gap:12px; align-items:center }
-.small-avatar { width:44px; height:44px; border-radius:50%; overflow:hidden; display:inline-flex; align-items:center; justify-content:center }
-.small-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; border: 3px solid rgba(255,154,60,0.95); box-sizing: border-box }
-.avatar-initial { width:44px; height:44px; display:flex; align-items:center; justify-content:center; background:#1f262b; color:#fff; border-radius:50%; border: 3px solid rgba(255,154,60,0.95); box-sizing: border-box }
+.small-avatar {
+  flex: 0 0 44px; /* fixed basis: don't let avatar shrink */
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.small-avatar img {
+  display: block;
+  width: 44px;
+  height: 44px;
+  object-fit: cover; /* keep aspect ratio and cover */
+  border-radius: 50%;
+  border: 3px solid rgba(255,154,60,0.95);
+  box-sizing: border-box;
+}
+.avatar-initial {
+  flex: 0 0 44px;
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1f262b;
+  color: #fff;
+  border-radius: 50%;
+  border: 3px solid rgba(255,154,60,0.95);
+  box-sizing: border-box;
+}
 .invite-name { font-weight:700; color:#fff }
 .invite-row:hover { background: rgba(255,255,255,0.02); }
 
@@ -322,7 +406,8 @@ input.form-control-sm:focus { outline: none; box-shadow: inset 0 1px 0 rgba(255,
 .invite-row .small.text-muted { color: rgba(96, 95, 95, 0.65) }
 
 .card-item { margin: 10px 0; background: rgba(18,20,22,0.85); padding: 12px; border-radius: 10px; display: flex; align-items: center }
-.invite-name { font-weight:700; color:#fff; font-size: 1.05rem }
+.invite-name { font-weight:700; color:#fff; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.invite-row .flex-fill { min-width: 0; /* allow the text column to shrink and truncate properly */ }
 .invite-row:hover { transform: translateY(-1px); }
 
 .btn-invite-row { min-width: 96px; padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.04); color: #ffb76a; border: none; font-weight:700 }

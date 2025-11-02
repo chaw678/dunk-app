@@ -781,17 +781,38 @@ function openPublicProfile(targetUid) {
   padding: 6px 8px;
   border-radius: 6px;
   background: #22272d;
+  gap: 10px;
 }
 .avatar {
+  flex: 0 0 44px; /* don't let avatar shrink */
+  min-width: 44px;
+  min-height: 44px;
   width: 44px;
   height: 44px;
   border-radius: 50%;
   border: 3px solid #FFAD1D;
   object-fit: cover;
+  display: block;
 }
-.info { flex-grow: 1; margin-left: 10px; }
-.username { color: #fff; font-weight: 600; }
-.sub { color: #9ca3af; font-size: 0.85rem; }
+.info {
+  flex: 1 1 auto; /* allow to shrink */
+  min-width: 0; /* enables truncation inside flex */
+  margin-left: 6px;
+}
+.username {
+  color: #fff;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sub {
+  color: #9ca3af;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .remove-btn {
   background: #e74c3c;
   color: white;
