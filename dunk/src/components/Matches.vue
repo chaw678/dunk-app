@@ -353,6 +353,24 @@ const auth = getAuth()
 
 const maxAvatars = 6
 const usersCache = ref({})
+let usersUnsub = null
+
+function subscribeUsersRealtime() {
+    // cleanup previous
+    if (usersUnsub) {
+        try { usersUnsub() } catch (e) {}
+        usersUnsub = null
+    }
+    try {
+        usersUnsub = onDataChange('users', (udata) => {
+            usersCache.value = udata || {}
+        })
+    } catch (e) {
+        // fallback to one-time load
+        console.warn('subscribeUsersRealtime failed, falling back to one-time load', e)
+        loadUsers()
+    }
+}
 
 function seededAvatar(name) {
     const username = name || 'anon'
@@ -546,12 +564,18 @@ function openPlayersModal(match) {
     // If match.joinedBy is a map of uid:true, prefer listing by uid
     if (match && match.joinedBy && typeof match.joinedBy === 'object') {
         for (const uid of Object.keys(match.joinedBy)) {
-            // prefer playersMap which stores name by uid
-            let name = (match.playersMap && match.playersMap[uid])
+            // prefer playersMap which may store either a plain name or a player object by uid
+            let raw = (match.playersMap && match.playersMap[uid])
+            let name = ''
+            if (raw) {
+                // if entry is a string, use it; if it's an object, extract known name fields
+                if (typeof raw === 'string') name = raw
+                else if (typeof raw === 'object') name = raw.name || raw.displayName || raw.username || raw.uid || ''
+            }
             // fallback to user record in users cache (if available)
             if (!name && usersCache.value && usersCache.value[uid]) {
                 const u = usersCache.value[uid]
-                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0])
+                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0]) || ''
             }
             // final fallback to uid
             if (!name) name = uid
@@ -759,7 +783,8 @@ function formatInvitationTime(startTime, endTime) {
 }
 
 onMounted(async () => {
-    await loadUsers()
+    // subscribe to users realtime so profile/name changes propagate immediately
+    subscribeUsersRealtime()
     await loadMatches()
     await loadCourts()
     // listen for auth state and load user profile
@@ -793,7 +818,8 @@ onUserStateChanged(async (u) => {
     if (u) showPopup.value = false
     // reload users and matches to reflect any joinedBy changes made while signed out
     try {
-        await loadUsers()
+        // ensure we have realtime users subscription active
+        subscribeUsersRealtime()
         await loadMatches()
         if (u) {
             await loadInvitations()
@@ -812,6 +838,10 @@ onUnmounted(() => {
     if (invitesUnsub) {
         try { invitesUnsub() } catch (e) {}
         invitesUnsub = null
+    }
+    if (usersUnsub) {
+        try { usersUnsub() } catch (e) {}
+        usersUnsub = null
     }
 })
 
@@ -1088,10 +1118,15 @@ function displayedPlayers(match) {
     // Prefer deriving players from joinedBy map (uids) so we always show distinct users
     if (match.joinedBy && typeof match.joinedBy === 'object') {
         for (const uid of Object.keys(match.joinedBy)) {
-            let name = (match.playersMap && match.playersMap[uid])
+            let raw = (match.playersMap && match.playersMap[uid])
+            let name = ''
+            if (raw) {
+                if (typeof raw === 'string') name = raw
+                else if (typeof raw === 'object') name = raw.name || raw.displayName || raw.username || raw.uid || ''
+            }
             if (!name && usersCache.value && usersCache.value[uid]) {
                 const u = usersCache.value[uid]
-                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0])
+                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0]) || ''
             }
             if (!name) name = uid
             const avatar = (usersCache.value && usersCache.value[uid] && (usersCache.value[uid].photoURL || usersCache.value[uid].avatar)) || seededAvatar(name)
