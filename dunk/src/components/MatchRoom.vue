@@ -28,7 +28,8 @@
                 <template v-else>
                 <div class="avatar-fallback">{{ initials(element?.name || element?.uid) }}</div>
                 </template>
-                <span class="player-name">{{ element.name || element.uid }}</span>
+    <span class="player-name">{{ element.name || element.uid }}</span>
+  <div class="player-wins" :class="{ 'pulse-win': winsPulse[element.uid] }">🏆 {{ displayWinsForUid(element && element.uid) }}</div>
             </div>
             </template>
       </draggable>
@@ -37,18 +38,7 @@
 
     <div class="center-timer">
       <!-- Simple round controls (timer removed; control lives in RoundStarted) -->
-      <div class="center-controls">
-        <div class="controls" style="display:flex;justify-content:center;gap:12px;margin:18px 0 24px;">
-          <button
-            class="btn-start"
-            v-if="!roundActive"
-            @click="startRound"
-            :disabled="!startEnabled"
-            :class="{ 'disabled-btn': !startEnabled, pulsate: startShouldPulse }"
-          >Start Round</button>
-          <button class="btn-end" v-if="roundActive" @click.prevent.stop="endRound(true)">End Round</button>
-        </div>
-      </div>
+      
 
       
     </div>
@@ -68,7 +58,8 @@
                 <template v-else>
                 <div class="avatar-fallback">{{ initials(element?.name || element?.uid) }}</div>
                 </template>
-                <span class="player-name">{{ element.name || element.uid }}</span>
+    <span class="player-name">{{ element.name || element.uid }}</span>
+  <div class="player-wins" :class="{ 'pulse-win': winsPulse[element.uid] }">🏆 {{ displayWinsForUid(element && element.uid) }}</div>
             </div>
             </template>
         </draggable>
@@ -84,7 +75,8 @@
                 <template v-else>
                 <div class="avatar-fallback">{{ initials(element?.name || element?.uid) }}</div>
                 </template>
-                <span class="player-name">{{ element.name || element.uid }}</span>
+    <span class="player-name">{{ element.name || element.uid }}</span>
+  <div class="player-wins" :class="{ 'pulse-win': winsPulse[element.uid] }">🏆 {{ displayWinsForUid(element && element.uid) }}</div>
             </div>
             </template>
         </draggable>
@@ -104,7 +96,6 @@
           :disabled="teamsLocked || !(teamA.length && teamB.length)"
           :class="{ pulsate: confirmShouldPulse }"
         >Confirm Teams</button>
-        <button @click="addRound" :disabled="roundActive">Add Round</button>
       </div>
 
     
@@ -127,8 +118,65 @@
       </div>
     </section>
 
-    <!-- Stats Modal -->
-    <StatisticsModal v-if="showStats" :stats="computedStats" @close="showStats=false" />
+  <!-- Rounds history panel (inlined & upgraded styling) -->
+  <section class="rounds-history">
+    <div class="rounds-header">
+      <h2>Rounds History</h2>
+      <div class="rounds-sub">Recent rounds, winners & player win counts</div>
+    </div>
+
+    <div v-if="!(rounds && rounds.length)" class="empty">No rounds played yet. Start a round to see history here.</div>
+
+    <ul v-else class="round-list">
+      <li v-for="(r, idx) in (rounds || [])" :key="r.ts" class="round-card" :title="formatDate(r.endedAt)">
+        <div class="card-left">
+          <div class="round-index">#{{ (rounds && rounds.length) ? (rounds.length - idx) : (idx + 1) }}</div>
+          <div class="round-time">{{ formatDate(r.endedAt) }}</div>
+          <div class="round-duration">⏱ {{ formatDuration(r.duration) }}</div>
+        </div>
+
+        <div class="card-main">
+          <div class="teams-row">
+            <div class="team-block team-a">
+              <div class="team-title">A</div>
+              <div class="team-members">
+                <template v-for="uid in (r.teamA || [])" :key="uid">
+                  <div class="member-pill">
+                    <div class="member-avatar-small">{{ initials(nameFor(uid)) }}</div>
+                    <div class="member-name">{{ nameFor(uid) }}</div>
+                    <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayWinsForUid(uid) }}</div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div class="team-block team-b">
+              <div class="team-title">B</div>
+              <div class="team-members">
+                <template v-for="uid in (r.teamB || [])" :key="uid">
+                  <div class="member-pill">
+                    <div class="member-avatar-small">{{ initials(nameFor(uid)) }}</div>
+                    <div class="member-name">{{ nameFor(uid) }}</div>
+                    <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayWinsForUid(uid) }}</div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <div class="round-footer">
+            <div class="winner-pill">Winner: <strong>{{ r.winningTeam }} — {{ winnersLabel(r) }}</strong></div>
+            <div class="round-actions">
+              <button class="btn-mini">View details</button>
+            </div>
+          </div>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- Stats Modal -->
+  <StatisticsModal v-if="showStats" :stats="computedStats" @close="showStats=false" />
   </div>
   
 </template>
@@ -141,6 +189,7 @@ import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
  import draggable from 'vuedraggable'
  import { useRoute, useRouter } from 'vue-router'
 import { getDataFromFirebase, setChildData, onDataChange } from '../firebase/firebase'
+// RoundsHistory inlined below; no external import
 // import your StatisticsModal if you want fancy end-of-match stats
 
 const route = useRoute()
@@ -186,22 +235,32 @@ function initials(name) {
   return (parts[0][0] + parts[1][0]).toUpperCase()
 }
 
-let usersCache = null
-async function getUsersMap() {
-  if (usersCache) return usersCache
-  try {
-    usersCache = await getDataFromFirebase('users')
-    return usersCache
-  } catch (e) {
-    console.warn('Failed to load users map', e)
-    usersCache = {}
-    return usersCache
+const usersMap = ref({})
+let usersUnsub = null
+// playersMap stored under the match node (per-match counters like NumberOfWins)
+const playersMap = ref({})
+let playersMapUnsub = null
+// per-match username-keyed wins (Matches/<id>/WinsByEachPlayer)
+const winsByEachPlayer = ref({})
+let winsByEachPlayerUnsub = null
+// pulse flags per-uid for wins animation
+const winsPulse = ref({})
+// previous wins snapshot to detect increments
+const prevWins = ref({})
+
+function subscribeUsers() {
+  if (usersUnsub) {
+    try { usersUnsub() } catch (e) {}
+    usersUnsub = null
   }
+  usersUnsub = onDataChange('users', (val) => {
+    usersMap.value = val || {}
+  })
 }
 
 async function enrichPlayers(list) {
   if (!list || !list.length) return []
-  const users = await getUsersMap()
+  const users = usersMap.value || {}
 //   return list.map(p => {
 //     const uid = p.uid || p.id || p.key || ''
 //     const resolved = (users && users[uid]) || null
@@ -214,7 +273,7 @@ async function enrichPlayers(list) {
 
 const out = list.map(p => {
     const uid = p.uid || p.id || p.key || ''
-    const resolved = (users && users[uid]) || null
+  const resolved = (users && users[uid]) || null
 
     // prefer explicit fields
     let avatar = p.avatar || (resolved && (resolved.avatar || resolved.photoURL || resolved.photo)) || null
@@ -234,7 +293,15 @@ const out = list.map(p => {
     }
 
     const name = p.name || (resolved && (resolved.name || resolved.displayName || resolved.username)) || uid || 'Player'
-    return { uid, name, avatar }
+      // prefer live wins from users node, fallback to per-match playersMap.NumberOfWins if available
+      let wins = 0
+      if (resolved && (typeof resolved.wins !== 'undefined')) {
+        wins = Number(resolved.wins || 0)
+      } else {
+        const pm = (playersMap.value && (playersMap.value[uid])) ? playersMap.value[uid] : null
+        if (pm && typeof pm.NumberOfWins !== 'undefined') wins = Number(pm.NumberOfWins || 0)
+      }
+      return { uid, name, avatar, wins }
   })
   console.log('enrichPlayers -> resolved avatars:', out)
   return out
@@ -270,9 +337,58 @@ async function populateBenchFromMatch(md) {
   console.log('populateBenchFromMatch -> bench entries:', bench.value)
 }
 
-watch(matchData, (next) => {
-  populateBenchFromMatch(next)
+watch(matchData, async (next) => {
+  await populateBenchFromMatch(next)
+  // when matchData changes (or is discovered), ensure wins subscription follows
+  try {
+    await loadWins()
+    await loadRounds()
+  } catch (e) {
+    console.warn('loadWins after matchData failed', e)
+  }
 }, { immediate: true, deep: true })
+
+// Propagate live `users` updates (wins) into the in-memory player objects
+// so the per-player trophy badges update immediately.
+watch(usersMap, async (next) => {
+  try {
+    // detect increments and trigger pulse animations
+    try {
+      const users = next || {}
+      for (const [uid, u] of Object.entries(users)) {
+        const wins = Number((u && typeof u.wins !== 'undefined') ? (u.wins || 0) : 0)
+        const prev = typeof prevWins.value[uid] !== 'undefined' ? Number(prevWins.value[uid] || 0) : undefined
+        prevWins.value[uid] = wins
+        if (typeof prev !== 'undefined' && wins > prev) {
+          // set pulse flag
+          winsPulse.value[uid] = true
+          // clear after animation
+          setTimeout(() => { try { winsPulse.value[uid] = false } catch (e) {} }, 900)
+        }
+      }
+    } catch (e) {
+      console.warn('failed to compute wins diff', e)
+    }
+
+    // Full re-enrich of displayed lists when users change is more robust
+    // than trying to guess where wins live inside the user node.
+    const rehydrate = async (listRef) => {
+      if (!listRef || !listRef.value) return
+      // build a minimal list of uid placeholders to re-enrich
+      const minimal = listRef.value.map(p => ({ uid: (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null) })).filter(Boolean)
+      if (!minimal.length) return
+      const enriched = await enrichPlayers(minimal)
+      // replace the list in-place so Vue picks up the change
+      listRef.value.splice(0, listRef.value.length, ...enriched)
+    }
+
+    await rehydrate(bench)
+    await rehydrate(teamA)
+    await rehydrate(teamB)
+  } catch (e) {
+    console.warn('usersMap watcher failed to rehydrate player lists', e)
+  }
+}, { deep: true })
 
 
 // populate bench when matchData changes (after load)
@@ -324,7 +440,83 @@ async function loadWins() {
       winsA.value = (val && val.A) ? Number(val.A) : 0
       winsB.value = (val && val.B) ? Number(val.B) : 0
     })
+    // subscribe to playersMap so we can display per-match NumberOfWins live
+    try {
+      if (playersMapUnsub) { try { playersMapUnsub() } catch (e) {} ; playersMapUnsub = null }
+      playersMapUnsub = onDataChange(`${dbPath}/playersMap`, (val) => {
+        playersMap.value = val || {}
+      })
+    } catch (e) { console.warn('playersMap subscribe failed', e) }
+    // subscribe to WinsByEachPlayer so we can show username-keyed match wins live
+    try {
+      if (winsByEachPlayerUnsub) { try { winsByEachPlayerUnsub() } catch (e) {} ; winsByEachPlayerUnsub = null }
+      winsByEachPlayerUnsub = onDataChange(`${dbPath}/WinsByEachPlayer`, (val) => {
+        winsByEachPlayer.value = val || {}
+      })
+    } catch (e) { console.warn('WinsByEachPlayer subscribe failed', e) }
   } catch (e) { console.warn('loadWins failed', e) }
+}
+
+// --- rounds history (inlined) ---
+const rounds = ref([])
+let roundsUnsub = null
+async function loadRounds() {
+  try {
+    const dbPath = (matchData.value && matchData.value.__dbPath) ? matchData.value.__dbPath : (matchId.value ? `matches/${matchId.value}` : null)
+    if (!dbPath) return
+    if (roundsUnsub) { try { roundsUnsub() } catch (e) {} ; roundsUnsub = null }
+    roundsUnsub = onDataChange(`${dbPath}/roundsplayed`, (val) => {
+      const arr = val ? Object.entries(val).map(([k, v]) => ({ ts: k, ...v })) : []
+      arr.sort((a, b) => Number(b.ts) - Number(a.ts))
+      rounds.value = arr
+    })
+  } catch (e) { console.warn('loadRounds error', e); rounds.value = [] }
+}
+
+function formatDate(iso) {
+  if (!iso) return '—'
+  try { return new Date(iso).toLocaleString() } catch (e) { return String(iso) }
+}
+
+function formatDuration(sec) {
+  if (!sec && sec !== 0) return '—'
+  const s = Number(sec) || 0
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const rem = s % 60
+  return `${m}m ${rem}s`
+}
+
+function nameFor(uid) {
+  const u = usersMap.value && usersMap.value[uid]
+  return (u && (u.name || u.displayName || u.username)) || uid
+}
+
+function sanitizeUserKey(uname) {
+  if (!uname) return String(uname || '').replace(/[.$#\[\]\/]/g, '_')
+  return String(uname).replace(/[.$#\[\]\/]/g, '_')
+}
+
+function displayWinsForUid(uid) {
+  if (!uid) return 0
+  // prefer WinsByEachPlayer keyed by sanitized username
+  const u = usersMap.value && usersMap.value[uid]
+  const uname = (u && (u.username || u.name || u.displayName)) || uid
+  const safe = sanitizeUserKey(uname)
+  if (winsByEachPlayer.value && typeof winsByEachPlayer.value[safe] !== 'undefined') {
+    return Number(winsByEachPlayer.value[safe] || 0)
+  }
+  // fallback to global users.wins
+  if (u && typeof u.wins !== 'undefined') return Number(u.wins || 0)
+  // fallback to per-match playersMap NumberOfWins
+  const pm = playersMap.value && playersMap.value[uid]
+  if (pm && typeof pm.NumberOfWins !== 'undefined') return Number(pm.NumberOfWins || 0)
+  return 0
+}
+
+function winnersLabel(r) {
+  if (!r || !r.winningTeamMembers) return '—'
+  return r.winningTeamMembers.map(nameFor).join(', ')
 }
 
 // computed stats object used by the optional StatisticsModal
@@ -338,6 +530,8 @@ const computedStats = computed(() => ({
 onMounted(async () => {
   if (!matchId.value && !route.query.path) return
   try {
+    // start live users subscription so player wins are available when enriching
+    subscribeUsers()
     let data = null
     const pathQuery = route.query.path
     if (pathQuery) {
@@ -561,6 +755,16 @@ onBeforeUnmount(() => {
     try { winsUnsub() } catch (e) {}
     winsUnsub = null
   }
+  if (usersUnsub) {
+    try { usersUnsub() } catch (e) {}
+    usersUnsub = null
+  }
+  if (roundsUnsub) {
+    try { roundsUnsub() } catch (e) {}
+    roundsUnsub = null
+  }
+  if (playersMapUnsub) { try { playersMapUnsub() } catch (e) {} ; playersMapUnsub = null }
+  if (winsByEachPlayerUnsub) { try { winsByEachPlayerUnsub() } catch (e) {} ; winsByEachPlayerUnsub = null }
 })
 
 </script>
@@ -668,6 +872,7 @@ header { display: flex; align-items: center; justify-content: space-between; }
   .avatar-img { width:60px; height:60px; border-radius:50%; border:3px solid #FFAD1D; object-fit:cover; }
 .avatar-fallback { width:60px; height:60px; border-radius:50%; border:3px solid #FFAD1D; display:flex; align-items:center; justify-content:center; background:#1f262b; color:#ffad1d; font-weight:700; font-size:1rem; }
 .player-name { margin-top: 6px; color: #ffad1d; font-weight: 700; font-size: 0.95rem; }
+ .player-wins { margin-top:6px; color:#fff; font-weight:800; font-size:0.9rem; }
 
 .team-card { min-width: 330px; flex: 1; border: 2.5px dashed #fff4d1; transition: border 0.3s; min-height: 200px; }
 .active-outline { border: 2.5px solid #ffad1d !important; }
@@ -700,4 +905,39 @@ header { display: flex; align-items: center; justify-content: space-between; }
 .bar-label { color:#f3e6c2; font-weight:700; }
 .wins-title { text-align:center; margin-top:8px; color:#ffda99; font-size:2.6rem; font-weight:800; }
 .bar-count { color:#fff; font-weight:900; font-size:2rem; margin-top:10px; }
+
+/* --- Rounds history upgraded styles --- */
+.rounds-history { margin: 22px auto; max-width: 980px; background: linear-gradient(180deg,#0f1114,#15161a); padding: 16px; border-radius: 14px; border:1px solid rgba(255,255,255,0.04); box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+.rounds-header { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:12px }
+.rounds-header h2 { color:#ffd98a; margin:0; font-size:1.6rem }
+.rounds-sub { color:#d3c7a3; font-size:0.9rem }
+.round-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:12px }
+.round-card { display:flex; gap:12px; align-items:flex-start; background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02)); padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.03); transition: transform 180ms ease, box-shadow 180ms ease; }
+.round-card:hover { transform: translateY(-6px); box-shadow: 0 18px 40px rgba(0,0,0,0.6); }
+.card-left { width:140px; display:flex; flex-direction:column; gap:6px; align-items:flex-start }
+.round-index { font-weight:900; color:#fff; font-size:1.1rem }
+.round-time { color:#d3c7a3; font-size:0.85rem }
+.round-duration { color:#ffd98a; font-weight:800; font-size:0.85rem }
+.card-main { flex:1; display:flex; flex-direction:column; gap:10px }
+.teams-row { display:flex; gap:10px; align-items:flex-start }
+.team-block { flex:1; background: rgba(255,255,255,0.02); padding:8px; border-radius:10px }
+.team-title { font-weight:900; color:#fff4d1; margin-bottom:8px }
+.team-members { display:flex; gap:8px; flex-wrap:wrap }
+.member-pill { display:flex; gap:8px; align-items:center; background: linear-gradient(180deg, #0f1114, #141516); padding:6px 8px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); }
+.member-avatar-small { width:30px; height:30px; border-radius:50%; background:#ffad1d; color:#0b0b0b; display:flex; align-items:center; justify-content:center; font-weight:900 }
+.member-name { color:#fff; font-weight:800; font-size:0.82rem }
+.member-wins { color:#ffd98a; font-weight:900; margin-left:6px }
+.round-footer { display:flex; justify-content:space-between; align-items:center }
+.winner-pill { background: linear-gradient(90deg,#1f262b,#23272b); color:#ffd98a; padding:6px 10px; border-radius:10px; font-weight:800 }
+.btn-mini { background:#ffad1d; border:none; color:#0b0b0b; padding:6px 10px; border-radius:8px; font-weight:800; cursor:pointer }
+
+/* pulse animation for wins increments */
+.pulse-win { animation: wins-pulse 820ms cubic-bezier(.2,.9,.2,1); transform-origin: center; }
+@keyframes wins-pulse {
+  0% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(255,215,120,0)); }
+  25% { transform: scale(1.18); }
+  55% { transform: scale(0.98); }
+  100% { transform: scale(1); }
+}
+
 </style>

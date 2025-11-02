@@ -17,7 +17,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
 const storage = getStorage(app)
-import { getDatabase, ref, set, get, child, push, remove, update, onValue } from "firebase/database";
+import { getDatabase, ref, set, get, child, push, remove, update, onValue, runTransaction } from "firebase/database";
 import { Database } from 'lucide-vue-next'
 
 const db = getDatabase(app);
@@ -188,6 +188,30 @@ export function onDataChange(path, cb) {
     })
     // onValue returns an unsubscribe function in firebase v9 when used like this
     return off
+}
+
+/**
+ * Atomically increment a numeric child field under the given path using
+ * a Realtime Database transaction. Returns the new value after increment
+ * or null if the transaction did not commit.
+ *
+ * Example: await incrementField('users/uid', 'openWins', 1)
+ */
+export async function incrementField(path, field, delta = 1) {
+    try {
+        const nodeRef = ref(db, `${path}/${field}`)
+        const result = await runTransaction(nodeRef, (current) => {
+            const n = Number(current) || 0
+            return n + Number(delta || 0)
+        }, { applyLocally: true })
+        if (result && result.committed) {
+            return result.snapshot ? result.snapshot.val() : null
+        }
+        return null
+    } catch (err) {
+        console.error('incrementField error', err)
+        throw err
+    }
 }
 
 
