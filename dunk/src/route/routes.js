@@ -5,6 +5,7 @@ import MatchRoom from '../components/MatchRoom.vue'
 import Upload from '../components/FileUpload.vue'
 import CourtFinder from '../components/CourtFinder.vue'
 import LoginPage from '../components/LoginPage.vue'
+import Leaderboard from '../components/Leaderboard.vue'
 // Placeholder pages (added so sidebar links resolve)
 import Matches from '../components/Matches.vue'
 import Forum from '../components/Forum.vue'
@@ -21,6 +22,7 @@ const routes = [
     { path: '/court-finder', component: CourtFinder },
     { path: '/matches', component: Matches },
     { path: '/forum', component: Forum },
+  { path: '/leaderboard', component: Leaderboard },
     { path: '/profile/:uid', name: 'PublicProfile', component: Profile  },
     { path: '/login', component: LoginPage },
 ]

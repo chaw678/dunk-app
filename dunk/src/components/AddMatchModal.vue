@@ -280,9 +280,33 @@ async function isTimingOverlap() {
       if (m.startTime && m.endTime) {
         existStart = parseDateTime(m.date, m.startTime)
         existEnd = parseDateTime(m.date, m.endTime)
+        
+        // If the match ended early, use the actual end time instead of scheduled end time
+        if (m.endedAt) {
+          try {
+            const actualEnd = new Date(m.endedAt)
+            if (!isNaN(actualEnd.getTime()) && actualEnd < existEnd) {
+              existEnd = actualEnd
+            }
+          } catch (e) {
+            // If parsing fails, continue with scheduled end time
+          }
+        }
       } else if (m.time) {
         existStart = parseDateTime(m.date, m.time)
         existEnd = new Date(existStart.getTime())
+        
+        // Check for early end here too
+        if (m.endedAt) {
+          try {
+            const actualEnd = new Date(m.endedAt)
+            if (!isNaN(actualEnd.getTime()) && actualEnd < existEnd) {
+              existEnd = actualEnd
+            }
+          } catch (e) {
+            // Continue with default end time
+          }
+        }
       }
       if (existStart && existEnd) {
         if (rangesOverlap(newStart, newEnd, existStart, existEnd)) {

@@ -45,6 +45,11 @@ export async function saveUserToDatabase(user) {
       age: user.age != null ? user.age : existing.age,
       gender: user.gender || existing.gender || '',
       match_ids: existing.match_ids || {}
+      ,
+  // ensure win counters exist for new users (use existing camelCase values if present)
+  openWins: (existing.openWins ?? 0),
+  intermediateWins: (existing.intermediateWins ?? 0),
+  professionalWins: (existing.professionalWins ?? 0)
       // NOTE: we intentionally do NOT reset following/followers here
     }
     
@@ -64,6 +69,17 @@ export async function saveUserToDatabase(user) {
       if (updatePayload[key] === undefined) delete updatePayload[key];
     });
 
+
+    // compute derived totals and ranking before writing
+    const o = Number(updatePayload.openWins || 0)
+    const i = Number(updatePayload.intermediateWins || 0)
+    const p = Number(updatePayload.professionalWins || 0)
+    const totalWins = o + i + p
+    updatePayload.totalWins = totalWins
+    // ranking rules: Beginner <=20, Intermediate <=40, Professional >40
+    if (totalWins > 40) updatePayload.ranking = 'Professional'
+    else if (totalWins > 20) updatePayload.ranking = 'Intermediate'
+    else updatePayload.ranking = 'Beginner'
 
     await update(userRef, updatePayload)
     return true
