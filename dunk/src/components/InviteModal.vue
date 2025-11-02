@@ -116,26 +116,65 @@ watch(() => props.me, () => { loadCandidates() }, { immediate: true })
 
 const filteredCandidates = computed(() => {
   const term = (filter.value || '').toLowerCase().trim()
-  return candidates.value.filter(u => {
-    if (!u) return false
+
+  const pool = []
+  for (const u of candidates.value) {
+    if (!u) continue
 
     // Exclude users who are already part of the match (joinedBy map, players array, or playersMap)
     try {
       const m = props.match || {}
-      if (m.joinedBy && typeof m.joinedBy === 'object' && u.uid && m.joinedBy[u.uid]) return false
-      if (m.playersMap && u.uid && m.playersMap[u.uid]) return false
+      if (m.joinedBy && typeof m.joinedBy === 'object' && u.uid && m.joinedBy[u.uid]) continue
+      if (m.playersMap && u.uid && m.playersMap[u.uid]) continue
       if (m.players && Array.isArray(m.players)) {
         const uname = (u.name || u.username || '').toString().toLowerCase()
-        if (uname && m.players.some(p => (''+p).toLowerCase() === uname)) return false
+        if (uname && m.players.some(p => (''+p).toLowerCase() === uname)) continue
       }
     } catch (e) {
       // ignore check errors and continue
     }
 
-    if (!term) return true
-    const s = `${u.name || u.username || ''} ${u.email || ''}`.toLowerCase()
-    return s.indexOf(term) !== -1
+    pool.push(u)
+  }
+
+  if (!term) return pool
+
+  // find prefix (startsWith) matches on name/username
+  const prefixMatches = []
+  const containsMatches = []
+  for (const u of pool) {
+    const name = ('' + (u.name || u.username || '')).toLowerCase()
+    const email = ('' + (u.email || '')).toLowerCase()
+    const combined = `${name} ${email}`.trim()
+    if (name.startsWith(term) || (u.username && ('' + u.username).toLowerCase().startsWith(term))) {
+      prefixMatches.push(u)
+    } else if (combined.indexOf(term) !== -1) {
+      containsMatches.push(u)
+    }
+  }
+
+  // If we have any prefix matches, show ONLY those (as requested). Otherwise fall back to contains matches.
+  if (prefixMatches.length) {
+    // optional: sort prefix matches alphabetically by display name
+    prefixMatches.sort((a, b) => {
+      const da = ('' + (a.name || a.username || a.email || a.uid)).toLowerCase()
+      const db = ('' + (b.name || b.username || b.email || b.uid)).toLowerCase()
+      if (da < db) return -1
+      if (da > db) return 1
+      return 0
+    })
+    return prefixMatches
+  }
+
+  containsMatches.sort((a, b) => {
+    const da = ('' + (a.name || a.username || a.email || a.uid)).toLowerCase()
+    const db = ('' + (b.name || b.username || b.email || b.uid)).toLowerCase()
+    if (da < db) return -1
+    if (da > db) return 1
+    return 0
   })
+
+  return containsMatches
 })
 
 function seededAvatar(name) {

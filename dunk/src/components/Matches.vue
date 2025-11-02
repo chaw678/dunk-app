@@ -113,13 +113,13 @@
                 <h3 class="section-heading">Ongoing</h3>
                 <div class="row g-3 matches-grid">
                     <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.ongoing ? groupedMatches.ongoing : [])" :key="match?.id || idx">
-  <div
-    :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']"
-    role="button"
-    tabindex="0"
-    @click="openMatch(match)"
-    @keydown.enter="openMatch(match)"
-  >
+    <div
+        :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']"
+        role="button"
+        tabindex="0"
+        @click="openMatch(match, $event)"
+        @keydown.enter="openMatch(match, $event)"
+    >
     <div class="card-header match-card-header">
       <h3 class="match-title mb-1">{{ match.title }}</h3>
                                 <div class="match-header-right">
@@ -140,7 +140,7 @@
         <div class="time-range">{{ formatTimeRange(match) }}</div>
         <div class="meta-pill">{{ match.gender || 'All' }}</div>
         <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-        <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+    <div class="meta-pill badge-type">{{ normalizeMatchType(match && (match.type || match.level || match.skill)) }}</div>
       </div>
 
       <div class="avatars mb-3">
@@ -166,9 +166,11 @@
               <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
             </template>
           </template>
-          <template v-else>
-            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
-          </template>
+                    <template v-else>
+                        <span class="join-wrapper" :title="joinDisabledReason(match) || 'Join match'" @click.stop>
+                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" @click.prevent.stop="joinMatch(match)">Join</button>
+                        </span>
+                    </template>
         </div>
         <div></div>
       </div>
@@ -205,7 +207,7 @@
                                     <div class="time-range">{{ formatTimeRange(match) }}</div>
                                     <div class="meta-pill">{{ match.gender || 'All' }}</div>
                                     <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-                                    <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+                                    <div class="meta-pill badge-type">{{ normalizeMatchType(match && (match.type || match.level || match.skill)) }}</div>
                                 </div>
 
                                 <div class="avatars mb-3">
@@ -229,7 +231,7 @@
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                         </template>
                                         <template v-else>
-                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent="joinMatch(match)">Join</button>
+                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
                                         </template>
                                     </div>
                                     <div></div>
@@ -266,7 +268,7 @@
                                     <div class="time-range">{{ formatTimeRange(match) }}</div>
                                     <div class="meta-pill">{{ match.gender || 'All' }}</div>
                                     <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-                                    <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+                                    <div class="meta-pill badge-type">{{ normalizeMatchType(match && (match.type || match.level || match.skill)) }}</div>
                                 </div>
 
                                 <div class="avatars mb-3">
@@ -290,7 +292,7 @@
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                         </template>
                                         <template v-else>
-                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent="joinMatch(match)">Join</button>
+                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
                                         </template>
                                     </div>
                                     <div></div>
@@ -368,8 +370,27 @@ function closeCreatedPopup() {
 
 const router = useRouter()
 
-function openMatch(match) {
+function openMatch(match, event) {
     if (!match) return
+    // If the click originated from an interactive child (button, link, avatar, tooltip wrapper,
+    // or other control), do not navigate — the child should handle the action.
+    try {
+        if (event && event.target && event.target.closest) {
+            const blocked = event.target.closest('button, a, .join-wrapper, .avatar-stack, .popup-buttons, .invitation-actions, .sign-in-btn, .close-btn')
+            if (blocked) return
+        }
+    } catch (e) {
+        // ignore and continue
+    }
+    // If joining is disabled for this match (e.g., wrong gender, full, or not signed in),
+    // prevent card-level navigation so users don't get taken to the MatchRoom unintentionally.
+    try {
+        const disabledReason = joinDisabledReason(match)
+        // allow hosts and already-joined users to still open the room
+        if (disabledReason && !isHost(match) && !isJoined(match)) return
+    } catch (e) {
+        // conservative default: do not block navigation on error
+    }
     // prefer named route, fallback to path
     try {
         router.push({ name: 'MatchRoom', params: { id: match.id } })
@@ -522,7 +543,8 @@ const matches = ref([])
 const courts = ref([])
 const showAddMatchModal = ref(false)
 const currentUser = ref(null)
-const currentUserProfile = ref({ skill: 'Open', gender: 'All' })
+// prefer `ranking` field where available; keep `skill` for backward compatibility
+const currentUserProfile = ref({ ranking: 'Open', skill: 'Open', gender: 'All' })
 const showInviteModal = ref(false)
 const inviteMatch = ref(null)
 const invitations = ref([])
@@ -1033,16 +1055,54 @@ function displayedPlayers(match) {
 
 const skillOrder = ['Open', 'Beginner', 'Intermediate', 'Professional']
 
+function normalizeSkill(skill) {
+    if (!skill) return 'Open'
+    const s = ('' + skill).trim().toLowerCase()
+    if (s.startsWith('pro')) return 'Professional'
+    if (s.startsWith('inter')) return 'Intermediate'
+    if (s.startsWith('beg')) return 'Beginner'
+    if (s.startsWith('open')) return 'Open'
+    // fallback: try to match exact casing from list
+    for (const v of skillOrder) if (v.toLowerCase() === s) return v
+    return 'Open'
+}
+
 function skillRank(skill) {
-    const idx = skillOrder.indexOf(skill)
+    const normalized = normalizeSkill(skill)
+    const idx = skillOrder.indexOf(normalized)
     return idx === -1 ? 0 : idx
+}
+
+// Match types should be only Open / Intermediate / Professional. Legacy 'Beginner' match types
+// (if present in the DB) should be treated as 'Open' matches for join/permission checks.
+function normalizeMatchType(type) {
+    const t = normalizeSkill(type)
+    if (t === 'Beginner') return 'Open'
+    return t
 }
 
 function canJoin(match) {
     if (!currentUser.value) return false
-    const userSkill = currentUserProfile.value.skill || 'Open'
-    const matchSkill = match.type || 'Open'
-    // user can join if their skill rank >= match required rank
+    // Gender restriction: if match specifies a gender (not 'All'), require user's profile gender to match
+    try {
+        const mg = (match && match.gender) ? ('' + match.gender).toLowerCase() : 'all'
+        if (mg && mg !== 'all') {
+            const ug = (currentUserProfile.value && currentUserProfile.value.gender) ? ('' + currentUserProfile.value.gender).toLowerCase() : ''
+            // If we don't know user's gender, disallow joining (require profile)
+            if (!ug) return false
+            // Basic match: compare first letter (male/female) to be tolerant of variants like 'Male'/'Males' etc.
+            if (mg.charAt(0) !== ug.charAt(0)) return false
+        }
+    } catch (e) {
+        // conservative default: if something goes wrong, disallow join
+        return false
+    }
+
+    // prefer ranking field first, then legacy skill
+    const userSkill = normalizeSkill((currentUserProfile.value && (currentUserProfile.value.ranking || currentUserProfile.value.skill)) || '')
+    const matchSkill = normalizeMatchType(match && (match.type || match.level || match.skill))
+    // Everyone may join 'Open' matches. For 'Intermediate' require Intermediate or Professional.
+    // For 'Professional' require Professional only.
     return skillRank(userSkill) >= skillRank(matchSkill)
 }
 
@@ -1073,15 +1133,44 @@ function joinDisabledReason(match) {
     const count = playersCount(match)
     const max = match.maxPlayers || 10
     if (count >= max) return 'Match is full'
-    const userSkill = currentUserProfile.value.skill || 'Open'
-    const matchSkill = match.type || match.level || 'Open'
-    if (skillRank(userSkill) < skillRank(matchSkill)) return `Requires ${matchSkill} level`
+    // Gender restriction check
+    let genderFail = false
+    let rankFail = false
+    let mg = ''
+    try {
+        if (match && match.gender && ('' + match.gender).toLowerCase() !== 'all') {
+            mg = ('' + match.gender)
+            const ug = (currentUserProfile.value && currentUserProfile.value.gender) ? ('' + currentUserProfile.value.gender) : ''
+            if (!ug) genderFail = true // profile incomplete
+            else if (mg.charAt(0).toLowerCase() !== ug.charAt(0).toLowerCase()) genderFail = true
+        }
+    } catch (e) {
+        genderFail = true
+    }
+
+    // Skill/rank restriction check
+    const userSkill = normalizeSkill((currentUserProfile.value && (currentUserProfile.value.ranking || currentUserProfile.value.skill)) || '')
+    const matchSkill = normalizeMatchType(match && (match.type || match.level || match.skill))
+    if (skillRank(userSkill) < skillRank(matchSkill)) rankFail = true
+
+    // If both gender and rank fail, show combined message (sentence case)
+    if (genderFail && rankFail) {
+        const mgCap = mg ? (mg.charAt(0).toUpperCase() + mg.slice(1).toLowerCase()) : mg
+        return `Only ${mgCap} and ${matchSkill} players may join`
+    }
+
+    if (genderFail) {
+        const mgCap = mg ? (mg.charAt(0).toUpperCase() + mg.slice(1).toLowerCase()) : mg
+        return `Only ${mgCap} players may join`
+    }
+    if (rankFail) return `Requires ${matchSkill} rank`
     return ''
 }
 
 async function joinMatch(match) {
     if (!currentUser.value) { alert('Please sign in to join'); return }
-    if (!canJoin(match)) { alert('Your skill level is below the match requirement'); return }
+    const disabled = joinDisabledReason(match)
+    if (disabled) { alert(disabled); return }
     const uid = currentUser.value.uid
     match.joinedBy = match.joinedBy || {}
     if (match.joinedBy[uid]) return // already joined
@@ -1502,7 +1591,17 @@ function formatDate(match) {
     font-weight: 700;
     border: none;
 }
-.btn-join[disabled] { opacity: 0.45; cursor: not-allowed }
+.btn-join[disabled] {
+    /* Match the match-card background for a seamless look and add a subtle grey outline.
+       Keeps the button visible but signals disabled state via the border. */
+    opacity: 1;
+    cursor: not-allowed;
+    border: 1px solid rgba(128,128,128,0.55); /* subtle gray outline */
+    /* Use the same gradient as .match-card so the button visually blends with the card */
+    background: linear-gradient(180deg,#0f1418 0%, #0d1114 100%);
+    color: #464749; /* gray text when disabled */
+    box-shadow: none;
+}
 
 .btn-invite {
     background: #ff9a3c;

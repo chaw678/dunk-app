@@ -383,7 +383,9 @@ async function saveProfileEdits() {
     // <-- change 27: adds age, bio and skill as  profile property
     age: age,
     bio: editBio.value,     
-    skill: editSkill.value
+    skill: editSkill.value,
+    // also write canonical `ranking` field so DB uses the authoritative attribute
+    ranking: editSkill.value
   }
 
   // change 21: Only send fields to save, including uid for path reference
@@ -397,7 +399,8 @@ async function saveProfileEdits() {
       dobDay: updates.dobDay,
       age: updates.age, // <-- Actually push age data to DB
       bio: updates.bio,      
-      skill: updates.skill 
+      skill: updates.skill,
+      ranking: updates.ranking
     };
 
     await saveUserToDatabase(userDbUpdate);
@@ -465,7 +468,8 @@ onMounted(() => {
           dobMonth.value   = val.dobMonth ?? '';
           dobDay.value     = val.dobDay  ?? '';
           editBio.value    = val.bio ?? '';      
-          editSkill.value  = val.skill ?? '';
+          // prefer `ranking` field if present, fall back to legacy `skill`
+          editSkill.value  = val.ranking ?? val.skill ?? '';
 
           
           followingCount.value = val.following ? Object.keys(val.following).length : 0
@@ -563,6 +567,16 @@ const statsFromProfile = computed(() => {
 const totalWins = computed(() => {
   const s = statsFromProfile.value
   return s.open_wins + s.intermediate_wins + s.professional_wins
+})
+
+// rank badge class for colored badges (prefer `ranking` field, fallback to legacy `skill`)
+const rankBadgeClass = computed(() => {
+  const s = (user.value && (user.value.ranking || user.value.skill || 'Beginner')) || 'Beginner'
+  const norm = String(s).trim().toLowerCase()
+  if (norm.includes('beginner') || norm === 'open') return 'bg-beginner text-white'
+  if (norm.includes('intermediate')) return 'bg-intermediate text-dark'
+  if (norm.includes('professional')) return 'bg-purple text-white'
+  return 'bg-beginner text-white'
 })
 
 function barHeight(value) {
@@ -708,7 +722,7 @@ watch(animateBars, (v) => { if (v) animateCounts() })
       <!-- Icon (Ranking) -->
       <Trophy :color="'#FFAD1D'" :size="32" class="mb-2" />
       <span class="fw-medium">Ranking</span>
-      <span class="badge bg-purple text-white mt-1" style="font-size:0.92rem;">Professional</span>
+  <span :class="['badge', rankBadgeClass, 'mt-1']" style="font-size:0.92rem;">{{ user?.ranking ? user.ranking : (user?.skill ? user.skill : 'Beginner') }}</span>
     </div>
   </div>
   <div class="col-6 col-md-3 d-flex">
@@ -776,7 +790,6 @@ watch(animateBars, (v) => { if (v) animateCounts() })
     <div class="col-12 d-flex">
       <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
         <span class="fw-medium">Skill / Badge</span>
-        <span class="fs-6 text-warning mt-1">{{ user.skill || 'Unassigned' }}</span>
       </div>
     </div>
 
@@ -1031,6 +1044,10 @@ watch(animateBars, (v) => { if (v) animateCounts() })
 
 <style>
 .bg-purple { background-color: #7133e2 !important; }
+/* Rank badge colors */
+.bg-beginner { background-color: #15803d !important; } /* slightly darker green */
+.bg-intermediate { background-color: #ffb020 !important; } /* orange/yellow */
+.skill-badge { display:inline-block; padding:0.18rem 0.6rem; border-radius:0.6rem; font-size:0.92rem; font-weight:600; }
 .border-gray-600 { border-color: #50575e !important; }
 .profile-stat-card {
   min-height: 140px;

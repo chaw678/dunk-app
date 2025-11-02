@@ -31,7 +31,9 @@ export async function saveUserToDatabase(user) {
       uid: user.uid,
 
       // --- Skill & Bio ---
-      skill: user.skill || existing.skill || '',  // <-- allow new skill inputs to update Firebase
+  skill: user.skill || existing.skill || '',  // <-- allow new skill inputs to update Firebase
+  // canonical ranking field (preferred across app)
+  ranking: user.ranking || existing.ranking || '',
       bio: user.bio || existing.bio || '',        // <-- allow new bio inputs to update Firebase
 
       // --- DOB Fields (new structure) ---

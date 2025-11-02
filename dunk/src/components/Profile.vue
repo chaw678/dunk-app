@@ -42,7 +42,6 @@
           <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
             <Trophy :color="'#FFAD1D'" :size="32" class="mb-2" />
             <span class="fw-medium">Ranking</span>
-            <span class="badge bg-purple text-white mt-1" style="font-size:0.92rem;">{{ profile.skill ? profile.skill : 'Open' }}</span>
           </div>
         </div>
 
@@ -82,7 +81,6 @@
         <div class="col-12 d-flex">
           <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
             <span class="fw-medium">Skill / Badge</span>
-            <span class="fs-6 text-warning mt-1">{{ (profile && profile.skill) ? profile.skill : 'Unassigned' }}</span>
           </div>
         </div>
 
@@ -243,7 +241,10 @@ const profile = ref({
   email: '',
   gender: '',
   age: null,
-  skill: '',
+  // default skill set to 'Beginner' so profiles without an explicit skill show Beginner
+  skill: 'Beginner',
+  // new canonical field for rank
+  ranking: 'Beginner',
   score: 0,
   followers: {},
   following: {},
