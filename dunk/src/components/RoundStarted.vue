@@ -664,17 +664,37 @@ const animateA = ref(false)
 const animateB = ref(false)
 
 // display title / round number shown in header (header already prints "Round — {{ displayTitle }}")
+// We track the number of persisted rounds (roundsplayed) under the match node so
+// the upcoming round number is (existingRounds + 1). If roundsplayed is not
+// present yet, fall back to any legacy `rounds` node or default to 1.
+const roundsCount = ref(0)
+const roundsUnsub = ref(null)
+
 const displayTitle = computed(() => {
   try {
-    // Prefer explicit rounds stored under the match data
-    const roundsNode = matchData.value && matchData.value.rounds ? matchData.value.rounds : null
-    const roundsCount = roundsNode ? Object.keys(roundsNode).length : 0
-    // Show the upcoming round number: existing rounds + 1, fallback to 1
-    return String(roundsCount > 0 ? roundsCount + 1 : 1)
+    const count = Number(roundsCount.value || 0)
+    return String(count > 0 ? count + 1 : 1)
   } catch (e) {
     return '1'
   }
 })
+
+async function loadRounds() {
+  try {
+    const dbPath = matchData.value && matchData.value.__dbPath ? matchData.value.__dbPath : (matchId.value ? `matches/${matchId.value}` : null)
+    if (!dbPath) return
+    if (roundsUnsub.value) {
+      try { roundsUnsub.value() } catch (e) {}
+      roundsUnsub.value = null
+    }
+    roundsUnsub.value = onDataChange(`${dbPath}/roundsplayed`, (val) => {
+      try {
+        if (!val) { roundsCount.value = 0; return }
+        roundsCount.value = Object.keys(val).length
+      } catch (err) { roundsCount.value = 0 }
+    })
+  } catch (e) { console.warn('loadRounds failed', e); roundsCount.value = 0 }
+}
 
 // trigger pop animation when wins change
 watch(winsA, (nv, ov) => {
@@ -715,12 +735,18 @@ onMounted(async () => {
   // subscribe to the correct (possibly nested) DB path.
   await loadTeams()
   await loadWins()
+  // subscribe to persisted roundsplayed so header round number reflects DB
+  await loadRounds()
 })
 onBeforeUnmount(() => {
   if (timerInterval.value) clearInterval(timerInterval.value)
   if (winsUnsub) {
     try { winsUnsub() } catch (e) {}
     winsUnsub = null
+  }
+  if (roundsUnsub && roundsUnsub.value) {
+    try { roundsUnsub.value() } catch (e) {}
+    roundsUnsub.value = null
   }
 })
 </script>
