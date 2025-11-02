@@ -1,47 +1,37 @@
 <template>
   <div class="inv-overlay" @click.self="close">
     <div class="inv-modal card">
-      <div class="card-header d-flex justify-content-between align-items-center">
+      <div class="card-header d-flex justify-content-between align-items-center following-header">
         <div>
-          <strong>Invite players</strong>
-          <div class="small text-muted">Invite your followers or people you follow to this match</div>
+          <h2 class="following-title">Invite</h2>
+          <div class="small text-muted invite-subtitle">Invite people from your following and followers list</div>
         </div>
-        <button class="btn-close" @click="close" aria-label="Close"></button>
+        <button class="btn-close big-x" @click="close" aria-label="Close">✕</button>
       </div>
 
       <div class="card-body inv-body">
-            <div class="inv-actions mb-3 d-flex align-items-center justify-content-between">
-              <div class="d-flex align-items-center gap-2">
-                <div class="form-check">
-                  <input id="selectAll" type="checkbox" class="form-check-input" v-model="selectAll" />
-                  <label for="selectAll" class="form-check-label">Select all</label>
-                </div>
-              </div>
-              <div style="min-width:180px;">
-                <input type="text" class="form-control form-control-sm" placeholder="Search by name" v-model="filter" />
+            <div class="inv-actions mb-3">
+              <div class="search-wrapper">
+                <input type="text" class="form-control form-control-lg" placeholder="Search following/followers..." v-model="filter" />
               </div>
             </div>
 
             <div class="candidates-list">
               <ul class="list-unstyled mb-0">
-                <li v-for="u in filteredCandidates" :key="u.uid" :class="['invite-row', { selected: selectedMap[u.uid] }]" class="d-flex align-items-center" @click="toggleSelect(u.uid)">
-                  <div class="me-3" @click.stop>
-                    <!-- keep checkbox for accessibility but visually hidden -->
-                    <input type="checkbox" :id="`chk_${u.uid}`" v-model="selectedMap[u.uid]" class="visually-hidden" />
-                  </div>
-                  <div class="small-avatar me-3">
+                <li v-for="u in filteredCandidates" :key="u.uid" :class="['invite-row card-item', { selected: selectedMap[u.uid] }]" @click="toggleSelect(u.uid)">
+                  <div class="small-avatar">
                     <img :src="avatarUrl(u)" alt="avatar" v-if="avatarUrl(u)" />
                     <div v-else class="avatar-initial">{{ initials(u.name || u.username || u.uid) }}</div>
                   </div>
-                  <div class="flex-fill">
+                  <div class="flex-fill ms-3">
                     <div class="invite-name">{{ u.name || u.username || u.email || u.uid }}</div>
-                    <div class="small text-muted">{{ u.meta || u.city || '' }}</div>
+                    <div class="small text-muted" v-if="profileSubtitle(u)">{{ profileSubtitle(u) }}</div>
                   </div>
-                  <div class="ms-3 select-icon-wrapper">
-                    <span class="select-icon" :aria-checked="selectedMap[u.uid] ? 'true' : 'false'">
-                      <template v-if="selectedMap[u.uid]">✓</template>
-                      <template v-else>＋</template>
-                    </span>
+                  <div class="ms-3">
+                    <button class="btn-invite-row" :class="{ invited: selectedMap[u.uid] }" @click.stop="toggleSelect(u.uid)">
+                      <span v-if="selectedMap[u.uid]">Invited</span>
+                      <span v-else>Invite</span>
+                    </button>
                   </div>
                 </li>
               </ul>
@@ -116,26 +106,65 @@ watch(() => props.me, () => { loadCandidates() }, { immediate: true })
 
 const filteredCandidates = computed(() => {
   const term = (filter.value || '').toLowerCase().trim()
-  return candidates.value.filter(u => {
-    if (!u) return false
+
+  const pool = []
+  for (const u of candidates.value) {
+    if (!u) continue
 
     // Exclude users who are already part of the match (joinedBy map, players array, or playersMap)
     try {
       const m = props.match || {}
-      if (m.joinedBy && typeof m.joinedBy === 'object' && u.uid && m.joinedBy[u.uid]) return false
-      if (m.playersMap && u.uid && m.playersMap[u.uid]) return false
+      if (m.joinedBy && typeof m.joinedBy === 'object' && u.uid && m.joinedBy[u.uid]) continue
+      if (m.playersMap && u.uid && m.playersMap[u.uid]) continue
       if (m.players && Array.isArray(m.players)) {
         const uname = (u.name || u.username || '').toString().toLowerCase()
-        if (uname && m.players.some(p => (''+p).toLowerCase() === uname)) return false
+        if (uname && m.players.some(p => (''+p).toLowerCase() === uname)) continue
       }
     } catch (e) {
       // ignore check errors and continue
     }
 
-    if (!term) return true
-    const s = `${u.name || u.username || ''} ${u.email || ''}`.toLowerCase()
-    return s.indexOf(term) !== -1
+    pool.push(u)
+  }
+
+  if (!term) return pool
+
+  // find prefix (startsWith) matches on name/username
+  const prefixMatches = []
+  const containsMatches = []
+  for (const u of pool) {
+    const name = ('' + (u.name || u.username || '')).toLowerCase()
+    const email = ('' + (u.email || '')).toLowerCase()
+    const combined = `${name} ${email}`.trim()
+    if (name.startsWith(term) || (u.username && ('' + u.username).toLowerCase().startsWith(term))) {
+      prefixMatches.push(u)
+    } else if (combined.indexOf(term) !== -1) {
+      containsMatches.push(u)
+    }
+  }
+
+  // If we have any prefix matches, show ONLY those (as requested). Otherwise fall back to contains matches.
+  if (prefixMatches.length) {
+    // optional: sort prefix matches alphabetically by display name
+    prefixMatches.sort((a, b) => {
+      const da = ('' + (a.name || a.username || a.email || a.uid)).toLowerCase()
+      const db = ('' + (b.name || b.username || b.email || b.uid)).toLowerCase()
+      if (da < db) return -1
+      if (da > db) return 1
+      return 0
+    })
+    return prefixMatches
+  }
+
+  containsMatches.sort((a, b) => {
+    const da = ('' + (a.name || a.username || a.email || a.uid)).toLowerCase()
+    const db = ('' + (b.name || b.username || b.email || b.uid)).toLowerCase()
+    if (da < db) return -1
+    if (da > db) return 1
+    return 0
   })
+
+  return containsMatches
 })
 
 function seededAvatar(name) {
@@ -147,6 +176,21 @@ function avatarUrl(u) {
   if (!u) return seededAvatar()
   // common keys where a profile photo might be stored
   return u.photoURL || u.avatar || u.photo || u.profilePhoto || (u.uid ? seededAvatar(u.name || u.username || u.uid) : seededAvatar(u.name))
+}
+
+function capitalize(s) {
+  if (!s) return ''
+  return ('' + s).toString().trim().replace(/^[a-z]/, c => c.toUpperCase())
+}
+
+function profileSubtitle(u) {
+  if (!u) return ''
+  const rank = (u.ranking || u.skill || '').toString().trim()
+  const gender = (u.gender || '').toString().trim()
+  const parts = []
+  if (rank) parts.push(capitalize(rank))
+  if (gender) parts.push(capitalize(gender))
+  return parts.join(' ')
 }
 
 watch(selectAll, (v) => {
@@ -217,9 +261,9 @@ function close() { emit('close') }
 .inv-modal .card-header { padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.10); color:#fff }
 .inv-modal .card-header .small { color: #e6eef6; opacity: 1; font-size: 0.95rem; font-weight: 500; margin-top:4px }
 .inv-modal .invite-row { padding:12px 10px; border-bottom:1px solid rgba(255,255,255,0.02); gap:12px; align-items:center }
-.small-avatar { width:44px; height:44px; border-radius:50%; overflow:hidden }
-.small-avatar img { width:100%; height:100%; object-fit:cover }
-.avatar-initial { width:44px; height:44px; display:flex; align-items:center; justify-content:center; background:#1f262b; color:#fff; border-radius:50% }
+.small-avatar { width:44px; height:44px; border-radius:50%; overflow:hidden; display:inline-flex; align-items:center; justify-content:center }
+.small-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; border: 3px solid rgba(255,154,60,0.95); box-sizing: border-box }
+.avatar-initial { width:44px; height:44px; display:flex; align-items:center; justify-content:center; background:#1f262b; color:#fff; border-radius:50%; border: 3px solid rgba(255,154,60,0.95); box-sizing: border-box }
 .invite-name { font-weight:700; color:#fff }
 .invite-row:hover { background: rgba(255,255,255,0.02); }
 
@@ -262,4 +306,31 @@ input.form-control-sm:focus { outline: none; box-shadow: inset 0 1px 0 rgba(255,
 }
 
 .inv-modal .btn-outline-secondary { border-color: rgba(255,255,255,0.06); color: #cfd9e3; background: transparent }
+
+/* Themed adjustments to match 'Following' UI */
+.inv-modal { border: 3px solid rgba(255,154,60,0.95); box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
+.inv-body { padding: 18px 20px }
+.inv-modal .card-header { padding: 18px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.following-title { color: #ff9a3c; font-size: 36px; margin: 0; font-weight: 800 }
+.btn-close.big-x { background: transparent; border: none; color: #fff; font-size: 22px; line-height:1 }
+
+.search-wrapper .form-control-lg { width:100%; padding: 12px 14px; border-radius: 10px; background: #141617; border: 1px solid rgba(255,255,255,0.06); color: #ffffff }
+.invite-subtitle { color: rgba(120, 115, 115, 0.92); margin-top:6px; font-size: 0.95rem }
+.search-wrapper .form-control-lg::placeholder { color: rgba(91, 91, 91, 0.65) }
+
+/* make muted small text in rows very high contrast for readability */
+.invite-row .small.text-muted { color: rgba(96, 95, 95, 0.65) }
+
+.card-item { margin: 10px 0; background: rgba(18,20,22,0.85); padding: 12px; border-radius: 10px; display: flex; align-items: center }
+.invite-name { font-weight:700; color:#fff; font-size: 1.05rem }
+.invite-row:hover { transform: translateY(-1px); }
+
+.btn-invite-row { min-width: 96px; padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.04); color: #ffb76a; border: none; font-weight:700 }
+.btn-invite-row.invited { background: #ff9a3c; color: #111 }
+
+/* hide legacy select icon CSS (we use per-row button now) */
+.select-icon-wrapper, .select-icon { display: none }
+
+/* Override Bootstrap's .text-muted inside this modal to ensure good contrast */
+.inv-modal .text-muted { color: rgba(91, 91, 91, 0.92) !important }
 </style>

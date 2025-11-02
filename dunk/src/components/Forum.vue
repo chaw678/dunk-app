@@ -194,56 +194,176 @@
                 </div>
 
                 <!-- reply input (appears when replying to this comment) -->
-                <div v-if="file._replyTarget === cid" class="reply-input mt-2 d-flex gap-2 align-items-start">
+                <!-- show only when replying directly to the comment (no target reply id) -->
+                <div v-if="file._replyTarget === cid && !file._replyTargetRid" class="reply-input mt-2 d-flex gap-2 align-items-start">
                   <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
-                  <input type="text" class="form-control" v-model="file._replyText" placeholder="Replying to {{ c.authorName || c.author || 'Anon' }}..." @keydown.enter.prevent="submitReply(file, cid)" />
+                  <input type="text" class="form-control" v-model="file._replyTexts['c_' + cid]" :placeholder="`Replying to ${c.authorName || c.author || 'Anon'}...`" @keydown.enter.prevent="submitReply(file, cid)" />
                   <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
                 </div>
 
-                <!-- replies list -->
+                <!-- replies list rendered as a two-level tree (roots + children). -->
                 <div class="comment-replies mt-3" v-if="c.replies && Object.keys(c.replies).length">
-                  <div v-for="(r, rid) in c.replies" :key="rid" class="reply-item d-flex align-items-start mb-2">
-                    <div class="reply-avatar">
-                      <template v-if="profilePathForReply(r)">
-                        <router-link :to="profilePathForReply(r)"><img :src="r.avatar || avatarForName(r.authorName)" alt="avatar"/></router-link>
-                      </template>
-                      <template v-else>
-                        <img :src="r.avatar || avatarForName(r.authorName)" alt="avatar"/>
-                      </template>
-                    </div>
-                    <div class="reply-bubble" style="flex:1; position:relative">
-                      <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                          <strong>
-                            <template v-if="profilePathForReply(r)">
-                              <router-link :to="profilePathForReply(r)" class="text-reset text-decoration-none">{{ r.authorName || r.author || 'Anon' }}</router-link>
-                            </template>
-                            <template v-else>
-                              {{ r.authorName || r.author || 'Anon' }}
-                            </template>
-                          </strong>
-                          <span class="text-muted">• {{ displayDate(r.createdAt) }}</span>
+                  <div v-for="node in replyRoots(c)" :key="node.rid" class="reply-node">
+                    <div class="reply-item d-flex align-items-start mb-2">
+                      <div class="reply-avatar">
+                        <template v-if="profilePathForReply(node.r)">
+                          <router-link :to="profilePathForReply(node.r)"><img :src="node.r.avatar || avatarForName(node.r.authorName)" alt="avatar"/></router-link>
+                        </template>
+                        <template v-else>
+                          <img :src="node.r.avatar || avatarForName(node.r.authorName)" alt="avatar"/>
+                        </template>
+                      </div>
+                      <div class="reply-bubble" style="flex:1; position:relative">
+                        <div class="d-flex justify-content-between align-items-start">
+                          <div>
+                            <strong>
+                              <template v-if="profilePathForReply(node.r)">
+                                <router-link :to="profilePathForReply(node.r)" class="text-reset text-decoration-none">{{ node.r.authorName || node.r.author || 'Anon' }}</router-link>
+                              </template>
+                              <template v-else>
+                                {{ node.r.authorName || node.r.author || 'Anon' }}
+                              </template>
+                            </strong>
+                            <span class="text-muted">• {{ displayDate(node.r.createdAt) }}</span>
+                          </div>
+                          <div>
+                            <div v-if="isReplyOwner(node.r)" class="dropdown dropend">
+                              <button class="btn btn-sm btn-link comment-menu-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="More">
+                                <i class="bi bi-three-dots-vertical"></i>
+                              </button>
+                              <ul class="dropdown-menu dropdown-menu-end">
+                                <li><button class="dropdown-item" @click.stop.prevent="startEditReply(file, cid, node.rid)">Edit</button></li>
+                                <li><button class="dropdown-item text-danger" @click.stop.prevent="deleteReply(file, cid, node.rid)">Delete</button></li>
+                              </ul>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div v-if="isReplyOwner(r)" class="dropdown dropend">
-                            <button class="btn btn-sm btn-link comment-menu-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="More">
-                              <i class="bi bi-three-dots-vertical"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                              <li><button class="dropdown-item" @click.stop.prevent="startEditReply(file, cid, rid)">Edit</button></li>
-                              <li><button class="dropdown-item text-danger" @click.stop.prevent="deleteReply(file, cid, rid)">Delete</button></li>
-                            </ul>
+
+                        <div class="mt-1" v-if="!(file._editingReply === node.rid)">{{ node.r.text }}</div>
+                        <div v-else class="mt-1">
+                          <input class="form-control comment-edit-input" v-model="file._editingReplyText" />
+                          <div class="mt-1"><button class="btn btn-primary btn-sm" @click="saveEditReply(file, cid, node.rid)">Save</button> <button class="btn btn-secondary btn-sm" @click="cancelEditReply(file)">Cancel</button></div>
+                        </div>
+
+                        <div class="mt-2"><a href="#" class="reply-link" @click.prevent="startReply(file, cid, node.rid)">Reply</a></div>
+
+                        <!-- if replying to this root reply, show nested input here -->
+                        <div v-if="file._replyTarget === cid && file._replyTargetRid === node.rid" class="reply-input mt-2 d-flex gap-2 align-items-start nested-reply-input">
+                          <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
+                          <input type="text" class="form-control" v-model="file._replyTexts[node.rid]" :placeholder="`Replying to ${node.r.authorName || node.r.author || 'Anon'}...`" @keydown.enter.prevent="submitReply(file, cid)" />
+                          <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- render children of this root reply (one level deeper) -->
+                    <div class="child-list" v-if="replyChildren(c, node.rid) && replyChildren(c, node.rid).length">
+                      <div v-for="child in replyChildren(c, node.rid)" :key="child.rid" class="reply-item d-flex align-items-start mb-2 child">
+                        <div class="reply-avatar">
+                          <template v-if="profilePathForReply(child.r)">
+                            <router-link :to="profilePathForReply(child.r)"><img :src="child.r.avatar || avatarForName(child.r.authorName)" alt="avatar"/></router-link>
+                          </template>
+                          <template v-else>
+                            <img :src="child.r.avatar || avatarForName(child.r.authorName)" alt="avatar"/>
+                          </template>
+                        </div>
+                        <div class="reply-bubble" style="flex:1; position:relative">
+                          <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                              <strong>
+                                <template v-if="profilePathForReply(child.r)">
+                                  <router-link :to="profilePathForReply(child.r)" class="text-reset text-decoration-none">{{ child.r.authorName || child.r.author || 'Anon' }}</router-link>
+                                </template>
+                                <template v-else>
+                                  {{ child.r.authorName || child.r.author || 'Anon' }}
+                                </template>
+                              </strong>
+                              <span class="text-muted">• {{ displayDate(child.r.createdAt) }}</span>
+                            </div>
+                            <div>
+                              <div v-if="isReplyOwner(child.r)" class="dropdown dropend">
+                                <button class="btn btn-sm btn-link comment-menu-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="More">
+                                  <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                  <li><button class="dropdown-item" @click.stop.prevent="startEditReply(file, cid, child.rid)">Edit</button></li>
+                                  <li><button class="dropdown-item text-danger" @click.stop.prevent="deleteReply(file, cid, child.rid)">Delete</button></li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="mt-1" v-if="!(file._editingReply === child.rid)">{{ child.r.text }}</div>
+                          <div v-else class="mt-1">
+                            <input class="form-control comment-edit-input" v-model="file._editingReplyText" />
+                            <div class="mt-1"><button class="btn btn-primary btn-sm" @click="saveEditReply(file, cid, child.rid)">Save</button> <button class="btn btn-secondary btn-sm" @click="cancelEditReply(file)">Cancel</button></div>
+                          </div>
+
+                          <div class="mt-2"><a href="#" class="reply-link" @click.prevent="startReply(file, cid, child.rid)">Reply</a></div>
+
+                          <!-- nested reply input for replies to this child -->
+                          <div v-if="file._replyTarget === cid && file._replyTargetRid === child.rid" class="reply-input mt-2 d-flex gap-2 align-items-start nested-reply-input child-input">
+                            <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
+                            <input type="text" class="form-control" v-model="file._replyTexts[child.rid]" :placeholder="`Replying to ${child.r.authorName || child.r.author || 'Anon'}...`" @keydown.enter.prevent="submitReply(file, cid)" />
+                            <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
+                          </div>
+                        </div>
+
+                        <!-- grandchildren rendered as separate boxes outside the parent's bubble -->
+                        <div v-if="replyChildren(c, child.rid) && replyChildren(c, child.rid).length" class="grandchild-list mt-2">
+                          <div v-for="g in replyChildren(c, child.rid)" :key="g.rid" class="reply-item d-flex align-items-start mb-2 grandchild">
+                            <div class="reply-avatar">
+                              <template v-if="profilePathForReply(g.r)">
+                                <router-link :to="profilePathForReply(g.r)"><img :src="g.r.avatar || avatarForName(g.r.authorName)" alt="avatar"/></router-link>
+                              </template>
+                              <template v-else>
+                                <img :src="g.r.avatar || avatarForName(g.r.authorName)" alt="avatar"/>
+                              </template>
+                            </div>
+                            <div class="reply-bubble" style="flex:1; position:relative">
+                              <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                  <strong>
+                                    <template v-if="profilePathForReply(g.r)">
+                                      <router-link :to="profilePathForReply(g.r)" class="text-reset text-decoration-none">{{ g.r.authorName || g.r.author || 'Anon' }}</router-link>
+                                    </template>
+                                    <template v-else>
+                                      {{ g.r.authorName || g.r.author || 'Anon' }}
+                                    </template>
+                                  </strong>
+                                  <span class="text-muted">• {{ displayDate(g.r.createdAt) }}</span>
+                                </div>
+                                <div>
+                                  <div v-if="isReplyOwner(g.r)" class="dropdown dropend">
+                                    <button class="btn btn-sm btn-link comment-menu-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="More">
+                                      <i class="bi bi-three-dots-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                      <li><button class="dropdown-item" @click.stop.prevent="startEditReply(file, cid, g.rid)">Edit</button></li>
+                                      <li><button class="dropdown-item text-danger" @click.stop.prevent="deleteReply(file, cid, g.rid)">Delete</button></li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div class="mt-1" v-if="!(file._editingReply === g.rid)">{{ g.r.text }}</div>
+                              <div v-else class="mt-1">
+                                <input class="form-control comment-edit-input" v-model="file._editingReplyText" />
+                                <div class="mt-1"><button class="btn btn-primary btn-sm" @click="saveEditReply(file, cid, g.rid)">Save</button> <button class="btn btn-secondary btn-sm" @click="cancelEditReply(file)">Cancel</button></div>
+                              </div>
+
+                              <div class="mt-2"><a href="#" class="reply-link" @click.prevent="startReply(file, cid, g.rid)">Reply</a></div>
+
+                              <!-- nested reply input for replies to this grandchild -->
+                              <div v-if="file._replyTarget === cid && file._replyTargetRid === g.rid" class="reply-input mt-2 d-flex gap-2 align-items-start nested-reply-input grandchild-input">
+                                <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
+                                <input type="text" class="form-control" v-model="file._replyTexts[g.rid]" :placeholder="`Replying to ${g.r.authorName || g.r.author || 'Anon'}...`" @keydown.enter.prevent="submitReply(file, cid)" />
+                                <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
-
-                      <div class="mt-1" v-if="!(file._editingReply === rid)">{{ r.text }}</div>
-                      <div v-else class="mt-1">
-                        <input class="form-control comment-edit-input" v-model="file._editingReplyText" />
-                        <div class="mt-1"><button class="btn btn-primary btn-sm" @click="saveEditReply(file, cid, rid)">Save</button> <button class="btn btn-secondary btn-sm" @click="cancelEditReply(file)">Cancel</button></div>
-                      </div>
-
-                      <div class="mt-2"><a href="#" class="reply-link" @click.prevent="startReply(file, cid, rid)">Reply</a></div>
                     </div>
                   </div>
                 </div>
@@ -438,6 +558,10 @@ async function loadUploads() {
         // read like/comment objects directly from post (favored schema to keep metadata together)
         f.likedBy = f.likedBy || f.likedBy || {}
         f.comments = f.comments || f.comments || {}
+  // initialize UI state for replies
+  f._replyTarget = f._replyTarget || null
+  f._replyTargetRid = f._replyTargetRid || null
+  f._replyTexts = f._replyTexts || {}
         // ensure each comment has an avatar and authorName fallback
         try {
           for (const [cid, c] of Object.entries(f.comments || {})) {
@@ -550,13 +674,22 @@ function toggleComments(file) {
 
 function startReply(file, cid, rid = null) {
   if (!file) return
+  // Show reply box for this comment (cid). If rid provided, we're replying to that reply.
   file._replyTarget = cid
-  file._replyText = ''
+  file._replyTargetRid = rid || null
+  // ensure per-target reply text container exists and initialize key
+  file._replyTexts = file._replyTexts || {}
+  const key = rid ? rid : `c_${cid}`
+  if (!Object.prototype.hasOwnProperty.call(file._replyTexts, key)) file._replyTexts[key] = ''
+  // ensure comments panel visible
+  file._showComments = true
 }
 
 async function submitReply(file, cid) {
   if (!file || !file.id || !file.comments || !file.comments[cid]) return
-  const text = (file._replyText || '').trim()
+  file._replyTexts = file._replyTexts || {}
+  const key = file._replyTargetRid ? file._replyTargetRid : `c_${cid}`
+  const text = (file._replyTexts[key] || '').trim()
   if (!text) return
   if (!currentUserId.value) { 
     showPopup.value = true
@@ -568,6 +701,8 @@ async function submitReply(file, cid) {
     text,
     createdAt: Date.now()
   }
+  // if replying to an existing reply, include parentRid so we can thread
+  if (file._replyTargetRid) reply.parentRid = file._replyTargetRid
   try {
     // push reply under forumUploads/{postId}/comments/{cid}/replies
     await pushDataToFirebase(`forumUploads/${file.id}/comments/${cid}/replies`, reply)
@@ -575,12 +710,38 @@ async function submitReply(file, cid) {
     if (!file.comments[cid].replies) file.comments[cid].replies = {}
     const rk = 'r_' + Date.now()
     reply.avatar = avatarForName(reply.authorName)
+    // ensure parentRid persisted locally for rendering
     file.comments[cid].replies[rk] = reply
-    file._replyText = ''
+    // clear reply UI state for this target
+    file._replyTexts[key] = ''
     file._replyTarget = null
+    file._replyTargetRid = null
   } catch (err) {
     console.error('Failed to submit reply', err)
     alert('Failed to submit reply')
+  }
+}
+
+// Helpers to build a two-level reply tree from flat replies object
+function replyRoots(c) {
+  if (!c || !c.replies) return []
+  try {
+    return Object.entries(c.replies)
+      .filter(([rid, r]) => !r || !r.parentRid)
+      .map(([rid, r]) => ({ rid, r }))
+  } catch (e) {
+    return []
+  }
+}
+
+function replyChildren(c, parentRid) {
+  if (!c || !c.replies || !parentRid) return []
+  try {
+    return Object.entries(c.replies)
+      .filter(([rid, r]) => r && r.parentRid === parentRid)
+      .map(([rid, r]) => ({ rid, r }))
+  } catch (e) {
+    return []
   }
 }
 
@@ -1070,6 +1231,10 @@ onUnmounted(() => {
   background: #181c23;
   color: #eaf0f6;
   font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+  /* fixed column reserved for avatar + gap; used to align right edges of reply bubbles */
+  --reply-avatar-col: 72px; /* avatar(44) + gap/margins ~72px works well on most breakpoints */
+  --reply-indent-base: 12px; /* base padding for first nested replies */
+  --reply-indent-step: 36px; /* additional indent per nested level */
 }
 
 /* Card and message containers */
@@ -1116,7 +1281,7 @@ onUnmounted(() => {
 
 
 /* User row */
-.forum-message-row, .comment-item, .reply-item {
+.forum-message-row, .comment-item {
   display: flex;
   align-items: flex-start;
   gap: 18px;
@@ -1534,20 +1699,19 @@ input.comment-edit-input:-webkit-autofill:focus {
   flex-wrap: wrap;
 }
 
-.preview-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #0d0f10;
-  padding: 8px;
-  border-radius: 6px;
+.reply-item {
+  display: grid;
+  grid-template-columns: var(--reply-avatar-col) 1fr;
+  gap: 12px;
+  align-items: start;
 }
-
-.preview-thumb {
-  width: 64px;
-  height: 64px;
-  object-fit: cover;
-  border-radius: 6px;
+.reply-bubble {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: rgba(255,255,255,0.02);
+  border-radius: 8px;
+  padding: 8px 12px;
 }
 
 .preview-icon {
@@ -1625,14 +1789,15 @@ input.comment-edit-input:-webkit-autofill:focus {
   border-radius: 50%;
   pointer-events: none;
 }
+/* avatar-centered connector segment removed to avoid drawing a line through the profile pictures */
 .comment-left { align-items: flex-start }
 .comment-body {
   margin-top: 6px;
   color: #e6eef8;
 }
 .reply-link {
-  color: #ff9a3c;
-  font-weight: 600;
+  color: #ffb84d; /* brighter orange for better visibility */
+  font-weight: 700;
   text-decoration: none;
 }
 .reply-input .reply-avatar img {
@@ -1643,20 +1808,139 @@ input.comment-edit-input:-webkit-autofill:focus {
 }
 .reply-input .form-control { border-radius: 8px; }
 .comment-replies {
-  margin-left: 64px;
-  border-left: 2px solid rgba(255,255,255,0.02);
-  padding-left: 16px;
+  margin-left: 0;
+  border-left: none; /* container-level border removed; connectors drawn from avatars */
+  padding-left: var(--reply-indent-base);
 }
-.reply-item { gap: 10px }
 .reply-bubble {
   background: #2b3238;
   padding: 12px 14px;
   border-radius: 8px;
   color: #e6eef8;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin-right: 0;
 }
 .reply-avatar {
   margin-right: 10px;
+  position: relative;
+  z-index: 2; /* keep avatar above the bubble background */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+/* Nested reply visuals */
+.comment-replies {
+  /* base indent for first-level replies; further levels add the step value */
+  margin-left: 0;
+  border-left: none; /* removed to avoid duplicate/continuous line */
+  padding-left: var(--reply-indent-base);
+}
+
+/* vertical connector lines for reply levels: draw a thin line inside each replies container
+   so nested replies visually show the thread. The line sits behind avatars/bubbles. */
+.comment-replies,
+.child-list,
+.grandchild-list {
+  position: relative;
+}
+
+/* ensure replies containers don't clip avatar connectors */
+.comment-replies,
+.child-list,
+.grandchild-list,
+.reply-item {
+  overflow: visible;
+}
+
+/* per-level padding so each nested replies container shifts by a fixed step */
+.comment-replies {
+  padding-left: calc(var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 0);
+}
+.child-list {
+  padding-left: calc(var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 1);
+}
+.grandchild-list {
+  padding-left: calc(var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 2);
+}
+
+/* vertical connector lines for each level — positioned under avatar centers for that level */
+/* Container-level vertical guide lines (Reddit-like): draw a continuous thin line
+   for each nesting level. Lines sit behind content; avatars are drawn above them. */
+.comment-replies::before,
+.child-list::before,
+.grandchild-list::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 2px;
+  z-index: 0;
+}
+.comment-replies::before { left: calc((var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 0) + 22px - 1px); }
+.child-list::before     { left: calc((var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 1) + 22px - 1px); }
+.grandchild-list::before { left: calc((var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 2) + 22px - 1px); }
+
+/* Avatar-anchored connector: draw a thin vertical segment centered on each avatar.
+   This guarantees the line aligns exactly with the avatar even when responsive
+   math or zoom changes the layout. The pseudo-element sits behind avatars and
+   bubbles. */
+.reply-avatar {
+  position: relative;
+  z-index: 2; /* ensure avatar sits above the container guide */
+}
+
+/* also draw connector from comment avatars (top-level comment avatars) */
+.comment-avatar {
+  position: relative;
+}
+.comment-avatar {
+  position: relative;
+  z-index: 2; /* ensure comment avatar sits above the container guide */
+}
+.reply-avatar,
+.reply-bubble {
+  position: relative; /* ensure they sit above the connector line */
+  z-index: 1;
+}
+.child { margin-left: 0; }
+.grandchild { margin-left: 0; }
+.nested-reply-input { margin-left: 0; }
+.child-input { margin-left: 0; }
+.grandchild-input { margin-left: 0; }
+
+/* ensure grandchild lists occupy their own row and span the content column inside a grid reply-item */
+.child-list {
+  /* include avatar column in each level's padding so avatar centers line up with the guide */
+  padding-left: calc(var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 1);
+}
+.grandchild-list {
+  padding-left: calc(var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 2);
+}
+
+.reply-item > .grandchild-list {
+  grid-column: 2 / -1; /* occupy the content column row */
+  display: block;
+  margin-left: 0;
+  /* include avatar column so grandchild aligns with avatar-centered guides */
+  padding-left: calc(var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 2); /* consistent 3rd-level indent */
+  margin-top: 8px;
+  width: 100%;
+}
+.reply-item > .grandchild-list .reply-item { width: 100%; }
+
+/* Ensure child/grandchild reply bubbles use the same max-width so their right edges align */
+.reply-item .reply-bubble,
+.child .reply-bubble,
+.grandchild .reply-bubble {
+  max-width: none;
+  width: 100%;
+  margin-right: 0;
 }
 
 .comment-toggle {
@@ -1791,6 +2075,181 @@ input.comment-edit-input:-webkit-autofill:focus {
   border: 3px solid #FFAD1D; /* single orange ring */
   border-radius: 50%;
   pointer-events: none;
+}
+
+/* Reply-avatar ring: keep consistent sizing/positioning with main avatar */
+.reply-avatar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: 3px solid #FFAD1D;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Center avatar inside reply inputs and ensure the ring lines up */
+.reply-input {
+  align-items: center; /* override inline align-items-start in markup */
+}
+.reply-input .reply-avatar {
+  margin-top: 0;
+}
+.reply-input .reply-avatar img {
+  width: 40px;
+  height: 40px;
+  display: block;
+  border-radius: 50%;
+}
+
+/* Style the first-level reply input's button so it matches nested reply buttons
+   and sits directly to the right of the textbox. This targets `.reply-input`
+   blocks used inside comments (not the top-level comment composer). */
+.reply-input input.form-control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.reply-input .btn-create {
+  flex: 0 0 auto;
+  margin-left: 8px;
+  white-space: nowrap;
+  align-self: center;
+  background: #FFAD1D;
+  color: #111;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(255,173,29,0.18);
+}
+.reply-input .btn-create:hover { background: #ffa733 }
+
+/* Make the top-level comment composer button match the nested/first-level reply buttons.
+   This targets the `.btn-create` that lives inside the collapsed comments panel's composer
+   (the row with the "Add a comment..." input). */
+.comments-panel .d-flex input.form-control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.comments-panel .d-flex > .btn-create {
+  flex: 0 0 auto;
+  margin-left: 8px;
+  white-space: nowrap;
+  align-self: center;
+  background: #FFAD1D;
+  color: #111;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(255,173,29,0.18);
+}
+.comments-panel .d-flex > .btn-create:hover { background: #ffa733 }
+
+/* Interactive states for comment/reply action buttons */
+.reply-input .btn-create,
+.nested-reply-input .btn-create,
+.child-input .btn-create,
+.grandchild-input .btn-create,
+.comments-panel .d-flex > .btn-create {
+  transition: transform 120ms cubic-bezier(.2,.9,.2,1), box-shadow 120ms ease, background-color 120ms ease;
+  will-change: transform, box-shadow;
+}
+
+.reply-input .btn-create:hover,
+.nested-reply-input .btn-create:hover,
+.child-input .btn-create:hover,
+.grandchild-input .btn-create:hover,
+.comments-panel .d-flex > .btn-create:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.28), 0 2px 6px rgba(255,173,29,0.12);
+}
+
+.reply-input .btn-create:active,
+.nested-reply-input .btn-create:active,
+.child-input .btn-create:active,
+.grandchild-input .btn-create:active,
+.comments-panel .d-flex > .btn-create:active {
+  transform: translateY(0) scale(0.995);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.22);
+}
+
+.reply-input .btn-create:focus-visible,
+.nested-reply-input .btn-create:focus-visible,
+.child-input .btn-create:focus-visible,
+.grandchild-input .btn-create:focus-visible,
+.comments-panel .d-flex > .btn-create:focus-visible {
+  outline: 3px solid rgba(255,167,51,0.18);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* Place the nested reply submit button directly to the right of the input field
+   without affecting the top-level comment reply area. We target only the
+   nested reply input variants so the top-level `.reply-input` stays as-is. */
+.nested-reply-input input.form-control,
+.child-input input.form-control,
+.grandchild-input input.form-control {
+  flex: 1 1 auto; /* allow input to grow and take available space */
+  min-width: 0;   /* prevent overflowing the flex container */
+}
+
+.nested-reply-input .btn-create,
+.child-input .btn-create,
+.grandchild-input .btn-create {
+  flex: 0 0 auto;      /* keep button its natural size */
+  margin-left: 8px;    /* small gap between input and button */
+  white-space: nowrap;  /* prevent the button text from wrapping */
+  align-self: center;   /* vertically center relative to the input */
+}
+
+/* Responsive fallback: stack input and button on very small viewports */
+@media (max-width: 480px) {
+  .nested-reply-input,
+  .child-input,
+  .grandchild-input {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .nested-reply-input .btn-create,
+  .child-input .btn-create,
+  .grandchild-input .btn-create {
+    margin-left: 0;
+    margin-top: 8px;
+    width: 100%;
+  }
+}
+
+/* Improve contrast for timestamps and reply action */
+.reply-bubble .text-muted,
+.reply-item .text-muted,
+.comment-item .text-muted {
+  color: rgba(255,255,255,0.62) !important;
+}
+.reply-link {
+  color: #ffb84d; /* unify reply-link color across component */
+  font-weight: 700;
+}
+.reply-link:hover { color: #ffe0aa }
+
+/* Make nested reply buttons more visible (bright orange with dark text).
+   We intentionally target nested reply buttons so we don't alter other global
+   .btn-create instances elsewhere unless they live inside reply inputs. */
+.nested-reply-input .btn-create,
+.child-input .btn-create,
+.grandchild-input .btn-create {
+  background: #FFAD1D; /* primary orange */
+  color: #111; /* high contrast on the orange */
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(255,173,29,0.18);
+}
+.nested-reply-input .btn-create:hover,
+.child-input .btn-create:hover,
+.grandchild-input .btn-create:hover {
+  background: #ffa733;
 }
 
 /* Dropdown menu dots styling */
@@ -2034,5 +2493,53 @@ input.comment-edit-input:-webkit-autofill:focus {
   padding-left: 18px;
   background-color: rgba(255, 167, 51, 0.025);
   border-radius: 7px;
+}
+
+/* Stronger, specific rules to ensure nested reply items and bubbles occupy the content column
+   and don't collapse into the avatar column. These rules are intentionally specific and
+   placed at the end of the stylesheet so they win against earlier overrides. */
+.comment-replies .reply-item,
+.comment-replies .child-list .reply-item,
+.comment-replies .grandchild-list .reply-item {
+  display: grid !important;
+  grid-template-columns: var(--reply-avatar-col) 1fr !important;
+  gap: 12px !important;
+  align-items: start !important;
+}
+
+.comment-replies .reply-bubble,
+.comment-replies .child-list .reply-bubble,
+.comment-replies .grandchild-list .reply-bubble {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+.reply-item > .grandchild-list {
+  grid-column: 2 / -1 !important; /* force grandchild list into content column */
+  /* Keep the grandchild list aligned using the same CSS variables (no hardcoded px) */
+  padding-left: calc(var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 2) !important;
+  margin-left: 0 !important;
+  width: 100% !important;
+}
+
+.grandchild-list::before { left: calc((var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 2) + 22px - 1px) !important; }
+/* top-level comments panel guide (leftmost) to match avatar centers for the root comment */
+.comments-panel { position: relative; }
+.comments-panel::before {
+  content: '';
+  position: absolute;
+  /* start lower so the leftmost guide doesn't run from the very top of the card
+    — increased offset to make the visible line shorter as requested */
+  top: 80px;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 2px;
+  z-index: 0;
+  left: calc(22px - 1px); /* half of 44px avatar minus 1px */
 }
 </style>

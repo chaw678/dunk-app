@@ -22,9 +22,7 @@
 
         <label>Gender</label>
         <div class="gender-options">
-          <label><input type="radio" value="All" v-model="gender"/> All</label>
-          <label><input type="radio" value="Female" v-model="gender"/> Female</label>
-          <label><input type="radio" value="Male" v-model="gender"/> Male</label>
+          <label v-for="(g, i) in availableGenders" :key="i"><input type="radio" :value="g" v-model="gender"/> {{ g }}</label>
         </div>
 
         <label class="d-flex align-items-center">Court
@@ -60,16 +58,14 @@
 
         <label>Match Type (Skill Level)</label>
         <select v-model="matchType">
-          <option value="Open">Open</option>
-          <option value="Beginner">Beginner</option>
-          <option value="Intermediate">Intermediate</option>
-          <option value="Professional">Professional</option>
+          <option v-for="(t, idx) in availableMatchTypes" :key="idx" :value="t">{{ t }}</option>
         </select>
 
         <label>Number of Players</label>
         <input type="number" v-model.number="maxPlayers" min="2" max="30" />
 
   <button type="submit" class="create-btn" :disabled="!canSubmit || validatingCourt || checkingOverlap" :title="!canSubmit ? 'Fill required fields before creating' : (validatingCourt || checkingOverlap ? 'Validating...' : '')">Create Match</button>
+    <div v-if="submitDisabledReason && submitDisabledReason.length" style="margin-top:6px;font-size:0.92rem;color:#ffb4b4">{{ submitDisabledReason }}</div>
       </form>
     </div>
   </div>
@@ -153,10 +149,26 @@ watch(() => props.courtName, () => tryPrefillCourt())
 
 // listen for auth state so we can record the creating user's uid
 const currentUser = ref(null)
+// prefer `ranking` field; keep legacy `skill` for compatibility
+const currentUserProfile = ref({ ranking: 'Open', skill: 'Open', gender: '' })
 const minDate = ref('')
 
 onMounted(() => {
-  onUserStateChanged((u) => { currentUser.value = u })
+  onUserStateChanged(async (u) => {
+    currentUser.value = u
+    try {
+      if (u && u.uid) {
+        // try to fetch the user's profile from Realtime DB
+        const p = await getDataFromFirebase(`users/${u.uid}`)
+        if (p) currentUserProfile.value = p
+      } else {
+        currentUserProfile.value = { skill: 'Open', gender: '' }
+      }
+    } catch (e) {
+      // fallback to defaults
+      currentUserProfile.value = { skill: 'Open', gender: '' }
+    }
+  })
   // compute minDate (today) for the date picker and default matchDate if empty
   try {
     const d = new Date()
@@ -268,9 +280,33 @@ async function isTimingOverlap() {
       if (m.startTime && m.endTime) {
         existStart = parseDateTime(m.date, m.startTime)
         existEnd = parseDateTime(m.date, m.endTime)
+        
+        // If the match ended early, use the actual end time instead of scheduled end time
+        if (m.endedAt) {
+          try {
+            const actualEnd = new Date(m.endedAt)
+            if (!isNaN(actualEnd.getTime()) && actualEnd < existEnd) {
+              existEnd = actualEnd
+            }
+          } catch (e) {
+            // If parsing fails, continue with scheduled end time
+          }
+        }
       } else if (m.time) {
         existStart = parseDateTime(m.date, m.time)
         existEnd = new Date(existStart.getTime())
+        
+        // Check for early end here too
+        if (m.endedAt) {
+          try {
+            const actualEnd = new Date(m.endedAt)
+            if (!isNaN(actualEnd.getTime()) && actualEnd < existEnd) {
+              existEnd = actualEnd
+            }
+          } catch (e) {
+            // Continue with default end time
+          }
+        }
       }
       if (existStart && existEnd) {
         if (rangesOverlap(newStart, newEnd, existStart, existEnd)) {
@@ -301,7 +337,77 @@ const canSubmit = computed(() => {
   return true
 })
 
+// normalize skill helpers (same logic as Matches.vue)
+const skillOrder = ['Open', 'Beginner', 'Intermediate', 'Professional']
+function normalizeSkill(skill) {
+  if (!skill) return 'Open'
+  const s = ('' + skill).trim().toLowerCase()
+  if (s.startsWith('pro')) return 'Professional'
+  if (s.startsWith('inter')) return 'Intermediate'
+  if (s.startsWith('beg')) return 'Beginner'
+  if (s.startsWith('open')) return 'Open'
+  for (const v of skillOrder) if (v.toLowerCase() === s) return v
+  return 'Open'
+}
+function skillRank(skill) {
+  const normalized = normalizeSkill(skill)
+  const idx = skillOrder.indexOf(normalized)
+  return idx === -1 ? 0 : idx
+}
+
+// Gender options based on user's profile
+const availableGenders = computed(() => {
+  const ug = (currentUserProfile.value && currentUserProfile.value.gender) ? ('' + currentUserProfile.value.gender).trim() : ''
+  if (!ug) return ['All', 'Female', 'Male']
+  // if user has a gender, allow 'All' and their gender only
+  const cap = ug.charAt(0).toUpperCase() + ug.slice(1).toLowerCase()
+  return ['All', cap]
+})
+
+// Canonical match types (match "levels") — Beginner is a player rank, not a match type.
+const canonicalMatchTypes = ['Open', 'Intermediate', 'Professional']
+
+// Match type options limited by user's rank: allow creating matches whose required rank <= user's rank
+const availableMatchTypes = computed(() => {
+  // Prefer ranking (newer field), fall back to legacy skill
+  const raw = (currentUserProfile.value && (currentUserProfile.value.ranking || currentUserProfile.value.skill)) || ''
+  const userSkill = normalizeSkill(raw)
+  const ur = skillRank(userSkill)
+  // Filter canonical match types by required rank
+  return canonicalMatchTypes.filter(t => skillRank(t) <= ur)
+})
+
+// Ensure selected values remain valid when profile changes
+watch([currentUserProfile, availableGenders, availableMatchTypes], () => {
+  // adjust gender if not allowed
+  const g = gender.value
+  if (g && availableGenders.value.indexOf(g) === -1) {
+    // pick the first allowed (prefer user's gender or 'All')
+    gender.value = availableGenders.value.includes('All') ? 'All' : (availableGenders.value[0] || 'All')
+  }
+  // adjust matchType if not allowed
+  if (matchType.value && availableMatchTypes.value.indexOf(matchType.value) === -1) {
+    matchType.value = availableMatchTypes.value[0] || 'Open'
+  }
+})
+
+// Provide a human-friendly reason why the Create button is disabled
+const submitDisabledReason = computed(() => {
+  if (validatingCourt.value) return 'Validating selected court...'
+  if (checkingOverlap.value) return 'Checking for schedule conflicts...'
+  if (!selectedCourt.value) return 'Please select a court.'
+  if (!matchDate.value) return 'Please select a date.'
+  if (minDate.value && matchDate.value < minDate.value) return 'Date cannot be in the past.'
+  if (!startTime.value || !endTime.value) return 'Please set start and end times.'
+  const s = parseDateTime(matchDate.value, startTime.value)
+  const e = parseDateTime(matchDate.value, endTime.value)
+  if (!s || !e) return 'Invalid start or end time.'
+  if (e <= s) return 'End time must be after start time.'
+  return ''
+})
+
 const createMatch = async () => {
+  console.debug('[AddMatchModal] createMatch invoked', { canSubmit: canSubmit.value, validatingCourt: validatingCourt.value, checkingOverlap: checkingOverlap.value })
   try {
     // Reset all error states
     courtError.value = ''
@@ -393,7 +499,8 @@ const createMatch = async () => {
     newMatch.__dbPath = `matches/${courtKey}/${matchDate.value}/${newKey}`
   } catch (e) {}
   console.log('Created match key:', newKey, 'path:', newMatch.__dbPath)
-  alert('Match created and saved to Firebase!')
+  // Use non-blocking log instead of alert (UI shows popup in parent)
+  console.log('Match created and saved to Firebase')
   // notify parent to refresh list
   emit('created')
   closeModal()

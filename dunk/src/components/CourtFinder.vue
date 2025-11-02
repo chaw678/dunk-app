@@ -87,7 +87,6 @@
               </div>
               <div class="court-actions">
                 <button class="view-matches-link" @click="toggleCourtExpand(court)">{{ expandedCourts[courtKey(court)] ? 'Hide Matches' : 'View Matches' }}</button>
-                <button v-if="canRemoveCourt(court)" class="remove-court-btn" @click="removeCourt(court)" title="Remove this court"><i class="bi bi-trash"></i></button>
               </div>
             </div>
 
@@ -289,6 +288,83 @@ if (map.value && court.lat && court.lon) {
   })
 }}
 
+const applyFilters = () => {
+  if (!map.value) {
+    // If map not ready, just skip (markers will be added after map initialises)
+    return;
+  }
+
+  const query = (searchQuery.value || '').toLowerCase().trim();
+  const activeRegions = (selectedRegions.value || []).map(r => (r || '').toString().toLowerCase().trim());
+
+  let filtered = (allCourts.value || []).slice();
+
+  if (!activeRegions.includes('all')) {
+    const set = new Set(activeRegions.filter(Boolean));
+    filtered = filtered.filter(c => {
+      const r = ((c.region ?? '') + '').toString().toLowerCase().trim();
+      return r && set.has(r);
+    });
+  }
+
+  if (query) {
+    filtered = filtered.filter(c => {
+      const name = (c.name ?? '').toString().toLowerCase();
+      const region = (c.region ?? '').toString().toLowerCase();
+      const keywords = (c.keywords ?? []).map(k => (k || '').toString().toLowerCase());
+      return name.includes(query) || region.includes(query) || keywords.some(k => k.includes(query));
+    });
+  }
+
+  console.debug('[applyFilters] regions=', selectedRegions.value, 'query=', searchQuery.value, 'matches=', filtered.length, filtered.map(c => ({ name: c.name, region: c.region })));
+  visibleCourts.value = filtered
+  addMarkers(filtered);
+};
+
+const loadCourtsFromFirebase = async () => {
+  const data = await getDataFromFirebase('courts');
+  let firebaseList = [];
+  if (data) {
+    firebaseList = Object.entries(data).map(([id, court]) => ({
+      id,
+      name: court.name ?? '',
+      region: ((court.region ?? '') + '').toString().toLowerCase().trim(),
+      lat: Number(court.lat),
+      lon: Number(court.lon),
+      keywords: court.keywords ?? [],
+      ...court
+    }));
+  }
+
+  const localNormalized = Array.isArray(courts.value)
+    ? courts.value.map(c => ({
+        ...c,
+        region: ((c.region ?? '') + '').toString().toLowerCase().trim(),
+        lat: Number(c.lat),
+        lon: Number(c.lon),
+        keywords: c.keywords ?? []
+      }))
+    : [];
+
+  // Combine and deduplicate courts based on name and coordinates
+  const combined = [...firebaseList, ...localNormalized];
+  const uniqueCourts = [];
+  const seen = new Set();
+
+  for (const court of combined) {
+    // Create a unique key based on name and coordinates
+    const key = `${(court.name || '').toLowerCase().trim()}_${court.lat}_${court.lon}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueCourts.push(court);
+    }
+  }
+
+  allCourts.value = uniqueCourts;
+  console.debug('[loadCourtsFromFirebase] loaded', allCourts.value.length, 'courts (after deduplication)', allCourts.value.map(x => ({ name: x.name, region: x.region })));
+  applyFilters();
+};
+
 onMounted(() => {
    onUserStateChanged((user) => {
     currentUser.value = user;
@@ -368,27 +444,6 @@ function courtFormatDate(match) {
   return ''
 }
 
-function countScheduledAndOngoingMatches(court) {
-  const key = courtKey(court)
-  const matches = matchesCache.value[key] || []
-  const now = new Date()
-  let scheduled = 0
-  let ongoing = 0
-  
-  for (const match of matches) {
-    const { start, end } = getMatchStartEnd(match)
-    if (start && end) {
-      if (now >= start && now <= end) {
-        ongoing++
-      } else if (start > now) {
-        scheduled++
-      }
-    }
-  }
-  
-  return { scheduled, ongoing }
-}
-
 function courtFormatTimeRange(match) {
   if (!match) return ''
   const opts = { hour: 'numeric', minute: '2-digit', hour12: true }
@@ -436,25 +491,8 @@ handleSearch()
 
 
 function handleSearch() {
-const term = searchQuery.value.toLowerCase().trim()
-if (!term) return
-
-// const matchedCourts = courts.filter(court =>
-//   court.name.toLowerCase().includes(term) ||
-//   court.region.toLowerCase().includes(term) ||
-//   court.keywords.some(k => k.toLowerCase().includes(term))
-// )
-
-// change 8: allcourts
-    const matchedCourts = allCourts.value.filter(court =>
-    (court.name && court.name.toLowerCase().includes(term)) ||
-    (court.region && court.region.toLowerCase().includes(term)) ||
-    (court.keywords && court.keywords.some(k => k.toLowerCase().includes(term)))
-  )
-
-
-
-addMarkers(matchedCourts)
+  // Trigger filter application which will update both visibleCourts and markers
+  applyFilters()
 }
 
 function activatePinMode() {
@@ -634,36 +672,6 @@ function regionCount(region) {
 //   applyFilters(); // Always filter using the unified array!
 // };
 
-const loadCourtsFromFirebase = async () => {
-const data = await getDataFromFirebase('courts');
-let firebaseList = [];
-if (data) {
-  firebaseList = Object.entries(data).map(([id, court]) => ({
-    id,
-    name: court.name ?? '',
-    region: ((court.region ?? '') + '').toString().toLowerCase().trim(),
-    lat: Number(court.lat),
-    lon: Number(court.lon),
-    keywords: court.keywords ?? [],
-    ...court
-  }));
-}
-
-const localNormalized = Array.isArray(courts.value)
-  ? courts.value.map(c => ({
-      ...c,
-      region: ((c.region ?? '') + '').toString().toLowerCase().trim(),
-      lat: Number(c.lat),
-      lon: Number(c.lon),
-      keywords: c.keywords ?? []
-    }))
-  : [];
-
-allCourts.value = [...firebaseList, ...localNormalized];
-console.debug('[loadCourtsFromFirebase] loaded', allCourts.value.length, 'courts', allCourts.value.map(x => ({ name: x.name, region: x.region })));
-applyFilters();
-};
-
 // Called when AddMatchModal emits 'created' — refresh matches for the selected court so embedded lists update
 async function handleMatchCreated() {
   try {
@@ -743,7 +751,7 @@ async function handleMatchCreated() {
 // }
 
 
-const addMarkers = async courtsList => {
+const addMarkers = courtsList => {
 // Clear existing markers exactly once
 markers.value.forEach(m => m.setMap(null));
 markers.value = [];
@@ -753,16 +761,12 @@ if (!courtsList || !courtsList.length) {
   return;
 }
 
-for (const court of courtsList) {
+courtsList.forEach(court => {
   const lat = Number(court.lat);
   const lon = Number(court.lon);
-  if (!isFinite(lat) || !isFinite(lon)) continue;
+  if (!isFinite(lat) || !isFinite(lon)) return;
 
-  // Load matches for this court to get counts
-  await loadMatchesForCourt(court);
-  const { scheduled, ongoing } = countScheduledAndOngoingMatches(court);
-
-  const marker = new google.maps.Marker({
+    const marker = new google.maps.Marker({
     position: { lat, lng: lon },
     map: map.value,
     title: court.name || '',
@@ -781,8 +785,7 @@ for (const court of courtsList) {
       <div style="font-family: Arial; font-size: 14px;">
         <strong>${court.name}</strong><br/>
         <em>Region:</em> ${court.region}<br/>
-        <em>Scheduled:</em> ${scheduled} match${scheduled !== 1 ? 'es' : ''}<br/>
-        <em>Ongoing:</em> ${ongoing} match${ongoing !== 1 ? 'es' : ''}
+        <em>Coordinates:</em> ${isFinite(lat) ? lat.toFixed(4) : 'N/A'}, ${isFinite(lon) ? lon.toFixed(4) : 'N/A'}
       </div>
     `
   });
@@ -818,7 +821,7 @@ for (const court of courtsList) {
   });
 
   markers.value.push(marker);
-}
+});
 
 console.log('Current markers:', markers.value.length, markers.value.map(m => m.getTitle()));
 };
@@ -894,46 +897,17 @@ console.log('Current markers:', markers.value.length, markers.value.map(m => m.g
 //   addMarkers(filtered);
 // };
 
-const applyFilters = () => {
-if (!map.value) {
-  // If map not ready, just skip (markers will be added after map initialises)
-  return;
-}
-
-const query = (searchQuery.value || '').toLowerCase().trim();
-const activeRegions = (selectedRegions.value || []).map(r => (r || '').toString().toLowerCase().trim());
-
-let filtered = (allCourts.value || []).slice();
-
-if (!activeRegions.includes('all')) {
-  const set = new Set(activeRegions.filter(Boolean));
-  filtered = filtered.filter(c => {
-    const r = ((c.region ?? '') + '').toString().toLowerCase().trim();
-    return r && set.has(r);
-  });
-}
-
-if (query) {
-  filtered = filtered.filter(c => {
-    const name = (c.name ?? '').toString().toLowerCase();
-    const region = (c.region ?? '').toString().toLowerCase();
-    const keywords = (c.keywords ?? []).map(k => (k || '').toString().toLowerCase());
-    return name.includes(query) || region.includes(query) || keywords.some(k => k.includes(query));
-  });
-}
-
-console.debug('[applyFilters] regions=', selectedRegions.value, 'query=', searchQuery.value, 'matches=', filtered.length, filtered.map(c => ({ name: c.name, region: c.region })));
-  visibleCourts.value = filtered
-  addMarkers(filtered);
-};
-
-
-
-
-
-//change 6: wather for allcourts:
+//change 6: watchers for allcourts, searchQuery, and selectedRegions:
 watch(allCourts, () => {
-applyFilters();
+  applyFilters();
+});
+
+watch(searchQuery, () => {
+  applyFilters();
+});
+
+watch(selectedRegions, () => {
+  applyFilters();
 });
 
 function courtKey(court) {
@@ -1005,37 +979,6 @@ function openCreateMatchForCourt(court) {
   }
 }
 
-function canRemoveCourt(court) {
-  // Only allow removal if:
-  // 1. User is signed in
-  // 2. Court has a createdBy field (meaning it was user-created, not from existing database)
-  // 3. The createdBy matches the current user's UID
-  if (!currentUser.value) return false
-  if (!court.createdBy) return false
-  return court.createdBy === currentUser.value.uid
-}
-
-async function removeCourt(court) {
-  if (!canRemoveCourt(court)) {
-    alert('You do not have permission to remove this court.')
-    return
-  }
-  
-  if (!confirm(`Are you sure you want to remove "${court.name}"? This action cannot be undone.`)) {
-    return
-  }
-  
-  try {
-    const { deleteChildData } = await import('../firebase/firebase')
-    await deleteChildData('courts', court.id)
-    alert('Court removed successfully!')
-    await loadCourtsFromFirebase()
-  } catch (error) {
-    console.error('Failed to remove court:', error)
-    alert('Failed to remove court: ' + error.message)
-  }
-}
-
 
 //change 3: toggleregion function
 // function toggleRegion(region) {
@@ -1084,15 +1027,6 @@ watch(selectedRegions, () => applyFilters(), { deep: true });
 // const filterByRegion = region => {
 //   selectedRegions.value = selectedRegions.value === region ? '' : region
 //   applyFilters()
-// }
-// watch(searchQuery, () => {
-//   if (selectedRegions.value !== 'all') applyFilters()
-// })
-
-watch(searchQuery, () => {
-applyFilters();
-});
-
 onMounted(() => {
 
 
@@ -1440,25 +1374,7 @@ color: orange;
 .court-rating { color:#ffb14d; margin-top:6px }
 .stars { color:#ffb14d; letter-spacing: 1px; margin-right:8px }
 .reviews { color:#9fb0bf; font-size:0.85rem }
-.court-actions { display: flex; gap: 12px; align-items: center; }
 .view-matches-link { background:transparent; border:none; color:#ffb14d; font-weight:700; cursor:pointer }
-.remove-court-btn { 
-  background: transparent; 
-  border: 1px solid #ff5252; 
-  color: #ff5252; 
-  padding: 6px 10px; 
-  border-radius: 6px; 
-  cursor: pointer; 
-  font-weight: 600;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.remove-court-btn:hover { 
-  background: #ff5252; 
-  color: #fff; 
-}
 .mini-matches { margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.03) }
 .mini-match { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.02) }
 .mini-left { flex:1 }

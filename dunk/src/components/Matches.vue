@@ -12,6 +12,17 @@
                 </div>
             </div>
         </div>
+        <!-- Success popup shown after creating a match -->
+        <div v-if="showCreatedPopup" class="success-overlay" @click.self="closeCreatedPopup">
+            <div class="success-popup">
+                <div class="success-icon" style="background:#16a34a">✓</div>
+                <h3>Match created</h3>
+                <p>Match has been created!</p>
+                <div class="popup-buttons">
+                    <button class="sign-in-btn" @click.stop="closeCreatedPopup">OK</button>
+                </div>
+            </div>
+        </div>
         
         <div class="card large-card">
             <div v-if="!embedded" class="page-header matches-header">
@@ -98,20 +109,23 @@
                     </div>
                 </div>
             </div>
-            <div v-if="groupedMatches && groupedMatches.ongoing && groupedMatches.ongoing.length">
+            <div v-if="selectedTab !== 'past' && groupedMatches && groupedMatches.ongoing && groupedMatches.ongoing.length">
                 <h3 class="section-heading">Ongoing</h3>
                 <div class="row g-3 matches-grid">
                     <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.ongoing ? groupedMatches.ongoing : [])" :key="match?.id || idx">
-  <div
-    :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']"
-    role="button"
-    tabindex="0"
-    @click="openMatch(match)"
-    @keydown.enter="openMatch(match)"
-  >
+    <div
+        :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']"
+        role="button"
+        tabindex="0"
+        @click="openMatch(match, $event)"
+        @keydown.enter="openMatch(match, $event)"
+    >
     <div class="card-header match-card-header">
       <h3 class="match-title mb-1">{{ match.title }}</h3>
-      <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                                <div class="match-header-right">
+                                    <span v-if="(match.started || match._started) && !isPast(match)" class="match-started-badge">LIVE</span>
+          <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                                </div>
     </div>
     <div class="card-body d-flex flex-column h-100 p-4">
       <div class="d-flex justify-content-between align-items-start mb-2">
@@ -126,7 +140,7 @@
         <div class="time-range">{{ formatTimeRange(match) }}</div>
         <div class="meta-pill">{{ match.gender || 'All' }}</div>
         <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-        <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+    <div class="meta-pill badge-type">{{ normalizeMatchType(match && (match.type || match.level || match.skill)) }}</div>
       </div>
 
       <div class="avatars mb-3">
@@ -142,7 +156,15 @@
       <div class="mt-auto d-flex justify-content-between align-items-center">
         <div class="btn-group">
           <template v-if="isHost(match)">
-            <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+            <template v-if="match.started || match._started">
+              <!-- Host can still invite even after the match has started -->
+              <button type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+              <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="endMatch(match)"><i class="bi bi-stop-fill me-2"></i>End Match</button>
+            </template>
+            <template v-else>
+              <button type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+              <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+            </template>
           </template>
           <template v-else-if="isJoined(match)">
             <template v-if="match.started || match._started">
@@ -152,9 +174,11 @@
               <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
             </template>
           </template>
-          <template v-else>
-            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
-          </template>
+                    <template v-else>
+                        <span class="join-wrapper" :title="joinDisabledReason(match) || 'Join match'" @click.stop>
+                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" @click.prevent.stop="joinMatch(match)">Join</button>
+                        </span>
+                    </template>
         </div>
         <div></div>
       </div>
@@ -173,7 +197,10 @@
                         <div :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']">
                             <div class="card-header match-card-header">
                                 <h3 class="match-title mb-1">{{ match.title }}</h3>
-                                <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                                <div class="match-header-right">
+                                    <span v-if="(match.started || match._started) && !isPast(match)" class="match-started-badge">STARTED</span>
+                                    <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                                </div>
                             </div>
                             <div class="card-body d-flex flex-column h-100 p-4">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
@@ -188,7 +215,7 @@
                                     <div class="time-range">{{ formatTimeRange(match) }}</div>
                                     <div class="meta-pill">{{ match.gender || 'All' }}</div>
                                     <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-                                    <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+                                    <div class="meta-pill badge-type">{{ normalizeMatchType(match && (match.type || match.level || match.skill)) }}</div>
                                 </div>
 
                                 <div class="avatars mb-3">
@@ -212,7 +239,7 @@
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                         </template>
                                         <template v-else>
-                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent="joinMatch(match)">Join</button>
+                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
                                         </template>
                                     </div>
                                     <div></div>
@@ -231,7 +258,10 @@
                         <div :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']">
                             <div class="card-header match-card-header">
                                 <h3 class="match-title mb-1">{{ match.title }}</h3>
-                                <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                                <div class="match-header-right">
+                                    <span v-if="(match.started || match._started) && !isPast(match)" class="match-started-badge">STARTED</span>
+                                    <div class="match-people text-warning fw-bold small"><i class="bi bi-people-fill me-1"></i> {{ (displayedPlayers(match).length) }}/{{ match.maxPlayers || 10 }}</div>
+                                </div>
                             </div>
                             <div class="card-body d-flex flex-column h-100 p-4">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
@@ -246,7 +276,7 @@
                                     <div class="time-range">{{ formatTimeRange(match) }}</div>
                                     <div class="meta-pill">{{ match.gender || 'All' }}</div>
                                     <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-                                    <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+                                    <div class="meta-pill badge-type">{{ normalizeMatchType(match && (match.type || match.level || match.skill)) }}</div>
                                 </div>
 
                                 <div class="avatars mb-3">
@@ -270,7 +300,7 @@
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                         </template>
                                         <template v-else>
-                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent="joinMatch(match)">Join</button>
+                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
                                         </template>
                                     </div>
                                     <div></div>
@@ -340,10 +370,15 @@ async function loadUsers() {
 const showPlayersModal = ref(false)
 const activePlayers = ref([])
 const activeTitle = ref('')
+const showCreatedPopup = ref(false)
+
+function closeCreatedPopup() {
+    showCreatedPopup.value = false
+}
 
 const router = useRouter()
 
-// function openMatch(match) {
+// function openMatch(match, event) {
 //     if (!match) return
 //     // prefer named route, fallback to path
 //     try {
@@ -371,6 +406,25 @@ const router = useRouter()
 async function openMatch(match) {
   console.log('openMatch called with match:', match)
   if (!match) return
+    // If the click originated from an interactive child (button, link, avatar, tooltip wrapper,
+    // or other control), do not navigate — the child should handle the action.
+    try {
+        if (event && event.target && event.target.closest) {
+            const blocked = event.target.closest('button, a, .join-wrapper, .avatar-stack, .popup-buttons, .invitation-actions, .sign-in-btn, .close-btn')
+            if (blocked) return
+        }
+    } catch (e) {
+        // ignore and continue
+    }
+    // If joining is disabled for this match (e.g., wrong gender, full, or not signed in),
+    // prevent card-level navigation so users don't get taken to the MatchRoom unintentionally.
+    try {
+        const disabledReason = joinDisabledReason(match)
+        // allow hosts and already-joined users to still open the room
+        if (disabledReason && !isHost(match) && !isJoined(match)) return
+    } catch (e) {
+        // conservative default: do not block navigation on error
+    }
 
   // common id locations on match objects
   let id = match.id || match.key || match['.key'] || match._id || (match.__dbPath ? String(match.__dbPath).split('/').pop() : null)
@@ -558,7 +612,8 @@ const matches = ref([])
 const courts = ref([])
 const showAddMatchModal = ref(false)
 const currentUser = ref(null)
-const currentUserProfile = ref({ skill: 'Open', gender: 'All' })
+// prefer `ranking` field where available; keep `skill` for backward compatibility
+const currentUserProfile = ref({ ranking: 'Open', skill: 'Open', gender: 'All' })
 const showInviteModal = ref(false)
 const inviteMatch = ref(null)
 const invitations = ref([])
@@ -768,6 +823,9 @@ async function onMatchCreated() {
         console.warn('onMatchCreated: failed to reload matches', e)
     } finally {
         showAddMatchModal.value = false
+        // show success popup briefly
+        showCreatedPopup.value = true
+        setTimeout(() => { showCreatedPopup.value = false }, 2500)
     }
 }
 
@@ -1066,16 +1124,54 @@ function displayedPlayers(match) {
 
 const skillOrder = ['Open', 'Beginner', 'Intermediate', 'Professional']
 
+function normalizeSkill(skill) {
+    if (!skill) return 'Open'
+    const s = ('' + skill).trim().toLowerCase()
+    if (s.startsWith('pro')) return 'Professional'
+    if (s.startsWith('inter')) return 'Intermediate'
+    if (s.startsWith('beg')) return 'Beginner'
+    if (s.startsWith('open')) return 'Open'
+    // fallback: try to match exact casing from list
+    for (const v of skillOrder) if (v.toLowerCase() === s) return v
+    return 'Open'
+}
+
 function skillRank(skill) {
-    const idx = skillOrder.indexOf(skill)
+    const normalized = normalizeSkill(skill)
+    const idx = skillOrder.indexOf(normalized)
     return idx === -1 ? 0 : idx
+}
+
+// Match types should be only Open / Intermediate / Professional. Legacy 'Beginner' match types
+// (if present in the DB) should be treated as 'Open' matches for join/permission checks.
+function normalizeMatchType(type) {
+    const t = normalizeSkill(type)
+    if (t === 'Beginner') return 'Open'
+    return t
 }
 
 function canJoin(match) {
     if (!currentUser.value) return false
-    const userSkill = currentUserProfile.value.skill || 'Open'
-    const matchSkill = match.type || 'Open'
-    // user can join if their skill rank >= match required rank
+    // Gender restriction: if match specifies a gender (not 'All'), require user's profile gender to match
+    try {
+        const mg = (match && match.gender) ? ('' + match.gender).toLowerCase() : 'all'
+        if (mg && mg !== 'all') {
+            const ug = (currentUserProfile.value && currentUserProfile.value.gender) ? ('' + currentUserProfile.value.gender).toLowerCase() : ''
+            // If we don't know user's gender, disallow joining (require profile)
+            if (!ug) return false
+            // Basic match: compare first letter (male/female) to be tolerant of variants like 'Male'/'Males' etc.
+            if (mg.charAt(0) !== ug.charAt(0)) return false
+        }
+    } catch (e) {
+        // conservative default: if something goes wrong, disallow join
+        return false
+    }
+
+    // prefer ranking field first, then legacy skill
+    const userSkill = normalizeSkill((currentUserProfile.value && (currentUserProfile.value.ranking || currentUserProfile.value.skill)) || '')
+    const matchSkill = normalizeMatchType(match && (match.type || match.level || match.skill))
+    // Everyone may join 'Open' matches. For 'Intermediate' require Intermediate or Professional.
+    // For 'Professional' require Professional only.
     return skillRank(userSkill) >= skillRank(matchSkill)
 }
 
@@ -1087,6 +1183,10 @@ function playersCount(match) {
 }
 
 function isPast(match) {
+    // If an explicit endedAt/endedAtISO exists, treat as past immediately
+    try {
+        if (match && (match.endedAt || match.endedAtISO)) return true
+    } catch (e) {}
     const { start, end } = getMatchStartEnd(match)
     const now = new Date()
     if (end && end instanceof Date && !isNaN(end.getTime())) return end < now
@@ -1102,15 +1202,44 @@ function joinDisabledReason(match) {
     const count = playersCount(match)
     const max = match.maxPlayers || 10
     if (count >= max) return 'Match is full'
-    const userSkill = currentUserProfile.value.skill || 'Open'
-    const matchSkill = match.type || match.level || 'Open'
-    if (skillRank(userSkill) < skillRank(matchSkill)) return `Requires ${matchSkill} level`
+    // Gender restriction check
+    let genderFail = false
+    let rankFail = false
+    let mg = ''
+    try {
+        if (match && match.gender && ('' + match.gender).toLowerCase() !== 'all') {
+            mg = ('' + match.gender)
+            const ug = (currentUserProfile.value && currentUserProfile.value.gender) ? ('' + currentUserProfile.value.gender) : ''
+            if (!ug) genderFail = true // profile incomplete
+            else if (mg.charAt(0).toLowerCase() !== ug.charAt(0).toLowerCase()) genderFail = true
+        }
+    } catch (e) {
+        genderFail = true
+    }
+
+    // Skill/rank restriction check
+    const userSkill = normalizeSkill((currentUserProfile.value && (currentUserProfile.value.ranking || currentUserProfile.value.skill)) || '')
+    const matchSkill = normalizeMatchType(match && (match.type || match.level || match.skill))
+    if (skillRank(userSkill) < skillRank(matchSkill)) rankFail = true
+
+    // If both gender and rank fail, show combined message (sentence case)
+    if (genderFail && rankFail) {
+        const mgCap = mg ? (mg.charAt(0).toUpperCase() + mg.slice(1).toLowerCase()) : mg
+        return `Only ${mgCap} and ${matchSkill} players may join`
+    }
+
+    if (genderFail) {
+        const mgCap = mg ? (mg.charAt(0).toUpperCase() + mg.slice(1).toLowerCase()) : mg
+        return `Only ${mgCap} players may join`
+    }
+    if (rankFail) return `Requires ${matchSkill} rank`
     return ''
 }
 
 async function joinMatch(match) {
     if (!currentUser.value) { alert('Please sign in to join'); return }
-    if (!canJoin(match)) { alert('Your skill level is below the match requirement'); return }
+    const disabled = joinDisabledReason(match)
+    if (disabled) { alert(disabled); return }
     const uid = currentUser.value.uid
     match.joinedBy = match.joinedBy || {}
     if (match.joinedBy[uid]) return // already joined
@@ -1210,6 +1339,31 @@ async function startMatch(match) {
     } else {
         // no DB path: still navigate to match room
                 try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
+    }
+}
+
+async function endMatch(match) {
+    if (!currentUser.value) { alert('Please sign in'); return }
+    if (!isHost(match)) { alert('Only the host may end this match'); return }
+    if (!confirm('End this match now?')) return
+    // optimistic local update
+    match._started = false
+    match.started = false
+    // mark ended locally so UI treats it as past immediately
+    try { match.endedAt = new Date().toISOString(); match.endAtISO = match.endedAt } catch (_) {}
+    if (match.__dbPath) {
+        try {
+            const parts = match.__dbPath.split('/')
+            const id = parts.pop()
+            const path = parts.join('/')
+            await setChildData(`${path}/${id}`, 'started', false)
+            await setChildData(`${path}/${id}`, 'endedAt', new Date().toISOString())
+        } catch (e) {
+            console.error('Failed to end match', e)
+            alert('Failed to end match — try again')
+            // if the write failed, we may want to revert optimistic change
+            try { match.started = true } catch(_){}
+        }
     }
 }
 
@@ -1346,7 +1500,7 @@ function formatDate(match) {
 }
 
 .tab {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(195, 67, 67, 0.03);
     color: #d7e3f6;
     padding: 8px 12px;
     border-radius: 8px;
@@ -1410,6 +1564,32 @@ function formatDate(match) {
 
 .match-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.03); }
 .match-people { display: flex; align-items: center; gap: 6px }
+
+/* header right area that contains the STARTED badge and people count */
+.match-header-right { display:flex; align-items:center; gap:12px }
+
+.match-started-badge {
+    display: inline-block;
+    background: linear-gradient(180deg, #a83a3a 0%, #c84b4b 100%);
+    color: rgba(255, 210, 210, 0.95);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border: 1px solid rgba(0,0,0,0.4);
+    box-shadow: inset 0 2px 0 rgba(255,255,255,0.03), 0 6px 18px rgba(200,50,50,0.12);
+    animation: live-blink 2.6s ease-in-out infinite;
+}
+
+/* reuse previously defined keyframes name to keep animation across badges */
+@keyframes live-blink {
+    0% { opacity: 1; transform: translateZ(0) scale(1); }
+    45% { opacity: 0.5; transform: translateZ(0) scale(0.995); }
+    55% { opacity: 0.5; transform: translateZ(0) scale(0.995); }
+    100% { opacity: 1; transform: translateZ(0) scale(1); }
+}
 
 .match-sub {
     color: #cbd6df;
@@ -1481,7 +1661,17 @@ function formatDate(match) {
     font-weight: 700;
     border: none;
 }
-.btn-join[disabled] { opacity: 0.45; cursor: not-allowed }
+.btn-join[disabled] {
+    /* Match the match-card background for a seamless look and add a subtle grey outline.
+       Keeps the button visible but signals disabled state via the border. */
+    opacity: 1;
+    cursor: not-allowed;
+    border: 1px solid rgba(128,128,128,0.55); /* subtle gray outline */
+    /* Use the same gradient as .match-card so the button visually blends with the card */
+    background: linear-gradient(180deg,#0f1418 0%, #0d1114 100%);
+    color: #464749; /* gray text when disabled */
+    box-shadow: none;
+}
 
 .btn-invite {
     background: #ff9a3c;
