@@ -4,7 +4,7 @@ import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
 import { Trophy, Star, Users, Cake, ChartColumn } from 'lucide-vue-next'
 import { loginWithGoogle, logout, onUserStateChanged, saveUserToDatabase } from '../firebase/auth.js'
 import { onDataChange, getDataFromFirebase } from '../firebase/firebase'
-import { getDatabase, ref as dbRef, set } from 'firebase/database'
+import { getDatabase, ref as dbRef, set, update } from 'firebase/database'
 
 
 //change 6: import dunk logo from assets
@@ -386,6 +386,10 @@ async function saveProfileEdits() {
     skill: editSkill.value
   }
 
+  // ensure ranking is derived from wins and not editable
+  const derivedRanking = computeRankingFromWins(totalWins.value)
+  updates.ranking = derivedRanking
+
   // change 21: Only send fields to save, including uid for path reference
     const userDbUpdate = {
       uid: user.value.uid,
@@ -397,7 +401,8 @@ async function saveProfileEdits() {
       dobDay: updates.dobDay,
       age: updates.age, // <-- Actually push age data to DB
       bio: updates.bio,      
-      skill: updates.skill 
+      skill: updates.skill,
+      ranking: updates.ranking
     };
 
     await saveUserToDatabase(userDbUpdate);
@@ -470,6 +475,21 @@ onMounted(() => {
           
           followingCount.value = val.following ? Object.keys(val.following).length : 0
           followersCount.value = val.followers ? Object.keys(val.followers).length : 0
+          // If the DB record is missing a ranking, compute it from wins and persist it
+              try {
+                // Normalize rankings for all users periodically (idempotent). This updates any missing
+                // or stale `ranking` fields based on the flat win counters. To avoid running on every
+                // page load, we throttle this to once per day using localStorage.
+                ;(async () => {
+                  try {
+                    await normalizeAllUserRankingsOncePerDay()
+                  } catch (e) {
+                    console.error('Failed to normalize rankings across users', e)
+                  }
+                })()
+              } catch (e) {
+                console.error('Error while scheduling ranking normalization', e)
+              }
         })
         // immediate fetch in case the realtime listener hasn't fired yet
         try {
@@ -490,6 +510,43 @@ onMounted(() => {
   // listen for local follow/unfollow events coming from Profile.vue
   window.addEventListener('user-follow-changed', onLocalFollowChanged)
 })
+
+// Normalize all users' ranking fields to the computed value derived from flat win fields.
+// Throttled to once per day via localStorage to avoid excessive writes.
+async function normalizeAllUserRankingsOncePerDay() {
+  try {
+    const last = Number(localStorage.getItem('rankNormalizeLastRun') || '0')
+    const MS_PER_DAY = 24 * 60 * 60 * 1000
+    if (Date.now() - last < MS_PER_DAY) return
+
+    const users = await getDataFromFirebase('users')
+    if (!users) return
+
+    const updates = {}
+    Object.entries(users).forEach(([uid, u]) => {
+      const o = Number(u.openWins ?? 0)
+      const i = Number(u.intermediateWins ?? 0)
+      const p = Number(u.professionalWins ?? 0)
+      const total = o + i + p
+      let computed = 'Beginner'
+      if (total > 40) computed = 'Professional'
+      else if (total > 20) computed = 'Intermediate'
+      const stored = u && u.ranking
+      if (!stored || stored !== computed) {
+        updates[`users/${uid}/ranking`] = computed
+      }
+    })
+
+    if (Object.keys(updates).length > 0) {
+      const db = getDatabase()
+      await update(dbRef(db, '/'), updates)
+    }
+
+    localStorage.setItem('rankNormalizeLastRun', String(Date.now()))
+  } catch (e) {
+    console.error('normalizeAllUserRankingsOncePerDay error', e)
+  }
+}
 
 onUnmounted(() => {
   try { window.removeEventListener('user-follow-changed', onLocalFollowChanged) } catch(e){}
@@ -550,13 +607,17 @@ function handleClosePopup() {
   if (popupTimer) clearTimeout(popupTimer);
 }
 
-// Match statistics helpers (reads from the realtime user record)
+// Match statistics helpers (use flat camelCase win fields only)
 const statsFromProfile = computed(() => {
-  const s = user.value && (user.value.statistics || user.value.stats) ? (user.value.statistics || user.value.stats) : {}
+  const u = user.value || {}
+  const o = Number(u.openWins ?? 0)
+  const i = Number(u.intermediateWins ?? 0)
+  const p = Number(u.professionalWins ?? 0)
   return {
-    open_wins: Number(s.open_wins || 0),
-    intermediate_wins: Number(s.intermediate_wins || 0),
-    professional_wins: Number(s.professional_wins || 0)
+    // the chart code expects snake_case keys; keep those names but source from camelCase fields
+    open_wins: o,
+    intermediate_wins: i,
+    professional_wins: p
   }
 })
 
@@ -565,10 +626,58 @@ const totalWins = computed(() => {
   return s.open_wins + s.intermediate_wins + s.professional_wins
 })
 
+// Ranking rules (system-controlled):
+// - >40 wins => Professional
+// - >20 wins => Intermediate
+// - otherwise => Beginner
+function computeRankingFromWins(wins) {
+  const n = Number(wins || 0)
+  if (n > 40) return 'Professional'
+  if (n > 20) return 'Intermediate'
+  return 'Beginner'
+}
+
+const computedRanking = computed(() => computeRankingFromWins(totalWins.value))
+
+// Keep stored ranking in sync: when totalWins crosses a threshold, update the DB so every uid has `ranking`.
+// Avoid spamming writes by only saving when value actually changes.
+let rankingWriteInProgress = false
+watch(totalWins, async (newVal, oldVal) => {
+  try {
+    if (!user.value || !user.value.uid) return
+    const newRank = computeRankingFromWins(newVal)
+    const currentRank = user.value && user.value.ranking
+    if (newRank !== currentRank && !rankingWriteInProgress) {
+      rankingWriteInProgress = true
+      // optimistic local update
+      user.value = { ...(user.value || {}), ranking: newRank }
+      // persist ranking to DB (saveUserToDatabase expects an object with uid)
+      try {
+        await saveUserToDatabase({ uid: user.value.uid, ranking: newRank })
+      } catch (e) {
+        console.error('Failed to persist ranking change', e)
+      }
+      rankingWriteInProgress = false
+    }
+  } catch (e) {
+    rankingWriteInProgress = false
+    console.error('Error computing/saving ranking', e)
+  }
+})
+
 function barHeight(value) {
-  const max = Math.max(1, statsFromProfile.value.open_wins, statsFromProfile.value.intermediate_wins, statsFromProfile.value.professional_wins)
-  const pct = value / Math.max(1, max)
-  const px = Math.round(30 + pct * 190)
+  // Compute proportional bar heights but cap them to the chart's available height
+  // to avoid visual overflow when one value dominates.
+  // Base padding for small bars, and maximum visible bar height inside the chart.
+  const basePx = 30
+  // Lower the max visible height to ensure bars never touch header or labels
+  const maxVisiblePx = 160 // leave extra breathing room above/below bars
+
+  const maxVal = Math.max(1, statsFromProfile.value.open_wins, statsFromProfile.value.intermediate_wins, statsFromProfile.value.professional_wins)
+  const ratio = value / maxVal
+  // soft-scale using square-root to reduce dominance of extremely large values while keeping proportions
+  const scaled = Math.sqrt(ratio) // 0..1
+  const px = Math.round(basePx + scaled * (maxVisiblePx - basePx))
   return `${px}px`
 }
 
@@ -700,22 +809,52 @@ watch(animateBars, (v) => { if (v) animateCounts() })
           Edit Profile
         </button>
       </div>
+          <!-- Following & Followers -->
+          <div class="row gx-3 justify-content-center mb-3">
+            <div class="col-6 col-md-4">
 
-      <!-- Stats grid using flexbox for equal height cards with border -->
-      <div class="row gx-3 gy-3 text-center mb-4">
+              <!-- Step 2: Open Following Popup -->
+              <button
+                type="button"
+                class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
+                style="background:#181A20;"
+                @click="openFollowing"
+              >
+                <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
+                Following ({{ followingCount }})
+              </button>
+
+            </div>
+            <div class="col-6 col-md-4">
+              <!-- Step 2: Open Followers Popup -->
+              <button
+                type="button"
+                class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
+                style="background:#181A20;"
+                @click="openFollowers"
+              >
+                <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
+                Followers ({{ followersCount }})
+              </button>
+
+            </div>
+          </div>
+
+          <!-- Stats grid using flexbox for equal height cards with border -->
+          <div class="row gx-3 gy-3 text-center mb-4">
   <div class="col-6 col-md-3 d-flex">
     <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
       <!-- Icon (Ranking) -->
       <Trophy :color="'#FFAD1D'" :size="32" class="mb-2" />
       <span class="fw-medium">Ranking</span>
-      <span class="badge bg-purple text-white mt-1" style="font-size:0.92rem;">Professional</span>
+          <span class="badge bg-purple text-white mt-1" style="font-size:0.92rem;">{{ user.ranking || computedRanking }}</span>
     </div>
   </div>
   <div class="col-6 col-md-3 d-flex">
     <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
       <Star :color="'#FFAD1D'" :size="32" class="mb-2" />
-      <span class="fw-medium">Score</span>
-      <div class="fs-4 fw-semibold text-warning mt-1">1250</div>
+      <span class="fw-medium">Total Wins</span>
+      <div class="fs-4 fw-semibold text-warning mt-1">{{totalWins}}</div>
     </div>
   </div>
   <div class="col-6 col-md-3 d-flex">
@@ -814,36 +953,7 @@ watch(animateBars, (v) => { if (v) animateCounts() })
 
       </div>
 
-      <!-- Following & Followers -->
-      <div class="row gx-3 justify-content-center mb-3">
-        <div class="col-6 col-md-4">
-
-          <!-- Step 2: Open Following Popup -->
-          <button
-            type="button"
-            class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
-            style="background:#181A20;"
-            @click="openFollowing"
-          >
-            <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
-            Following ({{ followingCount }})
-          </button>
-
-        </div>
-        <div class="col-6 col-md-4">
-          <!-- Step 2: Open Followers Popup -->
-          <button
-            type="button"
-            class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
-            style="background:#181A20;"
-            @click="openFollowers"
-          >
-            <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
-            Followers ({{ followersCount }})
-          </button>
-
-        </div>
-      </div>
+      
       <!-- Logout button -->
       <div class="mt-4 px-3 mb-2">
         <button @click="handleLogout" type="button" class="btn btn-danger w-100 rounded-pill fs-5">
@@ -961,8 +1071,8 @@ watch(animateBars, (v) => { if (v) animateCounts() })
               class="avatar"
             />
             <div class="info ms-2">
-              <div class="username">{{ f.name || f.email }}</div>
-              <div class="sub">{{ f.gender || 'User' }}</div>
+          <div class="username">{{ f.name || f.email }}</div>
+          <div class="sub">{{ (f.ranking || f.skill || f.level || 'Beginner') + (f.gender ? (' ' + f.gender) : '') }}</div>
             </div>
           </router-link>
             <!-- <button class="remove-btn" @click="removeFollower(f.uid)">Remove</button> -->
@@ -1001,7 +1111,7 @@ watch(animateBars, (v) => { if (v) animateCounts() })
             />
             <div class="info ms-2">
               <div class="username">{{ f.name || f.email }}</div>
-              <div class="sub">{{ f.gender || 'User' }}</div>
+              <div class="sub">{{ (f.ranking || f.skill || f.level || 'Beginner') + (f.gender ? (' ' + f.gender) : '') }}</div>
             </div>
           </router-link>
 

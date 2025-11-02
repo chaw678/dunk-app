@@ -35,6 +35,31 @@
           <button v-else class="btn btn-outline-primary me-2" disabled>Follow</button>
         </div>
       </div>
+      <!-- Following & Followers (placed below avatar, above stats) -->
+      <div class="row gx-3 justify-content-center mb-3">
+        <div class="col-6 col-md-4 d-flex justify-content-center mb-2">
+          <button
+            type="button"
+            class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
+            style="background:#181A20;"
+            @click="openFollowing"
+          >
+            <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
+            Following ({{ followingList.length }})
+          </button>
+        </div>
+        <div class="col-6 col-md-4 d-flex justify-content-center mb-2">
+          <button
+            type="button"
+            class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
+            style="background:#181A20;"
+            @click="openFollowers"
+          >
+            <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
+            Followers ({{ followersList.length }})
+          </button>
+        </div>
+      </div>
 
       <!-- Stats grid (LoginPage style) -->
       <div class="row gx-3 gy-3 text-center mb-4">
@@ -42,15 +67,15 @@
           <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
             <Trophy :color="'#FFAD1D'" :size="32" class="mb-2" />
             <span class="fw-medium">Ranking</span>
-            <span class="badge bg-purple text-white mt-1" style="font-size:0.92rem;">{{ profile.skill ? profile.skill : 'Open' }}</span>
+            <span class="badge bg-purple text-white mt-1" style="font-size:0.92rem;">{{ displayRanking }}</span>
           </div>
         </div>
 
         <div class="col-6 col-md-3 d-flex">
           <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
             <Star :color="'#FFAD1D'" :size="32" class="mb-2" />
-            <span class="fw-medium">Score</span>
-            <div class="fs-4 fw-semibold text-warning mt-1">{{ (profile && profile.score !== undefined) ? profile.score : 0 }}</div>
+            <span class="fw-medium">Total Wins</span>
+            <div class="fs-4 fw-semibold text-warning mt-1">{{ profileTotalWins }}</div>
           </div>
         </div>
 
@@ -116,95 +141,88 @@
         </div>
       </div>
 
-      <!-- Following & Followers (LoginPage pill/buttons look) -->
-      <div class="row gx-3 justify-content-center mb-3">
-        <div class="col-6 col-md-4 d-flex justify-content-center mb-2">
-          <button
-            type="button"
-            class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
-            style="background:#181A20;"
-            @click="openFollowing"
-          >
-            <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
-            Following ({{ followingList.length }})
-          </button>
-        </div>
-        <div class="col-6 col-md-4 d-flex justify-content-center mb-2">
-          <button
-            type="button"
-            class="btn btn-dark w-100 d-flex align-items-center justify-content-center rounded-3"
-            style="background:#181A20;"
-            @click="openFollowers"
-          >
-            <Users :color="'#FFAD1D'" :size="22" class="me-2"/>
-            Followers ({{ followersList.length }})
-          </button>
+      
+
+
+      <!-- Followers / Following modal (copied from LoginPage for exact parity) -->
+      <!-- Followers popup -->
+      <div v-if="showFollowersModal" class="follow-popup-overlay" @click.self="closeFollowModal">
+        <div class="follow-popup-content">
+          <div class="follow-popup-header">
+            <h3>Followers</h3>
+            <button class="close-btn" @click="closeFollowModal">✕</button>
+          </div>
+
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search followers..."
+            class="search-input"
+          />
+
+          <div class="follow-list">
+            <div class="follow-item" v-for="f in filteredFollowers" :key="f.uid">
+              <div
+                role="button"
+                tabindex="0"
+                class="d-flex align-items-center w-100 text-decoration-none text-reset"
+                @click.prevent="openPublicProfile(f.uid)"
+                @keyup.enter="openPublicProfile(f.uid)"
+              >
+                <img
+                  :src="f.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f.email.split('@')[0])}`"
+                  class="avatar"
+                />
+                <div class="info">
+                  <div class="username">{{ f?.name || f?.email || 'Unknown User' }}</div>
+                  <div class="sub">{{ f.sub || 'User' }}</div>
+                </div>
+              </div>
+              <button v-if="currentUser && currentUser.uid === uid" class="remove-btn" @click="confirmRemoveFollower(f.uid)">Remove</button>
+            </div>
+          </div>
         </div>
       </div>
 
-
-      <!-- Followers / Following modal -->
-      <!-- <div v-if="showFollowersModal || showFollowingModal" class="modal-overlay loginpage-modal" @click.self="closeFollowModal">
-        <div class="follow-modal-styled loginpage-follow-modal" role="dialog" aria-modal="true">
-          <div class="follow-modal-header-styled loginpage-header">
-            <div class="d-flex align-items-center">
-              <Users :color="'#FFAD1D'" :size="26" class="me-3" />
-              <h1 class="follow-title">{{ showFollowingModal ? 'Following' : 'Followers' }}</h1>
-            </div>
-            <button class="btn-close-styled" @click="closeFollowModal" aria-label="Close">×</button>
-          </div> -->
-        
-      <div v-if="showFollowersModal || showFollowingModal" class="modal-overlay" @click.self="closeFollowModal">
-        <div class="follow-modal-styled" role="dialog" aria-modal="true">
-          <div class="follow-modal-header-styled">
-            <div class="d-flex align-items-center">
-              <Users :color="'#FFAD1D'" :size="20" class="me-3" />
-              <h3 class="mb-0" style="color:#FFAD1D;font-weight:700;font-size:1.6rem;">
-                {{ showFollowingModal ? 'Following' : 'Followers' }}
-              </h3>
-              </div>
-            <button class="btn-close-styled" @click="closeFollowModal" aria-label="Close">×</button>
-          </div>
-          
-
-          <div class="search-bar-wrapper loginpage-search">
-            <input
-              type="search"
-              v-model="searchQuery"
-              placeholder="Search following..."
-              class="search-input-styled"
-              aria-label="Search followers"
-            />
+      <!-- Following popup -->
+      <div v-if="showFollowingModal" class="follow-popup-overlay" @click.self="closeFollowModal">
+        <div class="follow-popup-content">
+          <div class="follow-popup-header">
+            <h3>Following</h3>
+            <button class="close-btn" @click="closeFollowModal">✕</button>
           </div>
 
-          <div class="follow-modal-body-styled loginpage-body">
-            <div class="list-grid login-list">
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search following..."
+            class="search-input"
+          />
+
+          <div class="follow-list">
+            <div class="follow-item" v-for="f in filteredFollowing" :key="f.uid">
               <div
-                v-for="u in filteredFollowList"
-                :key="u.uid"
-                class="user-card-styled login-user-card"
-                @click="$router.push(`/profile/${u.uid}`)"
+                role="button"
+                tabindex="0"
+                class="d-flex align-items-center w-100 text-decoration-none text-reset"
+                @click.prevent="openPublicProfile(f.uid)"
+                @keyup.enter="openPublicProfile(f.uid)"
               >
-                <div class="d-flex align-items-center">
-                  <img v-if="u.photoURL" :src="u.photoURL" class="user-avatar-login" />
-                  <div v-else class="user-avatar-fallback-login">{{ (u.name||'U').slice(0,1).toUpperCase() }}</div>
-                  <div class="ms-3">
-                    <div class="user-name-login">{{ u.name }}</div>
-                    <div class="user-label-login text-muted">{{ u.email || u.gender || 'User' }}</div>
-                  </div>
-                </div>
-
-                <div class="action-area-login">
-                  <button v-if="showFollowingModal" class="unfollow-btn-login" @click.stop="confirmUnfollow(u.uid)">Unfollow</button>
-                  <button v-else-if="currentUser && currentUser.uid === uid" class="unfollow-btn-login" @click.stop="confirmRemoveFollower(u.uid)">Remove</button>
+                <img
+                  :src="f.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f.email.split('@')[0])}`"
+                  class="avatar"
+                />
+                <div class="info">
+                  <div class="username">{{ f?.name || f?.email || 'Unknown User' }}</div>
+                  <div class="sub">{{ f.sub || 'User' }}</div>
                 </div>
               </div>
-            </div>
 
-            <div v-if="filteredFollowList.length === 0" class="text-center text-muted py-4">No users found</div>
+              <button class="remove-btn" @click="confirmUnfollow(f.uid)">Unfollow</button>
+            </div>
           </div>
         </div>
-     </div>
+      </div>
 
 
       <!-- Confirmation popup (re-used from LoginPage) -->
@@ -248,7 +266,8 @@ const profile = ref({
   followers: {},
   following: {},
   bio: '',
-  statistics: { open_wins:0, intermediate_wins:0, professional_wins:0 }
+  // migrated to flat fields: openWins, intermediateWins, professionalWins
+  // old nested `statistics` removed
 })
 
 watch(() => route.params.uid, async (newUid, oldUid) => {
@@ -297,14 +316,20 @@ const followersList = computed(() => {
   const f = profile.value && profile.value.followers ? Object.keys(profile.value.followers) : []
   return f.map(id => {
     const u = usersMap.value && usersMap.value[id] ? usersMap.value[id] : null
-    return { uid: id, name: (u && (u.name || u.username)) || id, email: u?.email || '', photoURL: u?.photoURL || null, gender: u?.gender || 'User' }
+    const uWins = (u) ? (Number(u.openWins ?? 0) + Number(u.intermediateWins ?? 0) + Number(u.professionalWins ?? 0)) : 0
+    const rank = computeRankingFromWinsLocal(uWins)
+    const sub = `${rank}${(u && u.gender) ? ' ' + u.gender : ''}`
+    return { uid: id, name: (u && (u.name || u.username)) || id, email: u?.email || '', photoURL: u?.photoURL || null, sub }
   })
 })
 const followingList = computed(() => {
   const f = profile.value && profile.value.following ? Object.keys(profile.value.following) : []
   return f.map(id => {
     const u = usersMap.value && usersMap.value[id] ? usersMap.value[id] : null
-    return { uid: id, name: (u && (u.name || u.username)) || id, email: u?.email || '', photoURL: u?.photoURL || null, gender: u?.gender || 'User' }
+    const uWins = (u) ? (Number(u.openWins ?? 0) + Number(u.intermediateWins ?? 0) + Number(u.professionalWins ?? 0)) : 0
+    const rank = computeRankingFromWinsLocal(uWins)
+    const sub = `${rank}${(u && u.gender) ? ' ' + u.gender : ''}`
+    return { uid: id, name: (u && (u.name || u.username)) || id, email: u?.email || '', photoURL: u?.photoURL || null, sub }
   })
 })
 
@@ -385,23 +410,80 @@ const photoUrl = computed(() => {
 })
 function onImgError() { imgErrored.value = true }
 
-// stats and chart helpers (reuse from LoginPage)
+// stats and chart helpers (use flat camelCase win fields only)
 const statsFromProfile = computed(() => {
-  const s = (profile.value && profile.value.statistics) ? profile.value.statistics : {}
+  const p = profile.value || {}
+  const o = Number(p.openWins ?? 0)
+  const i = Number(p.intermediateWins ?? 0)
+  const pr = Number(p.professionalWins ?? 0)
+  // keep the returned shape the chart expects (snake_case keys)
   return {
-    open_wins: Number(s.open_wins || 0),
-    intermediate_wins: Number(s.intermediate_wins || 0),
-    professional_wins: Number(s.professional_wins || 0)
+    open_wins: o,
+    intermediate_wins: i,
+    professional_wins: pr
   }
 })
+
 const totalWins = computed(() => {
   const s = statsFromProfile.value
   return s.open_wins + s.intermediate_wins + s.professional_wins
 })
+
+// Profile-level total wins derived from the flat fields (openWins, intermediateWins, professionalWins)
+const profileTotalWins = computed(() => {
+  const p = profile.value || {}
+  const o = Number(p.openWins ?? 0)
+  const i = Number(p.intermediateWins ?? 0)
+  const pr = Number(p.professionalWins ?? 0)
+  return o + i + pr
+})
+
+// Display ranking on public profile derived from profileTotalWins (ignore stale stored ranking)
+function computeRankingFromWinsLocal(wins) {
+  const n = Number(wins || 0)
+  if (n > 40) return 'Professional'
+  if (n > 20) return 'Intermediate'
+  return 'Beginner'
+}
+
+const displayRanking = computed(() => {
+  return computeRankingFromWinsLocal(profileTotalWins.value)
+})
+
+// If the profile belongs to the signed-in user, keep the DB `ranking` in sync when wins cross thresholds.
+watch(profileTotalWins, async (newVal, oldVal) => {
+  try {
+    if (!currentUser.value || !currentUser.value.uid) return
+    if (!uid.value) return
+    // Only update ranking in DB when the viewer is the profile owner
+    if (currentUser.value.uid !== uid.value) return
+    const desired = computeRankingFromWinsLocal(Number(newVal || 0))
+    const stored = profile.value && profile.value.ranking
+    if (stored !== desired) {
+      try {
+        await setChildData(`users/${uid.value}`, 'ranking', desired)
+        // keep UI state in sync
+        profile.value = { ...(profile.value || {}), ranking: desired }
+      } catch (e) {
+        console.error('Failed to persist profile ranking', e)
+      }
+    }
+  } catch (e) {
+    console.error('Error while syncing profile ranking', e)
+  }
+})
 function barHeight(value) {
-  const max = Math.max(1, statsFromProfile.value.open_wins, statsFromProfile.value.intermediate_wins, statsFromProfile.value.professional_wins)
-  const pct = value / Math.max(1, max)
-  const px = Math.round(30 + pct * 190)
+  // Compute proportional bar heights but cap them to the chart's available height
+  // to avoid visual overflow when one value dominates.
+  const basePx = 30
+  // Lower the max visible height to ensure bars never touch header or labels
+  const maxVisiblePx = 160 // leave extra breathing room above/below bars
+
+  const maxVal = Math.max(1, statsFromProfile.value.open_wins, statsFromProfile.value.intermediate_wins, statsFromProfile.value.professional_wins)
+  const ratio = value / maxVal
+  // soft-scale using square-root to reduce dominance of extremely large values while keeping proportions
+  const scaled = Math.sqrt(ratio)
+  const px = Math.round(basePx + scaled * (maxVisiblePx - basePx))
   return `${px}px`
 }
 const animateBars = ref(false)
@@ -480,6 +562,11 @@ function closeConfirmPopup() {
   confirmMessage.value = ''
 }
 function confirmRemoveFollower(uidToRemove) {
+  // Only the profile owner may remove followers via this public profile view
+  if (!currentUser.value || currentUser.value.uid !== uid.value) {
+    console.warn('Not authorized to remove followers from this profile')
+    return
+  }
   confirmMessage.value = 'Are you sure you want to remove this follower?'
   confirmAction.value = async () => {
     try {
@@ -508,6 +595,16 @@ function confirmUnfollow(uidToRemove) {
     } catch (e) { console.error(e) }
   }
   showConfirmPopup.value = true
+}
+
+// Navigate to another user's public profile (close modal first so it doesn't open as nested modal)
+function openPublicProfile(targetUid) {
+  try {
+    // close follow modal UI first
+    closeFollowModal()
+  } catch (e) {}
+  // navigate to the public profile route
+  router.push({ name: 'PublicProfile', params: { uid: targetUid } })
 }
 </script>
 
@@ -552,15 +649,15 @@ function confirmUnfollow(uidToRemove) {
 
 .follow-modal-styled {
   width: 100%;
-  max-width: 520px;        /* smaller, same as LoginPage */
-  background: #1a1c20;
-  border-radius: 16px;
-  border: 3px solid #FFAD1D;
+  max-width: 760px;        /* match larger modal in screenshot */
+  background: #0f1113; /* slightly darker */
+  border-radius: 14px;
+  border: 4px solid #FFAD1D;
   overflow: hidden;
-  max-height: 85vh;
+  max-height: 86vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 18px 48px rgba(0,0,0,0.6);
+  box-shadow: 0 22px 64px rgba(0,0,0,0.7);
   padding: 0;
 }
 .follow-modal-header-styled h3 {
@@ -570,15 +667,15 @@ function confirmUnfollow(uidToRemove) {
 }
 .btn-close-styled { background: transparent; border: none; color: #fff; font-size: 32px; cursor: pointer; line-height: 1; transition: color 0.2s; }
 .btn-close-styled:hover { color: #FFAD1D; }
-.search-bar-wrapper { padding: 16px 28px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-.search-input-styled { width: 100%; padding: 14px 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #fff; font-size: 16px; outline: none; transition: all 0.2s; }
+.search-bar-wrapper { padding: 18px 28px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.search-input-styled { width: 100%; padding: 16px 20px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; color: #fff; font-size: 15px; outline: none; transition: all 0.16s; }
 .search-input-styled::placeholder { color: rgba(255,255,255,0.4); }
 .search-input-styled:focus { background: rgba(255,255,255,0.08); border-color: #FFAD1D; }
 .follow-modal-body-styled { flex: 1; overflow-y: auto; padding: 12px 28px 20px; }
-.user-card-styled { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; margin-bottom: 10px; background: rgba(255,255,255,0.03); border-radius: 12px; cursor: pointer; transition: all 0.2s; }
-.user-card-styled:hover { background: rgba(255,255,255,0.06); transform: translateY(-2px); }
-.unfollow-btn-styled { padding: 10px 28px; background: rgba(60,60,65,0.8); color: #FFAD1D; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-.unfollow-btn-styled:hover { background: rgba(80,80,85,0.9); transform: scale(1.05); }
+.user-card-styled { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; margin-bottom: 14px; background: #17181b; border-radius: 14px; cursor: pointer; transition: all 0.16s ease; }
+.user-card-styled:hover { background: #1b1c1f; transform: translateY(-4px); }
+.unfollow-btn-styled { padding: 10px 26px; background: rgba(35,38,43,0.92); color: #FFAD1D; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: inset 0 -4px 0 rgba(0,0,0,0.25); transition: transform .12s ease, background .12s ease; }
+.unfollow-btn-styled:hover { transform: translateY(-3px); background: rgba(45,48,54,0.98); }
 
 /* Confirm popup */
 .confirm-popup-overlay { position: fixed; inset: 0; background: rgba(20, 20, 20, 0.85); display: flex; justify-content: center; align-items: center; z-index: 99999; }
@@ -614,12 +711,12 @@ function confirmUnfollow(uidToRemove) {
 .login-user-card:hover { transform: translateY(-6px); background: #1c1d21; }
 
 
-.user-avatar-login { width:64px; height:64px; border-radius:50%; object-fit:cover; border:4px solid #FFAD1D; box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
-.user-avatar-fallback-login { width:64px; height:64px; border-radius:50%; background:#FFAD1D; display:flex; align-items:center; justify-content:center; font-weight:800; color:#081017; border:4px solid #FFAD1D; }
+.user-avatar-login { width:64px; height:64px; border-radius:50%; object-fit:cover; border:6px solid #FFAD1D; box-shadow: 0 10px 28px rgba(0,0,0,0.55); }
+.user-avatar-fallback-login { width:64px; height:64px; border-radius:50%; background:#FFAD1D; display:flex; align-items:center; justify-content:center; font-weight:800; color:#081017; border:6px solid #FFAD1D; box-shadow: 0 10px 28px rgba(0,0,0,0.55); }
 
 
 .user-name-login { color:#fff; font-weight:800; font-size:18px; letter-spacing:0.2px; text-transform:uppercase; }
-.user-label-login { color: rgba(255,255,255,0.6); font-size:13px; margin-top:2px; }
+.user-label-login { color: rgba(255,255,255,0.45); font-size:13px; margin-top:6px; }
 
 
 .unfollow-btn-login { background: rgba(35,38,43,0.92); color: #FFAD1D; border: none; padding: 10px 18px; border-radius: 12px; font-weight:700; cursor:pointer; box-shadow: inset 0 -4px 0 rgba(0,0,0,0.25); transition: transform .12s ease, background .12s ease; }
@@ -634,6 +731,80 @@ function confirmUnfollow(uidToRemove) {
   .follow-title { font-size: 32px; }
   .user-avatar-login, .user-avatar-fallback-login { width:56px; height:56px; border-width:3px; }
   .unfollow-btn-login { padding: 8px 14px; }
+}
+
+/* Follow-popup styles from LoginPage (exact copy to ensure parity) */
+.follow-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20,20,30,0.93);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+}
+.follow-popup-content {
+  width: 420px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: #181a20;
+  border-radius: 12px;
+  border: 2px solid #FFAD1D;
+  padding: 20px;
+}
+.follow-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #FFAD1D;
+  margin-bottom: 10px;
+}
+.search-input {
+  width: 100%;
+  background: #21242a;
+  color: #FFD75C;
+  border: 1px solid #30373d;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+.follow-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.follow-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #22272d;
+}
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid #FFAD1D;
+  object-fit: cover;
+}
+.info { flex-grow: 1; margin-left: 10px; }
+.username { color: #fff; font-weight: 600; }
+.sub { color: #9ca3af; font-size: 0.85rem; }
+.remove-btn {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.remove-btn:hover { background: #c0392b; }
+.close-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.25rem;
+  cursor: pointer;
 }
 
 </style>

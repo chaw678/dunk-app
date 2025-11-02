@@ -112,21 +112,23 @@ const loading = ref(true)
 const usersArr = ref([])
 
 const tabs = [
-  { key: 'professional', label: 'Professional', statKey: 'professional_wins' },
-  { key: 'intermediate', label: 'Intermediate', statKey: 'intermediate_wins' },
-  { key: 'open', label: 'Open', statKey: 'open_wins' }
+  // statKey refers to the camelCase flat win fields on the user object
+  { key: 'professional', label: 'Professional', statKey: 'professionalWins' },
+  { key: 'intermediate', label: 'Intermediate', statKey: 'intermediateWins' },
+  { key: 'open', label: 'Open', statKey: 'openWins' }
 ]
 const selectedTab = ref('professional')
 
 function totalWinsOf(u) {
-  const s = u?.statistics || {}
-  return ['open_wins','intermediate_wins','professional_wins']
-    .map(k => Number(s[k] || 0))
-    .reduce((a,b)=>a+b,0)
+  // Use the flat camelCase fields directly
+  const o = Number(u?.openWins ?? 0)
+  const i = Number(u?.intermediateWins ?? 0)
+  const p = Number(u?.professionalWins ?? 0)
+  return o + i + p
 }
 function winsOf(u, key) {
-  const s = u?.statistics || {}
-  return Number(s[key] || 0)
+  // key is expected to be a camelCase field name like 'openWins'
+  return Number(u?.[key] ?? 0)
 }
 
 function avatarFor(u) {
@@ -151,7 +153,7 @@ onMounted(async () => {
     const users = await getDataFromFirebase('users')
     const arr = Object.entries(users || {}).map(([uid, u]) => ({ uid, ...u }))
     
-    // Inject test scores into existing database users for demo purposes
+  // Inject test scores into existing database users for demo purposes
     if (arr.length > 0) {
       const scores = [1500, 1250, 1100, 950, 880, 750, 620, 500, 420, 350]
       const skills = ['Professional', 'Professional', 'Professional', 'Intermediate', 'Intermediate', 'Open', 'Open', 'Open', 'Intermediate', 'Professional']
@@ -159,11 +161,10 @@ onMounted(async () => {
         if (i < scores.length) {
           u.score = scores[i]
           u.skill = skills[i]
-          // Ensure they have some wins in their category
-          if (!u.statistics) u.statistics = {}
-          if (skills[i] === 'Professional') u.statistics.professional_wins = Math.floor(Math.random() * 20) + 10
-          if (skills[i] === 'Intermediate') u.statistics.intermediate_wins = Math.floor(Math.random() * 20) + 10
-          if (skills[i] === 'Open') u.statistics.open_wins = Math.floor(Math.random() * 20) + 10
+          // Ensure they have some wins in their category (assign to flat fields)
+          if (skills[i] === 'Professional') u.professionalWins = Math.floor(Math.random() * 20) + 10
+          if (skills[i] === 'Intermediate') u.intermediateWins = Math.floor(Math.random() * 20) + 10
+          if (skills[i] === 'Open') u.openWins = Math.floor(Math.random() * 20) + 10
         }
       })
     }
