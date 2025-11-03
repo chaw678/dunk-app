@@ -357,8 +357,18 @@ function skillRank(skill) {
 
 // Gender options based on user's profile
 const availableGenders = computed(() => {
-  // Always allow all gender options for match creation
-  // Users should be able to create matches for any gender preference
+  // Filter gender options based on user's own gender
+  // Female users can only create All or Female matches
+  // Male users can only create All or Male matches
+  const userGender = currentUserProfile.value?.gender
+  
+  if (userGender === 'Female') {
+    return ['All', 'Female']
+  } else if (userGender === 'Male') {
+    return ['All', 'Male']
+  }
+  
+  // Default to all options if gender is not set or unknown
   return ['All', 'Female', 'Male']
 })
 
