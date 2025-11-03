@@ -621,6 +621,8 @@ const invitationsCount = computed(() => invitations.value.length)
 
 // Realtime subscription for invitations
 let invitesUnsub = null
+// Realtime subscription for matches list
+let matchesUnsub = null
 function subscribeInvitationsRealtime(uid) {
     // Clean up any existing listener
     if (invitesUnsub) {
@@ -761,6 +763,8 @@ function formatInvitationTime(startTime, endTime) {
 onMounted(async () => {
     await loadUsers()
     await loadMatches()
+    // subscribe to realtime matches updates so lists update without navigation
+    try { subscribeMatchesRealtime() } catch (e) { console.warn('subscribeMatchesRealtime failed', e) }
     await loadCourts()
     // listen for auth state and load user profile
     onUserStateChanged(async (u) => {
@@ -813,6 +817,10 @@ onUnmounted(() => {
         try { invitesUnsub() } catch (e) {}
         invitesUnsub = null
     }
+    if (matchesUnsub) {
+        try { matchesUnsub() } catch (e) {}
+        matchesUnsub = null
+    }
 })
 
 // Handler called when AddMatchModal emits 'created'
@@ -862,6 +870,34 @@ async function loadMatches() {
         console.error('Failed to load matches', err)
         matches.value = []
     }
+}
+
+// Subscribe to matches node for realtime updates and keep matches.value in sync
+function subscribeMatchesRealtime() {
+    if (matchesUnsub) {
+        try { matchesUnsub() } catch (e) {}
+        matchesUnsub = null
+    }
+    matchesUnsub = onDataChange('matches', (data) => {
+        try {
+            const out = []
+            if (!data) { matches.value = []; return }
+            if (typeof data === 'object') {
+                for (const [k1, v1] of Object.entries(data)) {
+                    if (!v1 || typeof v1 !== 'object') continue
+                    for (const [k2, v2] of Object.entries(v1)) {
+                        if (!v2 || typeof v2 !== 'object') continue
+                        for (const [mid, mv] of Object.entries(v2)) {
+                            out.push({ id: mid, __dbPath: `matches/${k1}/${k2}/${mid}`, ...mv })
+                        }
+                    }
+                }
+            }
+            matches.value = out
+        } catch (err) {
+            console.error('subscribeMatchesRealtime handler error', err)
+        }
+    })
 }
 
 async function loadCourts() {
