@@ -1232,17 +1232,21 @@ font-weight: 500;
 }
 
 .search-input {
-flex: 1;
-padding: 12px 16px;
-border-radius: 10px 0 0 10px; /* rounded left corners */
-border: 1.5px solid #3b4252;
-border-right: none; /* remove right border for seamless button */
-background: #22262d;
-color: #e6eef8;
-font-size: 1.08rem;
-box-shadow: 0 1px 3px rgba(80, 80, 100, 0.07);
-transition: border-color 0.2s;
-outline: none;
+}
+.search-input {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 10px 0 0 10px; /* rounded left corners */
+  border: 1.5px solid #3b4252;
+  border-right: none; /* remove right border for seamless button */
+  background: #22262d;
+  color: #e6eef8;
+  font-size: 1.08rem;
+  box-shadow: 0 1px 3px rgba(80, 80, 100, 0.07);
+  transition: border-color 0.2s;
+  outline: none;
+  height: 48px; /* ensure identical height to button for visual alignment */
+  box-sizing: border-box;
 }
 .search-input::placeholder {
 color: #7e8899;
@@ -1408,11 +1412,12 @@ background-color: #ffd59a;
 color: #232830;
 }
 .search-section {
-position: relative;
-display: flex;
-align-items: center;
-max-width: 390px;
-margin: 0 auto 26px auto;
+  position: relative;
+  display: flex;
+  /* stretch children so input and button share exact vertical dimensions */
+  align-items: stretch;
+  max-width: 390px;
+  margin: 0 auto 26px auto;
 }
 
 
@@ -1423,18 +1428,36 @@ font-size: 16px;
 }
 
 .search-btn {
-padding: 12px 20px;
-background-color: #ff9500;
-color: white;
-border: none;
-border-radius: 0 10px 10px 0; /* rounded right corners */
-cursor: pointer;
-font-weight: 700;
-font-size: 1rem;
-transition: background-color 0.3s;
+}
+.search-btn {
+  padding: 12px 20px;
+  color: rgb(39, 39, 39);
+  border: 1.5px solid #3b4252;
+  border-right: none; /* remove right border for seamless button */
+  /* keep visible orange background by default */
+  background-color: #eaa340;
+  border-radius: 0 10px 10px 0; /* rounded right corners */
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1rem;
+  transition: background-color 0.3s;
+  height: 48px; /* match input height */
+  display: inline-flex; /* center text vertically */
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.search-btn {
+  /* match the input's border thickness so edges align exactly */
+  border-top: 1.5px solid #3b4252;
+  border-bottom: 1.5px solid #3b4252;
+  border-right: 1.5px solid #3b4252;
+  border-left: none; /* keep seamless join with input */
 }
 .search-btn:hover {
-background-color: #ffb751;
+  /* on hover switch to gray as requested */
+  background-color: #24262b; /* gray-500 */
+  color: #fff;
 }
 
 /* Region filter badge (small rounded count) */
