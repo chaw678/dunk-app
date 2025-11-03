@@ -4,7 +4,7 @@
       <Crown :size="22" class="me-2 text-warning" />
       <h2 class="mb-0 fw-bold text-warning">Leaderboard</h2>
     </div>
-    <p class="text-muted mb-3 small">See who's at the top of their game.</p>
+    <p class="text-light mb-3 small">See who's at the top of their game.</p>
 
     <!-- Segmented tabs -->
     <div class="segmented mb-3" role="tablist" aria-label="Leaderboard filter">
@@ -32,7 +32,7 @@
               <img :src="displayed[1].photoURL || avatarFor(displayed[1])" class="podium-avatar" alt="avatar" />
               <div class="podium-medal m-2"><Crown :size="18" /></div>
               <div class="podium-name">{{ displayed[1].name || displayed[1].username || 'Anonymous' }}</div>
-              <div class="podium-score">{{ Number(displayed[1].score||0) }}</div>
+              <div class="podium-score">{{ Number(displayed[1].tabWins||0) }}</div>
             </div>
             <div class="podium-bar second-bar">
               <div class="podium-rank">2</div>
@@ -45,7 +45,7 @@
               <img :src="displayed[0].photoURL || avatarFor(displayed[0])" class="podium-avatar" alt="avatar" />
               <div class="podium-medal m-1"><Crown :size="20" /></div>
               <div class="podium-name">{{ displayed[0].name || displayed[0].username || 'Anonymous' }}</div>
-              <div class="podium-score">{{ Number(displayed[0].score||0) }}</div>
+                <div class="podium-score">{{ Number(displayed[0].tabWins||0) }}</div>
             </div>
             <div class="podium-bar first-bar">
               <div class="podium-rank">1</div>
@@ -58,7 +58,7 @@
               <img :src="displayed[2].photoURL || avatarFor(displayed[2])" class="podium-avatar" alt="avatar" />
               <div class="podium-medal m-3"><Crown :size="16" /></div>
               <div class="podium-name">{{ displayed[2].name || displayed[2].username || 'Anonymous' }}</div>
-              <div class="podium-score">{{ Number(displayed[2].score||0) }}</div>
+                <div class="podium-score">{{ Number(displayed[2].tabWins||0) }}</div>
             </div>
             <div class="podium-bar third-bar">
               <div class="podium-rank">3</div>
@@ -91,11 +91,11 @@
                 <div class="text-muted small">{{ p.email || '—' }}</div>
               </div>
             </div>
-            <div class="col-score text-end fw-bold text-warning">{{ Number(p.score||0) }}</div>
+            <div class="col-score text-end fw-bold text-warning">{{ Number(p.tabWins||0) }}</div>
           </div>
 
-          <div v-if="displayed.length === 0" class="text-center text-muted py-4">No players for this tab yet.</div>
-          <div v-else-if="displayed.length < 4" class="text-center text-muted py-3 small">Not enough players to display more rankings.</div>
+          <div v-if="displayed.length === 0" class="text-center text-light py-4">No players for this tab yet.</div>
+          <div v-else-if="displayed.length < 4" class="text-center text-light py-4">Not enough players to display more rankings.</div>
         </div>
       </div>
     </div>
@@ -144,7 +144,8 @@ const displayed = computed(() => {
     .map(u => ({ ...u, totalWins: totalWinsOf(u), tabWins: winsOf(u, tab.statKey) }))
     .filter(u => bySkill(u) || byWins(u))
 
-  filtered.sort((a,b) => (Number(b.score||0) - Number(a.score||0)) || (b.tabWins - a.tabWins) || (b.totalWins - a.totalWins))
+  // Primary sort by wins for the selected tab, then by totalWins, then name
+  filtered.sort((a,b) => (Number(b.tabWins||0) - Number(a.tabWins||0)) || (Number(b.totalWins||0) - Number(a.totalWins||0)) || ((b.name||'').localeCompare(a.name||'')))
   return filtered.slice(0, 50)
 })
 
@@ -152,23 +153,7 @@ onMounted(async () => {
   try {
     const users = await getDataFromFirebase('users')
     const arr = Object.entries(users || {}).map(([uid, u]) => ({ uid, ...u }))
-    
-  // Inject test scores into existing database users for demo purposes
-    if (arr.length > 0) {
-      const scores = [1500, 1250, 1100, 950, 880, 750, 620, 500, 420, 350]
-      const skills = ['Professional', 'Professional', 'Professional', 'Intermediate', 'Intermediate', 'Open', 'Open', 'Open', 'Intermediate', 'Professional']
-      arr.forEach((u, i) => {
-        if (i < scores.length) {
-          u.score = scores[i]
-          u.skill = skills[i]
-          // Ensure they have some wins in their category (assign to flat fields)
-          if (skills[i] === 'Professional') u.professionalWins = Math.floor(Math.random() * 20) + 10
-          if (skills[i] === 'Intermediate') u.intermediateWins = Math.floor(Math.random() * 20) + 10
-          if (skills[i] === 'Open') u.openWins = Math.floor(Math.random() * 20) + 10
-        }
-      })
-    }
-    
+    // Do not inject demo scores; rely on flat win fields (professionalWins, intermediateWins, openWins) from the DB.
     usersArr.value = arr
   } catch (e) {
     usersArr.value = []

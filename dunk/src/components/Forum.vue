@@ -99,19 +99,19 @@
             <div class="d-flex align-items-start gap-2 mb-2">
               <div class="avatar">
                 <template v-if="profilePathForFile(file)">
-                  <router-link :to="profilePathForFile(file)"><img :src="file.avatar || '/src/assets/vue.svg'" alt="user"/></router-link>
+                  <router-link :to="profilePathForFile(file)"><img :src="avatarForFile(file) || '/src/assets/vue.svg'" alt="user"/></router-link>
                 </template>
                 <template v-else>
-                  <img :src="file.avatar || '/src/assets/vue.svg'" alt="user"/>
+                  <img :src="avatarForFile(file) || '/src/assets/vue.svg'" alt="user"/>
                 </template>
               </div>
               <div class="flex-grow-1" style="margin-top: -2px;">
                 <div class="fw-bold">
-                  <template v-if="profilePathForFile(file)">
-                    <router-link :to="profilePathForFile(file)" class="text-reset text-decoration-none">{{ file.createdByName || file.author || file.username || 'Anonymous' }}</router-link>
+                    <template v-if="profilePathForFile(file)">
+                    <router-link :to="profilePathForFile(file)" class="text-reset text-decoration-none">{{ displayNameForFile(file) }}</router-link>
                   </template>
                   <template v-else>
-                    {{ file.createdByName || file.author || file.username || 'Anonymous' }}
+                    {{ displayNameForFile(file) }}
                   </template>
                 </div>
                 <div class="small text-muted">{{ displayDate(file.createdAt) }}</div>
@@ -161,17 +161,17 @@
                         <router-link :to="profilePathForComment(c)"><img :src="c.avatar || avatarForName(c.authorName)" alt="avatar" /></router-link>
                       </template>
                       <template v-else>
-                        <img :src="c.avatar || avatarForName(c.authorName)" alt="avatar" />
+                        <img :src="avatarForComment(c)" alt="avatar" />
                       </template>
                     </div>
                     <div>
                       <div>
                         <strong>
                           <template v-if="profilePathForComment(c)">
-                            <router-link :to="profilePathForComment(c)" class="text-reset text-decoration-none">{{ c.authorName || c.author || 'Anon' }}</router-link>
+                            <router-link :to="profilePathForComment(c)" class="text-reset text-decoration-none">{{ displayNameForComment(c) }}</router-link>
                           </template>
                           <template v-else>
-                            {{ c.authorName || c.author || 'Anon' }}
+                            {{ displayNameForComment(c) }}
                           </template>
                         </strong>
                         <span class="text-muted">• {{ displayDate(c.createdAt) }}</span>
@@ -197,7 +197,7 @@
                 <!-- show only when replying directly to the comment (no target reply id) -->
                 <div v-if="file._replyTarget === cid && !file._replyTargetRid" class="reply-input mt-2 d-flex gap-2 align-items-start">
                   <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
-                  <input type="text" class="form-control" v-model="file._replyTexts['c_' + cid]" :placeholder="`Replying to ${c.authorName || c.author || 'Anon'}...`" @keydown.enter.prevent="submitReply(file, cid)" />
+                  <input type="text" class="form-control" v-model="file._replyTexts['c_' + cid]" :placeholder="`Replying to ${displayNameForComment(c)}...`" @keydown.enter.prevent="submitReply(file, cid)" />
                   <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
                 </div>
 
@@ -207,10 +207,10 @@
                     <div class="reply-item d-flex align-items-start mb-2">
                       <div class="reply-avatar">
                         <template v-if="profilePathForReply(node.r)">
-                          <router-link :to="profilePathForReply(node.r)"><img :src="node.r.avatar || avatarForName(node.r.authorName)" alt="avatar"/></router-link>
+                          <router-link :to="profilePathForReply(node.r)"><img :src="avatarForComment(node.r)" alt="avatar"/></router-link>
                         </template>
                         <template v-else>
-                          <img :src="node.r.avatar || avatarForName(node.r.authorName)" alt="avatar"/>
+                          <img :src="avatarForComment(node.r)" alt="avatar"/>
                         </template>
                       </div>
                       <div class="reply-bubble" style="flex:1; position:relative">
@@ -218,10 +218,10 @@
                           <div>
                             <strong>
                               <template v-if="profilePathForReply(node.r)">
-                                <router-link :to="profilePathForReply(node.r)" class="text-reset text-decoration-none">{{ node.r.authorName || node.r.author || 'Anon' }}</router-link>
+                                <router-link :to="profilePathForReply(node.r)" class="text-reset text-decoration-none">{{ displayNameForComment(node.r) }}</router-link>
                               </template>
                               <template v-else>
-                                {{ node.r.authorName || node.r.author || 'Anon' }}
+                                {{ displayNameForComment(node.r) }}
                               </template>
                             </strong>
                             <span class="text-muted">• {{ displayDate(node.r.createdAt) }}</span>
@@ -250,7 +250,7 @@
                         <!-- if replying to this root reply, show nested input here -->
                         <div v-if="file._replyTarget === cid && file._replyTargetRid === node.rid" class="reply-input mt-2 d-flex gap-2 align-items-start nested-reply-input">
                           <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
-                          <input type="text" class="form-control" v-model="file._replyTexts[node.rid]" :placeholder="`Replying to ${node.r.authorName || node.r.author || 'Anon'}...`" @keydown.enter.prevent="submitReply(file, cid)" />
+                          <input type="text" class="form-control" v-model="file._replyTexts[node.rid]" :placeholder="`Replying to ${displayNameForComment(node.r)}...`" @keydown.enter.prevent="submitReply(file, cid)" />
                           <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
                         </div>
                       </div>
@@ -261,10 +261,10 @@
                       <div v-for="child in replyChildren(c, node.rid)" :key="child.rid" class="reply-item d-flex align-items-start mb-2 child">
                         <div class="reply-avatar">
                           <template v-if="profilePathForReply(child.r)">
-                            <router-link :to="profilePathForReply(child.r)"><img :src="child.r.avatar || avatarForName(child.r.authorName)" alt="avatar"/></router-link>
+                            <router-link :to="profilePathForReply(child.r)"><img :src="avatarForComment(child.r)" alt="avatar"/></router-link>
                           </template>
                           <template v-else>
-                            <img :src="child.r.avatar || avatarForName(child.r.authorName)" alt="avatar"/>
+                            <img :src="avatarForComment(child.r)" alt="avatar"/>
                           </template>
                         </div>
                         <div class="reply-bubble" style="flex:1; position:relative">
@@ -272,10 +272,10 @@
                             <div>
                               <strong>
                                 <template v-if="profilePathForReply(child.r)">
-                                  <router-link :to="profilePathForReply(child.r)" class="text-reset text-decoration-none">{{ child.r.authorName || child.r.author || 'Anon' }}</router-link>
+                                  <router-link :to="profilePathForReply(child.r)" class="text-reset text-decoration-none">{{ displayNameForComment(child.r) }}</router-link>
                                 </template>
                                 <template v-else>
-                                  {{ child.r.authorName || child.r.author || 'Anon' }}
+                                  {{ displayNameForComment(child.r) }}
                                 </template>
                               </strong>
                               <span class="text-muted">• {{ displayDate(child.r.createdAt) }}</span>
@@ -304,7 +304,7 @@
                           <!-- nested reply input for replies to this child -->
                           <div v-if="file._replyTarget === cid && file._replyTargetRid === child.rid" class="reply-input mt-2 d-flex gap-2 align-items-start nested-reply-input child-input">
                             <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
-                            <input type="text" class="form-control" v-model="file._replyTexts[child.rid]" :placeholder="`Replying to ${child.r.authorName || child.r.author || 'Anon'}...`" @keydown.enter.prevent="submitReply(file, cid)" />
+                            <input type="text" class="form-control" v-model="file._replyTexts[child.rid]" :placeholder="`Replying to ${displayNameForComment(child.r)}...`" @keydown.enter.prevent="submitReply(file, cid)" />
                             <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
                           </div>
                         </div>
@@ -314,10 +314,10 @@
                           <div v-for="g in replyChildren(c, child.rid)" :key="g.rid" class="reply-item d-flex align-items-start mb-2 grandchild">
                             <div class="reply-avatar">
                               <template v-if="profilePathForReply(g.r)">
-                                <router-link :to="profilePathForReply(g.r)"><img :src="g.r.avatar || avatarForName(g.r.authorName)" alt="avatar"/></router-link>
+                                <router-link :to="profilePathForReply(g.r)"><img :src="avatarForComment(g.r)" alt="avatar"/></router-link>
                               </template>
                               <template v-else>
-                                <img :src="g.r.avatar || avatarForName(g.r.authorName)" alt="avatar"/>
+                                <img :src="avatarForComment(g.r)" alt="avatar"/>
                               </template>
                             </div>
                             <div class="reply-bubble" style="flex:1; position:relative">
@@ -325,10 +325,10 @@
                                 <div>
                                   <strong>
                                     <template v-if="profilePathForReply(g.r)">
-                                      <router-link :to="profilePathForReply(g.r)" class="text-reset text-decoration-none">{{ g.r.authorName || g.r.author || 'Anon' }}</router-link>
+                                      <router-link :to="profilePathForReply(g.r)" class="text-reset text-decoration-none">{{ displayNameForComment(g.r) }}</router-link>
                                     </template>
                                     <template v-else>
-                                      {{ g.r.authorName || g.r.author || 'Anon' }}
+                                      {{ displayNameForComment(g.r) }}
                                     </template>
                                   </strong>
                                   <span class="text-muted">• {{ displayDate(g.r.createdAt) }}</span>
@@ -357,7 +357,7 @@
                               <!-- nested reply input for replies to this grandchild -->
                               <div v-if="file._replyTarget === cid && file._replyTargetRid === g.rid" class="reply-input mt-2 d-flex gap-2 align-items-start nested-reply-input grandchild-input">
                                 <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
-                                <input type="text" class="form-control" v-model="file._replyTexts[g.rid]" :placeholder="`Replying to ${g.r.authorName || g.r.author || 'Anon'}...`" @keydown.enter.prevent="submitReply(file, cid)" />
+                                <input type="text" class="form-control" v-model="file._replyTexts[g.rid]" :placeholder="`Replying to ${displayNameForComment(g.r)}...`" @keydown.enter.prevent="submitReply(file, cid)" />
                                 <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
                               </div>
                             </div>
@@ -411,7 +411,7 @@ import { ref, onMounted, nextTick, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Eye } from 'lucide-vue-next'
 import uploadFile from '../upload'
-import { getDataFromFirebase, pushDataToFirebase, deleteDataFromFirebase, overwriteDataToFirebase, storage, getUserName} from '../firebase/firebase'
+import { getDataFromFirebase, pushDataToFirebase, deleteDataFromFirebase, overwriteDataToFirebase, storage, getUserName, onDataChange } from '../firebase/firebase'
 import { ref as storageRef, deleteObject } from 'firebase/storage'
 import { onAuthStateChanged } from 'firebase/auth'
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
@@ -439,6 +439,52 @@ const tags = ref(['General','Advice','Matches','Highlights'])
 const selectedTag = ref('General')
 const selectedFilter = ref('All')
 const router = useRouter()
+
+// live users map so display names and avatars update immediately when a profile changes
+const usersMap = ref({})
+let usersUnsub = null
+function subscribeUsersRealtime() {
+  if (usersUnsub) {
+    try { usersUnsub() } catch (e) {}
+    usersUnsub = null
+  }
+  try {
+    usersUnsub = onDataChange('users', (v) => { usersMap.value = v || {} })
+  } catch (e) {
+    console.warn('subscribeUsersRealtime failed', e)
+  }
+}
+
+function displayNameForId(uid) {
+  if (!uid) return null
+  const u = usersMap.value && usersMap.value[uid]
+  if (!u) return null
+  return u.name || u.username || u.displayName || (u.email && u.email.split('@')[0]) || null
+}
+
+function displayNameForFile(f) {
+  const uid = f.createdByUid || f.createdBy || f.createdById
+  return displayNameForId(uid) || f.createdByName || f.author || f.username || 'Anonymous'
+}
+
+function displayNameForComment(c) {
+  const uid = c.authorId || c.author || c.uid
+  return displayNameForId(uid) || c.authorName || c.author || 'Anon'
+}
+
+function avatarForFile(f) {
+  const uid = f.createdByUid || f.createdBy || f.createdById
+  const u = uid && usersMap.value && usersMap.value[uid]
+  if (u) return u.photoURL || u.avatar || avatarForName(u.name || u.username)
+  return f.avatar || avatarForName(f.createdByName || f.author || 'anon')
+}
+
+function avatarForComment(c) {
+  const uid = c.authorId || c.author || c.uid
+  const u = uid && usersMap.value && usersMap.value[uid]
+  if (u) return u.photoURL || u.avatar || avatarForName(u.name || u.username)
+  return c.avatar || avatarForName(c.authorName || c.author || 'anon')
+}
 
 
 async function loginWithGoogle() {
@@ -508,10 +554,21 @@ watch(currentUser, (newUser) => {
 })
 
 onMounted(() => {
+  // subscribe to users map so profile edits reflect immediately across posts/comments
+  subscribeUsersRealtime()
   onUserStateChanged((user) => {
     currentUser.value = user
     if (user) showPopup.value = false
   })
+  // load forum posts
+  loadUploads()
+})
+
+onUnmounted(() => {
+  if (usersUnsub) {
+    try { usersUnsub() } catch (e) {}
+    usersUnsub = null
+  }
 })
 
 function profilePathForFile(file) {

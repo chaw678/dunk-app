@@ -40,6 +40,21 @@ body {
   color: #e6eef8;
 }
 
+/* Top logo used to replace basketball emoji in empty states */
+.top-logo {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb14d;
+}
+
+.top-logo svg {
+  width: 28px;
+  height: 28px;
+}
+
 /* Make sure the entire page (including html and #app) is black */
 html, body, #app {
   background: #000 !important;

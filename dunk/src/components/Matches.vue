@@ -23,6 +23,16 @@
                 </div>
             </div>
         </div>
+        <!-- Confirm modal (themed) -->
+        <ConfirmModal
+            v-model="showConfirm"
+            :title="pendingConfirm ? pendingConfirm.title : ''"
+            :message="pendingConfirm ? pendingConfirm.message : ''"
+            :confirmLabel="pendingConfirm && pendingConfirm.destructive ? 'Delete' : 'OK'"
+            cancelLabel="Cancel"
+            :destructive="pendingConfirm && pendingConfirm.destructive"
+            @confirm="onConfirmModal"
+        />
         
         <div class="card large-card">
             <div v-if="!embedded" class="page-header matches-header">
@@ -103,7 +113,7 @@
             <div v-if="isTabEmpty" class="embedded-empty-state" v-cloak>
                 <div class="empty-card card">
                     <div class="card-body">
-                        <div class="empty-icon">🏀</div>
+                                                <DunkLogo />
                         <p class="lead mb-2">{{ emptyMessage }}</p>
                         <p class="text-muted small">Try switching tabs or create a match for this court.</p>
                     </div>
@@ -312,15 +322,7 @@
             </div>
             <!-- Empty state for Past Matches when user has none -->
             <div v-if="selectedTab === 'past' && groupedMatches && (!groupedMatches.past || groupedMatches.past.length === 0)" class="past-empty-state">
-                <h3 class="section-heading">Past</h3>
-                <div class="empty-card card">
-                    <div class="card-body">
-                        <div class="empty-icon">🏀</div>
-                        <p class="lead mb-2">You have no past matches.</p>
-                        <p class="text-muted small">Past matches you hosted or joined will appear here. Try checking <strong>All Matches</strong> to find upcoming games.</p>
-                    </div>
-                </div>
-            </div>
+            </div> 
         </div>
 
     <!-- render modal inside template so Vue can mount it -->
@@ -346,6 +348,8 @@ import { onUserStateChanged } from '../firebase/auth'
 import AddMatchModal from './AddMatchModal.vue'
 import JoinedPlayersModal from './JoinedPlayersModal.vue'
 import InviteModal from './InviteModal.vue'
+import ConfirmModal from './ConfirmModal.vue'
+import DunkLogo from './DunkLogo.vue'
 
 const showPopup = ref(false)
 const isSigningIn = ref(false)
@@ -353,6 +357,24 @@ const auth = getAuth()
 
 const maxAvatars = 6
 const usersCache = ref({})
+let usersUnsub = null
+
+function subscribeUsersRealtime() {
+    // cleanup previous
+    if (usersUnsub) {
+        try { usersUnsub() } catch (e) {}
+        usersUnsub = null
+    }
+    try {
+        usersUnsub = onDataChange('users', (udata) => {
+            usersCache.value = udata || {}
+        })
+    } catch (e) {
+        // fallback to one-time load
+        console.warn('subscribeUsersRealtime failed, falling back to one-time load', e)
+        loadUsers()
+    }
+}
 
 function seededAvatar(name) {
     const username = name || 'anon'
@@ -371,6 +393,31 @@ const showPlayersModal = ref(false)
 const activePlayers = ref([])
 const activeTitle = ref('')
 const showCreatedPopup = ref(false)
+// global confirm modal state for this component
+const showConfirm = ref(false)
+const pendingConfirm = ref(null) // { action: 'delete'|'start'|'end', match, title, message, destructive }
+
+function openConfirm(action, match) {
+    const titleMap = { delete: 'Delete match', start: 'Start match', end: 'End match' }
+    const messageMap = {
+        delete: 'Delete this match? This action cannot be undone.',
+        start: 'Start this match now?',
+        end: 'End this match now?'
+    }
+    pendingConfirm.value = { action, match, title: titleMap[action] || 'Confirm', message: messageMap[action] || '' , destructive: action === 'delete' }
+    showConfirm.value = true
+}
+
+async function onConfirmModal() {
+    if (!pendingConfirm.value) return
+    const { action, match } = pendingConfirm.value
+    showConfirm.value = false
+    const a = action
+    pendingConfirm.value = null
+    if (a === 'delete') await deleteMatchConfirmed(match)
+    if (a === 'start') await startMatchConfirmed(match)
+    if (a === 'end') await endMatchConfirmed(match)
+}
 
 function closeCreatedPopup() {
     showCreatedPopup.value = false
@@ -546,12 +593,18 @@ function openPlayersModal(match) {
     // If match.joinedBy is a map of uid:true, prefer listing by uid
     if (match && match.joinedBy && typeof match.joinedBy === 'object') {
         for (const uid of Object.keys(match.joinedBy)) {
-            // prefer playersMap which stores name by uid
-            let name = (match.playersMap && match.playersMap[uid])
+            // prefer playersMap which may store either a plain name or a player object by uid
+            let raw = (match.playersMap && match.playersMap[uid])
+            let name = ''
+            if (raw) {
+                // if entry is a string, use it; if it's an object, extract known name fields
+                if (typeof raw === 'string') name = raw
+                else if (typeof raw === 'object') name = raw.name || raw.displayName || raw.username || raw.uid || ''
+            }
             // fallback to user record in users cache (if available)
             if (!name && usersCache.value && usersCache.value[uid]) {
                 const u = usersCache.value[uid]
-                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0])
+                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0]) || ''
             }
             // final fallback to uid
             if (!name) name = uid
@@ -759,7 +812,8 @@ function formatInvitationTime(startTime, endTime) {
 }
 
 onMounted(async () => {
-    await loadUsers()
+    // subscribe to users realtime so profile/name changes propagate immediately
+    subscribeUsersRealtime()
     await loadMatches()
     await loadCourts()
     // listen for auth state and load user profile
@@ -793,7 +847,8 @@ onUserStateChanged(async (u) => {
     if (u) showPopup.value = false
     // reload users and matches to reflect any joinedBy changes made while signed out
     try {
-        await loadUsers()
+        // ensure we have realtime users subscription active
+        subscribeUsersRealtime()
         await loadMatches()
         if (u) {
             await loadInvitations()
@@ -812,6 +867,10 @@ onUnmounted(() => {
     if (invitesUnsub) {
         try { invitesUnsub() } catch (e) {}
         invitesUnsub = null
+    }
+    if (usersUnsub) {
+        try { usersUnsub() } catch (e) {}
+        usersUnsub = null
     }
 })
 
@@ -1088,10 +1147,15 @@ function displayedPlayers(match) {
     // Prefer deriving players from joinedBy map (uids) so we always show distinct users
     if (match.joinedBy && typeof match.joinedBy === 'object') {
         for (const uid of Object.keys(match.joinedBy)) {
-            let name = (match.playersMap && match.playersMap[uid])
+            let raw = (match.playersMap && match.playersMap[uid])
+            let name = ''
+            if (raw) {
+                if (typeof raw === 'string') name = raw
+                else if (typeof raw === 'object') name = raw.name || raw.displayName || raw.username || raw.uid || ''
+            }
             if (!name && usersCache.value && usersCache.value[uid]) {
                 const u = usersCache.value[uid]
-                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0])
+                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0]) || ''
             }
             if (!name) name = uid
             const avatar = (usersCache.value && usersCache.value[uid] && (usersCache.value[uid].photoURL || usersCache.value[uid].avatar)) || seededAvatar(name)
@@ -1296,7 +1360,12 @@ function isJoined(match) {
 async function deleteMatch(match) {
     if (!currentUser.value) { alert('Please sign in'); return }
     if (!isHost(match)) { alert('Only the host may delete this match'); return }
-    if (!confirm('Delete this match? This action cannot be undone.')) return
+    // show themed confirm modal
+    openConfirm('delete', match)
+}
+
+async function deleteMatchConfirmed(match) {
+    if (!match) return
     if (!match.__dbPath) {
         // fallback: remove locally
         matches.value = matches.value.filter(m => m !== match)
@@ -1318,34 +1387,42 @@ async function deleteMatch(match) {
 async function startMatch(match) {
     if (!currentUser.value) { alert('Please sign in'); return }
     if (!isHost(match)) { alert('Only the host may start this match'); return }
-    if (!confirm('Start this match now?')) return
+    openConfirm('start', match)
+}
+
+async function startMatchConfirmed(match) {
+    if (!match) return
     // optimistic local flag
     match._started = true
-            if (match.__dbPath) {
-                try {
-                    const parts = match.__dbPath.split('/')
-                    const id = parts.pop()
-                    const path = parts.join('/')
-                    await setChildData(`${path}/${id}`, 'started', true)
-                    await setChildData(`${path}/${id}`, 'startedAt', new Date().toISOString())
-                    // after successfully starting, navigate to the MatchRoom
-                    const query = { path: match.__dbPath }
-                    try { router.push({ name: 'MatchRoom', params: { id: match.id }, query }) } catch(e) { router.push({ path: `/match/${match.id}`, query }) }
-                } catch (e) {
-                    console.error('Failed to set started flag', e)
-                    alert('Failed to start match — try again')
-                    match._started = false
-                }
+    if (match.__dbPath) {
+        try {
+            const parts = match.__dbPath.split('/')
+            const id = parts.pop()
+            const path = parts.join('/')
+            await setChildData(`${path}/${id}`, 'started', true)
+            await setChildData(`${path}/${id}`, 'startedAt', new Date().toISOString())
+            // after successfully starting, navigate to the MatchRoom
+            const query = { path: match.__dbPath }
+            try { router.push({ name: 'MatchRoom', params: { id: match.id }, query }) } catch(e) { router.push({ path: `/match/${match.id}`, query }) }
+        } catch (e) {
+            console.error('Failed to set started flag', e)
+            alert('Failed to start match — try again')
+            match._started = false
+        }
     } else {
         // no DB path: still navigate to match room
-                try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
+        try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
     }
 }
 
 async function endMatch(match) {
     if (!currentUser.value) { alert('Please sign in'); return }
     if (!isHost(match)) { alert('Only the host may end this match'); return }
-    if (!confirm('End this match now?')) return
+    openConfirm('end', match)
+}
+
+async function endMatchConfirmed(match) {
+    if (!match) return
     // optimistic local update
     match._started = false
     match.started = false
@@ -1362,7 +1439,7 @@ async function endMatch(match) {
             console.error('Failed to end match', e)
             alert('Failed to end match — try again')
             // if the write failed, we may want to revert optimistic change
-            try { match.started = true } catch(_){}
+            try { match.started = true } catch(_){ }
         }
     }
 }
