@@ -353,18 +353,24 @@ async function confirmWinner() {
   // increment per-player wins for the winning team
   try {
     const winners = selectedWinner.value === 'A' ? teamA.value : teamB.value
-    await Promise.all((winners || []).map(async p => {
+        await Promise.all((winners || []).map(async p => {
       const uid = (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)
       if (!uid) return
       try {
         // Always maintain a generic per-user wins counter for quick lookups
         await incrementField(`users/${uid}`, 'wins', 1)
+            // Also increment the user's totalWins so profile reflects sum of typed wins
+            try { await incrementField(`users/${uid}`, 'totalWins', 1) } catch (e) { /* non-fatal */ }
         // If match type is present, also increment the typed counter (open/intermediate/professional)
         try {
-          const matchType = (matchData.value && matchData.value.type) ? String(matchData.value.type) : null
+          // attempt to resolve match type (try local cache, then DB) so typed counters update reliably
+          const matchType = await resolveMatchType()
           if (matchType) {
             const field = (k => k.startsWith('open') ? 'openWins' : (k.startsWith('inter') ? 'intermediateWins' : (k.startsWith('prof') ? 'professionalWins' : 'openWins')))(String(matchType).toLowerCase())
             await incrementField(`users/${uid}`, field, 1)
+          } else {
+            // type unknown — skip typed increment but log for easier debugging
+            console.warn('typed win increment skipped: match type unknown for', uid)
           }
         } catch (e) { console.warn('Could not increment typed user win for', uid, e) }
 
@@ -434,12 +440,16 @@ async function confirmWinnerNextRound() {
       try {
         // Always increment generic wins
         await incrementField(`users/${uid}`, 'wins', 1)
+            // Also increment totalWins for profile aggregation
+            try { await incrementField(`users/${uid}`, 'totalWins', 1) } catch (err) { /* ignore */ }
         // If match type exists, increment typed counter as well
         try {
-          const matchType = (matchData.value && matchData.value.type) ? String(matchData.value.type) : null
+          const matchType = await resolveMatchType()
           if (matchType) {
             const field = (k => k.startsWith('open') ? 'openWins' : (k.startsWith('inter') ? 'intermediateWins' : (k.startsWith('prof') ? 'professionalWins' : 'openWins')))(String(matchType).toLowerCase())
             await incrementField(`users/${uid}`, field, 1)
+          } else {
+            console.warn('typed win increment skipped: match type unknown for', uid)
           }
         } catch (err) { console.warn('Could not increment typed user win for', uid, err) }
 
@@ -489,31 +499,39 @@ async function confirmWinnerEndMatch() {
 
   // increment each winning player's per-type win counter
   try {
-    const matchType = (matchData.value && matchData.value.type) ? String(matchData.value.type) : null
-    if (matchType) {
-      const field = (k => k.startsWith('open') ? 'openWins' : (k.startsWith('inter') ? 'intermediateWins' : (k.startsWith('prof') ? 'professionalWins' : 'openWins')))(String(matchType).toLowerCase())
-      const winners = selectedWinner.value === 'A' ? teamA.value : teamB.value
-      await Promise.all((winners || []).map(async p => {
-        const uid = (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)
-        if (!uid) return
+    // Always increment generic wins and totalWins for each winning player.
+    // Additionally, resolve the match type (local cache or DB) and increment the typed counter
+    const matchType = await resolveMatchType()
+    const typedField = matchType ? (k => k.startsWith('open') ? 'openWins' : (k.startsWith('inter') ? 'intermediateWins' : (k.startsWith('prof') ? 'professionalWins' : 'openWins')))(String(matchType).toLowerCase()) : null
+    const winners = selectedWinner.value === 'A' ? teamA.value : teamB.value
+    await Promise.all((winners || []).map(async p => {
+      const uid = (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)
+      if (!uid) return
+      try {
+        await incrementField(`users/${uid}`, 'wins', 1)
+        try { await incrementField(`users/${uid}`, 'totalWins', 1) } catch (err) {}
+        if (typedField) {
+          try { await incrementField(`users/${uid}`, typedField, 1) } catch (err) { console.warn('Could not increment typed user win for', uid, err) }
+        } else {
+          // typedField missing means matchType couldn't be resolved; log for debug
+          console.warn('typedField unset — matchType unresolved for', uid)
+        }
+
         try {
-          await incrementField(`users/${uid}`, field, 1)
-          await incrementField(`users/${uid}`, 'wins', 1)
-          try {
-            const dbPath = await resolveMatchDbPath()
-            if (dbPath) await incrementField(`${dbPath}/playersMap/${uid}`, 'NumberOfWins', 1)
-          } catch (err) { console.warn('Could not increment playersMap NumberOfWins for', uid, err) }
-          try {
-            const dbPath = await resolveMatchDbPath()
-            if (dbPath) {
-              const uname = (await getUserName(uid)) || uid
-              const safeKey = String(uname).replace(/[.$#\[\]\/]/g, '_')
-              await incrementField(`${dbPath}/WinsByEachPlayer`, safeKey, 1)
-            }
-          } catch (err) { console.warn('Could not increment WinsByEachPlayer for', uid, err) }
-        } catch (err) { console.warn('Could not increment user win for', uid, err) }
-      }))
-    }
+          const dbPath = await resolveMatchDbPath()
+          if (dbPath) await incrementField(`${dbPath}/playersMap/${uid}`, 'NumberOfWins', 1)
+        } catch (err) { console.warn('Could not increment playersMap NumberOfWins for', uid, err) }
+
+        try {
+          const dbPath = await resolveMatchDbPath()
+          if (dbPath) {
+            const uname = (await getUserName(uid)) || uid
+            const safeKey = String(uname).replace(/[.$#\[\]\/]/g, '_')
+            await incrementField(`${dbPath}/WinsByEachPlayer`, safeKey, 1)
+          }
+        } catch (err) { console.warn('Could not increment WinsByEachPlayer for', uid, err) }
+      } catch (err) { console.warn('Could not increment user win for', uid, err) }
+    }))
   } catch (e) { console.warn('increment wins failed', e) }
 
   // persist roundsplayed entry for this final round
@@ -643,6 +661,26 @@ function goBack() {
 async function resolveMatchDbPath() {
   if (matchData.value && matchData.value.__dbPath) return matchData.value.__dbPath
   if (matchId.value) return `matches/${matchId.value}`
+  return null
+}
+
+// Resolve the match type, trying local cache first then falling back to a DB read
+async function resolveMatchType() {
+  try {
+    let mt = (matchData.value && matchData.value.type) ? String(matchData.value.type) : null
+    if (mt) return mt
+    const dbPath = await resolveMatchDbPath()
+    if (!dbPath) return null
+    // fetch the match node in case this view was navigated with partial state
+    const remote = await getDataFromFirebase(dbPath)
+    if (remote && remote.type) {
+      // keep local cache in sync
+      matchData.value = { ...(matchData.value || {}), ...(remote || {}) }
+      return String(remote.type)
+    }
+  } catch (e) {
+    console.warn('resolveMatchType failed', e)
+  }
   return null
 }
 

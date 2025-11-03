@@ -6,6 +6,47 @@
       <button @click="onEndMatch" class="end-match-btn">End Match</button>
     </header>
 
+    <!-- Match details card -->
+    <section class="match-details">
+      <div class="details-grid">
+        <div class="detail-item">
+          <div class="detail-icon">📅</div>
+          <div>
+            <div class="detail-label">Date</div>
+            <div class="detail-value">{{ matchDateDisplay }}</div>
+          </div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-icon">🕒</div>
+          <div>
+            <div class="detail-label">Time</div>
+            <div class="detail-value">{{ matchTimeDisplay }}</div>
+          </div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-icon">📍</div>
+          <div>
+            <div class="detail-label">Court</div>
+            <div class="detail-value">{{ courtDisplay }}</div>
+          </div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-icon">🏷️</div>
+          <div>
+            <div class="detail-label">Type</div>
+            <div class="detail-value">{{ matchTypeDisplay }}</div>
+          </div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-icon">🚻</div>
+          <div>
+            <div class="detail-label">Gender</div>
+            <div class="detail-value">{{ genderDisplay }}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- wins chart moved below teams grid -->
 
     <!-- Bench Section -->
@@ -22,16 +63,25 @@
 
         <template #item="{ element }">
             <div class="player-avatar">
-                <template v-if="element?.avatar">
-                <img :src="element.avatar" class="avatar-img" :alt="element.name || element.uid" />
-                </template>
-                <template v-else>
-                <div class="avatar-fallback">{{ initials(element?.name || element?.uid) }}</div>
-                </template>
-    <span class="player-name">{{ element.name || element.uid }}</span>
-  <div class="player-wins" :class="{ 'pulse-win': winsPulse[element.uid] }">🏆 {{ displayWinsForUid(element && element.uid) }}</div>
+              <div class="player-left">
+                <div class="avatar-block">
+                  <template v-if="element?.avatar">
+                    <img :src="element.avatar" class="avatar-img" :alt="displayNameFor(element)" />
+                  </template>
+                  <template v-else>
+                    <div class="avatar-fallback">{{ initials(displayNameFor(element)) }}</div>
+                  </template>
+                  <div class="player-sub">Total: {{ displayTotalWinsForUid(element && element.uid) }}</div>
+                </div>
+                <div class="player-name">{{ displayNameFor(element) }}</div>
+              </div>
+              <div class="player-wins" :class="{ 'pulse-win': winsPulse[element.uid] }">🏆 {{ displayMatchWinsForUid(element && element.uid) }}</div>
+              <div class="player-extra">
+                <div class="extra-row">🏆 Wins (match): <strong>{{ displayMatchWinsForUid(element && element.uid) }}</strong></div>
+                <div class="extra-row"><a :href="`/profile/${element && element.uid}`" class="player-link">View profile</a></div>
+              </div>
             </div>
-            </template>
+        </template>
       </draggable>
     </section>
 
@@ -50,16 +100,25 @@
       <div :class="['team-card', teamAOutlineClass]" @click="!teamsLocked && selectWinner('A')">
         <h2>Team A</h2>
         <draggable v-model="teamA" :group="'players'" :disabled="teamsLocked" item-key="uid" class="team-drop-list">
-          <template #item="{ element }">
+            <template #item="{ element }">
             <div class="player-avatar">
-                <template v-if="element?.avatar">
-                <img :src="element.avatar" class="avatar-img" :alt="element.name || element.uid" />
-                </template>
-                <template v-else>
-                <div class="avatar-fallback">{{ initials(element?.name || element?.uid) }}</div>
-                </template>
-    <span class="player-name">{{ element.name || element.uid }}</span>
-  <div class="player-wins" :class="{ 'pulse-win': winsPulse[element.uid] }">🏆 {{ displayWinsForUid(element && element.uid) }}</div>
+              <div class="player-left">
+                <div class="avatar-block">
+                  <template v-if="element?.avatar">
+                    <img :src="element.avatar" class="avatar-img" :alt="displayNameFor(element)" />
+                  </template>
+                  <template v-else>
+                    <div class="avatar-fallback">{{ initials(displayNameFor(element)) }}</div>
+                  </template>
+                  <div class="player-sub">Total: {{ displayTotalWinsForUid(element && element.uid) }}</div>
+                </div>
+                <div class="player-name">{{ displayNameFor(element) }}</div>
+              </div>
+              <div class="player-wins" :class="{ 'pulse-win': winsPulse[element.uid] }">🏆 {{ displayMatchWinsForUid(element && element.uid) }}</div>
+              <div class="player-extra">
+                <div class="extra-row">🏆 Wins (match): <strong>{{ displayMatchWinsForUid(element && element.uid) }}</strong></div>
+                <div class="extra-row"><a :href="`/profile/${element && element.uid}`" class="player-link">View profile</a></div>
+              </div>
             </div>
             </template>
         </draggable>
@@ -67,16 +126,25 @@
       <div :class="['team-card', teamBOutlineClass]" @click="!teamsLocked && selectWinner('B')">
         <h2>Team B</h2>
         <draggable v-model="teamB" :group="'players'" :disabled="teamsLocked" item-key="uid" class="team-drop-list">
-          <template #item="{ element }">
+            <template #item="{ element }">
             <div class="player-avatar">
-                <template v-if="element?.avatar">
-                <img :src="element.avatar" class="avatar-img" :alt="element.name || element.uid" />
-                </template>
-                <template v-else>
-                <div class="avatar-fallback">{{ initials(element?.name || element?.uid) }}</div>
-                </template>
-    <span class="player-name">{{ element.name || element.uid }}</span>
-  <div class="player-wins" :class="{ 'pulse-win': winsPulse[element.uid] }">🏆 {{ displayWinsForUid(element && element.uid) }}</div>
+              <div class="player-left">
+                <div class="avatar-block">
+                  <template v-if="element?.avatar">
+                    <img :src="element.avatar" class="avatar-img" :alt="displayNameFor(element)" />
+                  </template>
+                  <template v-else>
+                    <div class="avatar-fallback">{{ initials(displayNameFor(element)) }}</div>
+                  </template>
+                  <div class="player-sub">Total: {{ displayTotalWinsForUid(element && element.uid) }}</div>
+                </div>
+                <div class="player-name">{{ displayNameFor(element) }}</div>
+              </div>
+              <div class="player-wins" :class="{ 'pulse-win': winsPulse[element.uid] }">🏆 {{ displayMatchWinsForUid(element && element.uid) }}</div>
+              <div class="player-extra">
+                <div class="extra-row">🏆 Wins (match): <strong>{{ displayMatchWinsForUid(element && element.uid) }}</strong></div>
+                <div class="extra-row"><a :href="`/profile/${element && element.uid}`" class="player-link">View profile</a></div>
+              </div>
             </div>
             </template>
         </draggable>
@@ -142,9 +210,10 @@
               <div class="team-members">
                 <template v-for="uid in (r.teamA || [])" :key="uid">
                   <div class="member-pill">
-                    <div class="member-avatar-small">{{ initials(nameFor(uid)) }}</div>
-                    <div class="member-name">{{ nameFor(uid) }}</div>
-                    <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayWinsForUid(uid) }}</div>
+              <div class="member-avatar-small">{{ initials(displayNameFor(uid)) }}</div>
+              <div class="member-name">{{ displayNameFor(uid) }}</div>
+              <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
+              <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayMatchWinsForUid(uid) }}</div>
                   </div>
                 </template>
               </div>
@@ -155,9 +224,10 @@
               <div class="team-members">
                 <template v-for="uid in (r.teamB || [])" :key="uid">
                   <div class="member-pill">
-                    <div class="member-avatar-small">{{ initials(nameFor(uid)) }}</div>
-                    <div class="member-name">{{ nameFor(uid) }}</div>
-                    <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayWinsForUid(uid) }}</div>
+                    <div class="member-avatar-small">{{ initials(displayNameFor(uid)) }}</div>
+                      <div class="member-name">{{ displayNameFor(uid) }}</div>
+                      <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
+                      <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayMatchWinsForUid(uid) }}</div>
                   </div>
                 </template>
               </div>
@@ -413,6 +483,38 @@ const displayTitle = computed(() => {
   return t || 'Untitled Match'
 })
 
+// Match detail derived values
+const matchDateDisplay = computed(() => {
+  try {
+    if (matchData.value && matchData.value.date) return String(matchData.value.date)
+    if (matchData.value && matchData.value.startAtISO) return new Date(matchData.value.startAtISO).toLocaleDateString()
+    return '—'
+  } catch (e) { return '—' }
+})
+
+const matchTimeDisplay = computed(() => {
+  try {
+    if (matchData.value && matchData.value.startTime && matchData.value.endTime) return `${matchData.value.startTime} — ${matchData.value.endTime}`
+    if (matchData.value && matchData.value.startTime) return matchData.value.startTime
+    if (matchData.value && matchData.value.startAtISO) return new Date(matchData.value.startAtISO).toLocaleTimeString()
+    return '—'
+  } catch (e) { return '—' }
+})
+
+const courtDisplay = computed(() => {
+  try {
+    return matchData.value && (matchData.value.court || matchData.value.venue || matchData.value.location || matchData.value.title) ? (matchData.value.court || matchData.value.venue || matchData.value.location || matchData.value.title) : 'Unknown venue'
+  } catch (e) { return 'Unknown venue' }
+})
+
+const matchTypeDisplay = computed(() => {
+  try { return matchData.value && matchData.value.type ? String(matchData.value.type) : 'Open' } catch (e) { return 'Open' }
+})
+
+const genderDisplay = computed(() => {
+  try { return matchData.value && matchData.value.gender ? String(matchData.value.gender) : 'All' } catch (e) { return 'All' }
+})
+
 // --- wins chart (live) ---
 const winsA = ref(0)
 const winsB = ref(0)
@@ -492,6 +594,25 @@ function nameFor(uid) {
   return (u && (u.name || u.displayName || u.username)) || uid
 }
 
+// Friendly display name helper for player elements (handles uid strings or enriched objects)
+function displayNameFor(element) {
+  if (!element) return ''
+  // if element is a plain uid string
+  if (typeof element === 'string') {
+    const uid = element
+    const resolved = usersMap.value && usersMap.value[uid]
+    return (resolved && (resolved.name || resolved.displayName || resolved.username)) || uid
+  }
+  // element is an object
+  const uid = element.uid || element.id || element.key || null
+  const resolved = uid && usersMap.value ? usersMap.value[uid] : null
+  // Prefer explicit element name, then resolved user name, then uid.
+  // Always return a non-empty fallback so the UI shows something.
+  const resolvedName = (resolved && (resolved.name || resolved.displayName || resolved.username)) || null
+  const fallback = uid || (element && element.name) || 'Player'
+  return element.name || resolvedName || fallback
+}
+
 function sanitizeUserKey(uname) {
   if (!uname) return String(uname || '').replace(/[.$#\[\]\/]/g, '_')
   return String(uname).replace(/[.$#\[\]\/]/g, '_')
@@ -514,9 +635,30 @@ function displayWinsForUid(uid) {
   return 0
 }
 
+// Return match-scoped wins for UI pills: prefer WinsByEachPlayer (username-keyed)
+// then per-match playersMap.NumberOfWins. DO NOT fall back to users.wins here.
+function displayMatchWinsForUid(uid) {
+  if (!uid) return 0
+  const u = usersMap.value && usersMap.value[uid]
+  const uname = (u && (u.username || u.name || u.displayName)) || uid
+  const safe = sanitizeUserKey(uname)
+  if (winsByEachPlayer.value && typeof winsByEachPlayer.value[safe] !== 'undefined') return Number(winsByEachPlayer.value[safe] || 0)
+  const pm = playersMap.value && playersMap.value[uid]
+  if (pm && typeof pm.NumberOfWins !== 'undefined') return Number(pm.NumberOfWins || 0)
+  return 0
+}
+
+// Return user's aggregate total wins (from users/<uid>/totalWins)
+function displayTotalWinsForUid(uid) {
+  if (!uid) return 0
+  const u = usersMap.value && usersMap.value[uid]
+  if (u && typeof u.totalWins !== 'undefined') return Number(u.totalWins || 0)
+  return 0
+}
+
 function winnersLabel(r) {
   if (!r || !r.winningTeamMembers) return '—'
-  return r.winningTeamMembers.map(nameFor).join(', ')
+  return r.winningTeamMembers.map(uid => displayNameFor(uid)).join(', ')
 }
 
 // computed stats object used by the optional StatisticsModal
@@ -868,11 +1010,28 @@ button[disabled] { cursor: not-allowed; opacity: 0.6; }
 header { display: flex; align-items: center; justify-content: space-between; }
 .bench-section, .team-card { background: #23262e; border-radius: 18px; padding: 20px 26px; margin-bottom: 22px; }
 .bench-list, .team-drop-list { display: flex; gap: 28px; min-height: 100px; flex-wrap: wrap; align-items: flex-start; }
-  .player-avatar { display:flex; flex-direction:column; align-items:center; margin:0 10px; }
-  .avatar-img { width:60px; height:60px; border-radius:50%; border:3px solid #FFAD1D; object-fit:cover; }
-.avatar-fallback { width:60px; height:60px; border-radius:50%; border:3px solid #FFAD1D; display:flex; align-items:center; justify-content:center; background:#1f262b; color:#ffad1d; font-weight:700; font-size:1rem; }
-.player-name { margin-top: 6px; color: #ffad1d; font-weight: 700; font-size: 0.95rem; }
- .player-wins { margin-top:6px; color:#fff; font-weight:800; font-size:0.9rem; }
+  /* player tile row: avatar + name on left, wins on right */
+  .player-avatar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 10px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02)); border-radius:10px; border:1px solid rgba(255,255,255,0.02); position:relative; white-space:nowrap }
+  .player-left { display:flex; align-items:center; gap:12px; min-width:0; overflow:hidden }
+  /* Full-width tiles for team lists */
+  .team-drop-list { display:flex; flex-direction:column; gap:12px; align-items:stretch }
+  .team-drop-list .player-avatar { width:100% }
+  /* Keep bench compact */
+  .bench-list { display:flex; gap:28px; min-height:100px; flex-wrap:wrap; align-items:flex-start }
+  .bench-list .player-avatar { width:auto }
+  .avatar-img { width:48px; height:48px; border-radius:50%; border:3px solid #FFAD1D; object-fit:cover; flex-shrink:0 }
+  .avatar-fallback { width:48px; height:48px; border-radius:50%; border:3px solid #FFAD1D; display:flex; align-items:center; justify-content:center; background:#1f262b; color:#ffad1d; font-weight:700; font-size:1rem; flex-shrink:0 }
+  .player-name { color: #ffad1d; font-weight: 700; font-size: 0.98rem; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; flex:1; min-width:0 }
+  .avatar-block { display:flex; flex-direction:column; align-items:center; gap:6px; margin-right:8px }
+  .player-sub { color: #cfc9b0; font-weight:600; font-size:0.78rem; margin-top:2px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden }
+  .player-sub { color: #cfc9b0; font-weight:600; font-size:0.78rem; margin-top:2px; white-space:nowrap; text-overflow:ellipsis; overflow:hidden }
+  .player-wins { margin-left:12px; color:#fff; font-weight:900; font-size:1rem; display:flex; align-items:center; gap:8px; color:#ffd98a; flex-shrink:0 }
+  .player-extra { position:absolute; right:12px; top:calc(100% + 8px); background:#0f1316; border:1px solid rgba(255,255,255,0.03); padding:8px 10px; border-radius:8px; min-width:160px; box-shadow:0 10px 30px rgba(0,0,0,0.6); opacity:0; transform:translateY(-6px); transition:opacity 180ms ease, transform 180ms ease; pointer-events:none; z-index:40 }
+  .player-avatar:hover .player-extra { opacity:1; transform:translateY(0); pointer-events:auto }
+  .player-extra .extra-row { color:#d3c7a3; font-weight:700; margin-bottom:6px }
+  .player-link { color:#ffda99; font-weight:800; text-decoration:none }
+  /* ensure contents stay inline and never wrap */
+  .team-drop-list .player-avatar, .team-drop-list .player-avatar * { white-space:nowrap }
 
 .team-card { min-width: 330px; flex: 1; border: 2.5px dashed #fff4d1; transition: border 0.3s; min-height: 200px; }
 .active-outline { border: 2.5px solid #ffad1d !important; }
@@ -925,8 +1084,9 @@ header { display: flex; align-items: center; justify-content: space-between; }
 .team-members { display:flex; gap:8px; flex-wrap:wrap }
 .member-pill { display:flex; gap:8px; align-items:center; background: linear-gradient(180deg, #0f1114, #141516); padding:6px 8px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); }
 .member-avatar-small { width:30px; height:30px; border-radius:50%; background:#ffad1d; color:#0b0b0b; display:flex; align-items:center; justify-content:center; font-weight:900 }
-.member-name { color:#fff; font-weight:800; font-size:0.82rem }
-.member-wins { color:#ffd98a; font-weight:900; margin-left:6px }
+  .member-name { color:#fff; font-weight:800; font-size:0.82rem }
+  .member-sub { color:#cfc9b0; font-weight:700; font-size:0.72rem; margin-left:4px }
+  .member-wins { color:#ffd98a; font-weight:900; margin-left:6px }
 .round-footer { display:flex; justify-content:space-between; align-items:center }
 .winner-pill { background: linear-gradient(90deg,#1f262b,#23272b); color:#ffd98a; padding:6px 10px; border-radius:10px; font-weight:800 }
 .btn-mini { background:#ffad1d; border:none; color:#0b0b0b; padding:6px 10px; border-radius:8px; font-weight:800; cursor:pointer }
@@ -939,5 +1099,17 @@ header { display: flex; align-items: center; justify-content: space-between; }
   55% { transform: scale(0.98); }
   100% { transform: scale(1); }
 }
+
+/* Match details card */
+.match-details { max-width:980px; margin:18px auto; background: linear-gradient(180deg,#0f1114,#15161a); border-radius:12px; padding:12px 14px; border:1px solid rgba(255,255,255,0.03); }
+.details-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:12px; align-items:center }
+.detail-item { display:flex; gap:12px; align-items:center }
+.detail-icon { width:42px; height:42px; border-radius:8px; background:linear-gradient(180deg,#111315,#1b1f22); display:flex; align-items:center; justify-content:center; font-size:20px; color:#ffd98a; border:1px solid rgba(255,255,255,0.03) }
+.detail-label { color:#d3c7a3; font-weight:700; font-size:0.82rem }
+.detail-value { color:#fff; font-weight:900; margin-top:2px }
+
+/* subtle tile hover expansion */
+.player-avatar { transition: transform 180ms ease, box-shadow 180ms ease }
+.player-avatar:hover { transform: translateY(-6px); box-shadow: 0 18px 40px rgba(0,0,0,0.6) }
 
 </style>

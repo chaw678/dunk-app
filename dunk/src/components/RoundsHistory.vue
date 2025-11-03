@@ -114,7 +114,8 @@ onBeforeUnmount(() => {
 .team { flex:1; min-width:180px }
 .team-label { color:#f3e6c2; font-weight:800 }
 .team-members { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap }
-.member { background:#1b1d20; color:#ffefcf; padding:6px 8px; border-radius:8px; font-weight:700 }
-.member-wins { margin-left:8px; color:#ffd98a; font-weight:800 }
+  .team-members { margin-top:8px; display:flex; gap:8px; flex-wrap:nowrap; overflow:auto }
+  .member { background:#1b1d20; color:#ffefcf; padding:6px 8px; border-radius:8px; font-weight:700; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; max-width:240px; display:inline-flex; align-items:center }
+  .member-wins { margin-left:8px; color:#ffd98a; font-weight:800; flex-shrink:0 }
 .round-winner { margin-top:10px; color:#fff }
 </style>

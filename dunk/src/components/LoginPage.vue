@@ -933,20 +933,20 @@ watch(animateBars, (v) => { if (v) animateCounts() })
           <div class="chart-grid-lines" aria-hidden="true"></div>
           <div class="stats-chart d-flex align-items-end justify-content-between">
             <div class="chart-bar">
-              <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.open_wins) : '8px'), transitionDelay: '0ms' }" aria-hidden="true"></div>
-              <div class="bar-value">{{ displayOpen }}</div>
+              <div class="bar-fill" :style="{ height: (statsFromProfile.open_wins > 0 ? (animateBars ? barHeight(statsFromProfile.open_wins) : '8px') : '4px'), background: (statsFromProfile.open_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (statsFromProfile.open_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '0ms' }" aria-hidden="true"></div>
+              <div class="bar-value">{{ statsFromProfile.open_wins > 0 ? displayOpen : '' }}</div>
               <div class="bar-label">Open</div>
             </div>
 
             <div class="chart-bar">
-              <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.intermediate_wins) : '8px'), transitionDelay: '90ms' }" aria-hidden="true"></div>
-              <div class="bar-value">{{ displayIntermediate }}</div>
+              <div class="bar-fill" :style="{ height: (statsFromProfile.intermediate_wins > 0 ? (animateBars ? barHeight(statsFromProfile.intermediate_wins) : '8px') : '4px'), background: (statsFromProfile.intermediate_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (statsFromProfile.intermediate_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '90ms' }" aria-hidden="true"></div>
+              <div class="bar-value">{{ statsFromProfile.intermediate_wins > 0 ? displayIntermediate : '' }}</div>
               <div class="bar-label">Intermediate</div>
             </div>
 
             <div class="chart-bar">
-              <div class="bar-fill" :style="{ height: (animateBars ? barHeight(statsFromProfile.professional_wins) : '8px'), transitionDelay: '180ms' }" aria-hidden="true"></div>
-              <div class="bar-value">{{ displayProfessional }}</div>
+              <div class="bar-fill" :style="{ height: (statsFromProfile.professional_wins > 0 ? (animateBars ? barHeight(statsFromProfile.professional_wins) : '8px') : '4px'), background: (statsFromProfile.professional_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (statsFromProfile.professional_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '180ms' }" aria-hidden="true"></div>
+              <div class="bar-value">{{ statsFromProfile.professional_wins > 0 ? displayProfessional : '' }}</div>
               <div class="bar-label">Professional</div>
             </div>
           </div>
