@@ -23,6 +23,16 @@
                 </div>
             </div>
         </div>
+        <!-- Confirm modal (themed) -->
+        <ConfirmModal
+            v-model="showConfirm"
+            :title="pendingConfirm ? pendingConfirm.title : ''"
+            :message="pendingConfirm ? pendingConfirm.message : ''"
+            :confirmLabel="pendingConfirm && pendingConfirm.destructive ? 'Delete' : 'OK'"
+            cancelLabel="Cancel"
+            :destructive="pendingConfirm && pendingConfirm.destructive"
+            @confirm="onConfirmModal"
+        />
         
         <div class="card large-card">
             <div v-if="!embedded" class="page-header matches-header">
@@ -99,7 +109,7 @@
             <div v-if="isTabEmpty" class="embedded-empty-state" v-cloak>
                 <div class="empty-card card">
                     <div class="card-body">
-                        <div class="empty-icon">🏀</div>
+                                                <DunkLogo />
                         <p class="lead mb-2">{{ emptyMessage }}</p>
                         <p class="text-muted small">Try switching tabs or create a match for this court.</p>
                     </div>
@@ -109,13 +119,13 @@
                 <h3 class="section-heading">Ongoing</h3>
                 <div class="row g-3 matches-grid">
                     <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.ongoing ? groupedMatches.ongoing : [])" :key="match?.id || idx">
-  <div
-    :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']"
-    role="button"
-    tabindex="0"
-    @click="openMatch(match)"
-    @keydown.enter="openMatch(match)"
-  >
+    <div
+        :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']"
+        role="button"
+        tabindex="0"
+        @click="openMatch(match, $event)"
+        @keydown.enter="openMatch(match, $event)"
+    >
     <div class="card-header match-card-header">
       <h3 class="match-title mb-1">{{ match.title }}</h3>
                                 <div class="match-header-right">
@@ -136,7 +146,7 @@
         <div class="time-range">{{ formatTimeRange(match) }}</div>
         <div class="meta-pill">{{ match.gender || 'All' }}</div>
         <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-        <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+    <div class="meta-pill badge-type">{{ normalizeMatchType(match && (match.type || match.level || match.skill)) }}</div>
       </div>
 
       <div class="avatars mb-3">
@@ -152,7 +162,15 @@
       <div class="mt-auto d-flex justify-content-between align-items-center">
         <div class="btn-group">
           <template v-if="isHost(match)">
-            <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+            <template v-if="match.started || match._started">
+              <!-- Host can still invite even after the match has started -->
+              <button type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+              <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="endMatch(match)"><i class="bi bi-stop-fill me-2"></i>End Match</button>
+            </template>
+            <template v-else>
+              <button type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+              <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+            </template>
           </template>
           <template v-else-if="isJoined(match)">
             <template v-if="match.started || match._started">
@@ -162,9 +180,11 @@
               <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
             </template>
           </template>
-          <template v-else>
-            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
-          </template>
+                    <template v-else>
+                        <span class="join-wrapper" :title="joinDisabledReason(match) || 'Join match'" @click.stop>
+                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" @click.prevent.stop="joinMatch(match)">Join</button>
+                        </span>
+                    </template>
         </div>
         <div></div>
       </div>
@@ -201,7 +221,7 @@
                                     <div class="time-range">{{ formatTimeRange(match) }}</div>
                                     <div class="meta-pill">{{ match.gender || 'All' }}</div>
                                     <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-                                    <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+                                    <div class="meta-pill badge-type">{{ normalizeMatchType(match && (match.type || match.level || match.skill)) }}</div>
                                 </div>
 
                                 <div class="avatars mb-3">
@@ -225,7 +245,7 @@
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                         </template>
                                         <template v-else>
-                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent="joinMatch(match)">Join</button>
+                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
                                         </template>
                                     </div>
                                     <div></div>
@@ -262,7 +282,7 @@
                                     <div class="time-range">{{ formatTimeRange(match) }}</div>
                                     <div class="meta-pill">{{ match.gender || 'All' }}</div>
                                     <div class="meta-pill">{{ match.court || match.location || 'Unknown court' }}</div>
-                                    <div class="meta-pill badge-type">{{ match.type || match.level || 'Open' }}</div>
+                                    <div class="meta-pill badge-type">{{ normalizeMatchType(match && (match.type || match.level || match.skill)) }}</div>
                                 </div>
 
                                 <div class="avatars mb-3">
@@ -286,7 +306,7 @@
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                         </template>
                                         <template v-else>
-                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent="joinMatch(match)">Join</button>
+                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
                                         </template>
                                     </div>
                                     <div></div>
@@ -298,15 +318,7 @@
             </div>
             <!-- Empty state for Past Matches when user has none -->
             <div v-if="selectedTab === 'past' && groupedMatches && (!groupedMatches.past || groupedMatches.past.length === 0)" class="past-empty-state">
-                <h3 class="section-heading">Past</h3>
-                <div class="empty-card card">
-                    <div class="card-body">
-                        <div class="empty-icon">🏀</div>
-                        <p class="lead mb-2">You have no past matches.</p>
-                        <p class="text-muted small">Past matches you hosted or joined will appear here. Try checking <strong>All Matches</strong> to find upcoming games.</p>
-                    </div>
-                </div>
-            </div>
+            </div> 
         </div>
 
     <!-- render modal inside template so Vue can mount it -->
@@ -332,6 +344,8 @@ import { onUserStateChanged } from '../firebase/auth'
 import AddMatchModal from './AddMatchModal.vue'
 import JoinedPlayersModal from './JoinedPlayersModal.vue'
 import InviteModal from './InviteModal.vue'
+import ConfirmModal from './ConfirmModal.vue'
+import DunkLogo from './DunkLogo.vue'
 
 const showPopup = ref(false)
 const isSigningIn = ref(false)
@@ -339,6 +353,24 @@ const auth = getAuth()
 
 const maxAvatars = 6
 const usersCache = ref({})
+let usersUnsub = null
+
+function subscribeUsersRealtime() {
+    // cleanup previous
+    if (usersUnsub) {
+        try { usersUnsub() } catch (e) {}
+        usersUnsub = null
+    }
+    try {
+        usersUnsub = onDataChange('users', (udata) => {
+            usersCache.value = udata || {}
+        })
+    } catch (e) {
+        // fallback to one-time load
+        console.warn('subscribeUsersRealtime failed, falling back to one-time load', e)
+        loadUsers()
+    }
+}
 
 function seededAvatar(name) {
     const username = name || 'anon'
@@ -357,6 +389,31 @@ const showPlayersModal = ref(false)
 const activePlayers = ref([])
 const activeTitle = ref('')
 const showCreatedPopup = ref(false)
+// global confirm modal state for this component
+const showConfirm = ref(false)
+const pendingConfirm = ref(null) // { action: 'delete'|'start'|'end', match, title, message, destructive }
+
+function openConfirm(action, match) {
+    const titleMap = { delete: 'Delete match', start: 'Start match', end: 'End match' }
+    const messageMap = {
+        delete: 'Delete this match? This action cannot be undone.',
+        start: 'Start this match now?',
+        end: 'End this match now?'
+    }
+    pendingConfirm.value = { action, match, title: titleMap[action] || 'Confirm', message: messageMap[action] || '' , destructive: action === 'delete' }
+    showConfirm.value = true
+}
+
+async function onConfirmModal() {
+    if (!pendingConfirm.value) return
+    const { action, match } = pendingConfirm.value
+    showConfirm.value = false
+    const a = action
+    pendingConfirm.value = null
+    if (a === 'delete') await deleteMatchConfirmed(match)
+    if (a === 'start') await startMatchConfirmed(match)
+    if (a === 'end') await endMatchConfirmed(match)
+}
 
 function closeCreatedPopup() {
     showCreatedPopup.value = false
@@ -364,14 +421,94 @@ function closeCreatedPopup() {
 
 const router = useRouter()
 
-function openMatch(match) {
-    if (!match) return
-    // prefer named route, fallback to path
+// function openMatch(match, event) {
+//     if (!match) return
+//     // prefer named route, fallback to path
+//     try {
+//         router.push({ name: 'MatchRoom', params: { id: match.id } })
+//     } catch (e) {
+//         router.push(`/match/${match.id}`)
+//     }
+// }
+
+// function openMatch(match) {
+//   if (!match) return
+//   // prefer common id names, fallback to __dbPath last segment or .key
+//   const id = match.id || match.key || match._id || match['.key'] || (match.__dbPath ? match.__dbPath.split('/').pop() : null)
+//   if (!id) {
+//     console.warn('openMatch: no id found on match object', match)
+//     return
+//   }
+//   try {
+//     router.push({ name: 'MatchRoom', params: { id: String(id) } })
+//   } catch (e) {
+//     router.push(`/match/${encodeURIComponent(String(id))}`)
+//   }
+// }
+
+async function openMatch(match) {
+  console.log('openMatch called with match:', match)
+  if (!match) return
+    // If the click originated from an interactive child (button, link, avatar, tooltip wrapper,
+    // or other control), do not navigate — the child should handle the action.
     try {
-        router.push({ name: 'MatchRoom', params: { id: match.id } })
+        if (event && event.target && event.target.closest) {
+            const blocked = event.target.closest('button, a, .join-wrapper, .avatar-stack, .popup-buttons, .invitation-actions, .sign-in-btn, .close-btn')
+            if (blocked) return
+        }
     } catch (e) {
-        router.push(`/match/${match.id}`)
+        // ignore and continue
     }
+    // If joining is disabled for this match (e.g., wrong gender, full, or not signed in),
+    // prevent card-level navigation so users don't get taken to the MatchRoom unintentionally.
+    try {
+        const disabledReason = joinDisabledReason(match)
+        // allow hosts and already-joined users to still open the room
+        if (disabledReason && !isHost(match) && !isJoined(match)) return
+    } catch (e) {
+        // conservative default: do not block navigation on error
+    }
+
+  // common id locations on match objects
+  let id = match.id || match.key || match['.key'] || match._id || (match.__dbPath ? String(match.__dbPath).split('/').pop() : null)
+
+  // If we still don't have an id, try to infer it from the matches collection using title/id fields
+  if (!id) {
+    try {
+      const all = await getDataFromFirebase('matches')
+      if (all && typeof all === 'object') {
+        // try direct key lookup (unlikely since id was falsy) then search values
+        const byKey = all[match] || all[match?.title]
+        if (byKey) id = match?.title || match
+        if (!id) {
+          const foundEntry = Object.entries(all).find(([k, v]) => {
+            if (!v || typeof v !== 'object') return false
+            // match by known fields: id, key, title, name
+            return String(v.id) === String(match.id)
+              || String(v.key) === String(match.key)
+              || String(v.title) === String(match.title)
+              || String(v.name) === String(match.title)
+              || String(k) === String(match.title)
+          })
+          if (foundEntry) id = foundEntry[0]
+        }
+      }
+    } catch (e) {
+      console.warn('openMatch: failed to fetch matches to infer id', e)
+    }
+  }
+
+  if (!id) {
+    console.warn('openMatch: could not find a DB id for match object', match)
+    return
+  }
+
+  const strId = String(id)
+  try {
+    outer.push({ name: 'MatchRoom', params: { id: strId }, query: { path: match.__dbPath || '' } })
+  } catch (e) {
+    router.push({ path: `/match/${encodeURIComponent(strId)}`, query: { path: match.__dbPath || '' } })
+  }
 }
 
 // Google sign-in handler
@@ -452,12 +589,18 @@ function openPlayersModal(match) {
     // If match.joinedBy is a map of uid:true, prefer listing by uid
     if (match && match.joinedBy && typeof match.joinedBy === 'object') {
         for (const uid of Object.keys(match.joinedBy)) {
-            // prefer playersMap which stores name by uid
-            let name = (match.playersMap && match.playersMap[uid])
+            // prefer playersMap which may store either a plain name or a player object by uid
+            let raw = (match.playersMap && match.playersMap[uid])
+            let name = ''
+            if (raw) {
+                // if entry is a string, use it; if it's an object, extract known name fields
+                if (typeof raw === 'string') name = raw
+                else if (typeof raw === 'object') name = raw.name || raw.displayName || raw.username || raw.uid || ''
+            }
             // fallback to user record in users cache (if available)
             if (!name && usersCache.value && usersCache.value[uid]) {
                 const u = usersCache.value[uid]
-                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0])
+                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0]) || ''
             }
             // final fallback to uid
             if (!name) name = uid
@@ -518,7 +661,8 @@ const matches = ref([])
 const courts = ref([])
 const showAddMatchModal = ref(false)
 const currentUser = ref(null)
-const currentUserProfile = ref({ skill: 'Open', gender: 'All' })
+// prefer `ranking` field where available; keep `skill` for backward compatibility
+const currentUserProfile = ref({ ranking: 'Open', skill: 'Open', gender: 'All' })
 const showInviteModal = ref(false)
 const inviteMatch = ref(null)
 const invitations = ref([])
@@ -658,7 +802,8 @@ function formatInvitationDate(dateStr) {
 }
 
 onMounted(async () => {
-    await loadUsers()
+    // subscribe to users realtime so profile/name changes propagate immediately
+    subscribeUsersRealtime()
     await loadMatches()
     await loadCourts()
     // listen for auth state and load user profile
@@ -692,7 +837,8 @@ onUserStateChanged(async (u) => {
     if (u) showPopup.value = false
     // reload users and matches to reflect any joinedBy changes made while signed out
     try {
-        await loadUsers()
+        // ensure we have realtime users subscription active
+        subscribeUsersRealtime()
         await loadMatches()
         if (u) {
             await loadInvitations()
@@ -711,6 +857,10 @@ onUnmounted(() => {
     if (invitesUnsub) {
         try { invitesUnsub() } catch (e) {}
         invitesUnsub = null
+    }
+    if (usersUnsub) {
+        try { usersUnsub() } catch (e) {}
+        usersUnsub = null
     }
 })
 
@@ -987,10 +1137,15 @@ function displayedPlayers(match) {
     // Prefer deriving players from joinedBy map (uids) so we always show distinct users
     if (match.joinedBy && typeof match.joinedBy === 'object') {
         for (const uid of Object.keys(match.joinedBy)) {
-            let name = (match.playersMap && match.playersMap[uid])
+            let raw = (match.playersMap && match.playersMap[uid])
+            let name = ''
+            if (raw) {
+                if (typeof raw === 'string') name = raw
+                else if (typeof raw === 'object') name = raw.name || raw.displayName || raw.username || raw.uid || ''
+            }
             if (!name && usersCache.value && usersCache.value[uid]) {
                 const u = usersCache.value[uid]
-                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0])
+                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0]) || ''
             }
             if (!name) name = uid
             const avatar = (usersCache.value && usersCache.value[uid] && (usersCache.value[uid].photoURL || usersCache.value[uid].avatar)) || seededAvatar(name)
@@ -1023,16 +1178,54 @@ function displayedPlayers(match) {
 
 const skillOrder = ['Open', 'Beginner', 'Intermediate', 'Professional']
 
+function normalizeSkill(skill) {
+    if (!skill) return 'Open'
+    const s = ('' + skill).trim().toLowerCase()
+    if (s.startsWith('pro')) return 'Professional'
+    if (s.startsWith('inter')) return 'Intermediate'
+    if (s.startsWith('beg')) return 'Beginner'
+    if (s.startsWith('open')) return 'Open'
+    // fallback: try to match exact casing from list
+    for (const v of skillOrder) if (v.toLowerCase() === s) return v
+    return 'Open'
+}
+
 function skillRank(skill) {
-    const idx = skillOrder.indexOf(skill)
+    const normalized = normalizeSkill(skill)
+    const idx = skillOrder.indexOf(normalized)
     return idx === -1 ? 0 : idx
+}
+
+// Match types should be only Open / Intermediate / Professional. Legacy 'Beginner' match types
+// (if present in the DB) should be treated as 'Open' matches for join/permission checks.
+function normalizeMatchType(type) {
+    const t = normalizeSkill(type)
+    if (t === 'Beginner') return 'Open'
+    return t
 }
 
 function canJoin(match) {
     if (!currentUser.value) return false
-    const userSkill = currentUserProfile.value.skill || 'Open'
-    const matchSkill = match.type || 'Open'
-    // user can join if their skill rank >= match required rank
+    // Gender restriction: if match specifies a gender (not 'All'), require user's profile gender to match
+    try {
+        const mg = (match && match.gender) ? ('' + match.gender).toLowerCase() : 'all'
+        if (mg && mg !== 'all') {
+            const ug = (currentUserProfile.value && currentUserProfile.value.gender) ? ('' + currentUserProfile.value.gender).toLowerCase() : ''
+            // If we don't know user's gender, disallow joining (require profile)
+            if (!ug) return false
+            // Basic match: compare first letter (male/female) to be tolerant of variants like 'Male'/'Males' etc.
+            if (mg.charAt(0) !== ug.charAt(0)) return false
+        }
+    } catch (e) {
+        // conservative default: if something goes wrong, disallow join
+        return false
+    }
+
+    // prefer ranking field first, then legacy skill
+    const userSkill = normalizeSkill((currentUserProfile.value && (currentUserProfile.value.ranking || currentUserProfile.value.skill)) || '')
+    const matchSkill = normalizeMatchType(match && (match.type || match.level || match.skill))
+    // Everyone may join 'Open' matches. For 'Intermediate' require Intermediate or Professional.
+    // For 'Professional' require Professional only.
     return skillRank(userSkill) >= skillRank(matchSkill)
 }
 
@@ -1063,15 +1256,44 @@ function joinDisabledReason(match) {
     const count = playersCount(match)
     const max = match.maxPlayers || 10
     if (count >= max) return 'Match is full'
-    const userSkill = currentUserProfile.value.skill || 'Open'
-    const matchSkill = match.type || match.level || 'Open'
-    if (skillRank(userSkill) < skillRank(matchSkill)) return `Requires ${matchSkill} level`
+    // Gender restriction check
+    let genderFail = false
+    let rankFail = false
+    let mg = ''
+    try {
+        if (match && match.gender && ('' + match.gender).toLowerCase() !== 'all') {
+            mg = ('' + match.gender)
+            const ug = (currentUserProfile.value && currentUserProfile.value.gender) ? ('' + currentUserProfile.value.gender) : ''
+            if (!ug) genderFail = true // profile incomplete
+            else if (mg.charAt(0).toLowerCase() !== ug.charAt(0).toLowerCase()) genderFail = true
+        }
+    } catch (e) {
+        genderFail = true
+    }
+
+    // Skill/rank restriction check
+    const userSkill = normalizeSkill((currentUserProfile.value && (currentUserProfile.value.ranking || currentUserProfile.value.skill)) || '')
+    const matchSkill = normalizeMatchType(match && (match.type || match.level || match.skill))
+    if (skillRank(userSkill) < skillRank(matchSkill)) rankFail = true
+
+    // If both gender and rank fail, show combined message (sentence case)
+    if (genderFail && rankFail) {
+        const mgCap = mg ? (mg.charAt(0).toUpperCase() + mg.slice(1).toLowerCase()) : mg
+        return `Only ${mgCap} and ${matchSkill} players may join`
+    }
+
+    if (genderFail) {
+        const mgCap = mg ? (mg.charAt(0).toUpperCase() + mg.slice(1).toLowerCase()) : mg
+        return `Only ${mgCap} players may join`
+    }
+    if (rankFail) return `Requires ${matchSkill} rank`
     return ''
 }
 
 async function joinMatch(match) {
     if (!currentUser.value) { alert('Please sign in to join'); return }
-    if (!canJoin(match)) { alert('Your skill level is below the match requirement'); return }
+    const disabled = joinDisabledReason(match)
+    if (disabled) { alert(disabled); return }
     const uid = currentUser.value.uid
     match.joinedBy = match.joinedBy || {}
     if (match.joinedBy[uid]) return // already joined
@@ -1128,7 +1350,12 @@ function isJoined(match) {
 async function deleteMatch(match) {
     if (!currentUser.value) { alert('Please sign in'); return }
     if (!isHost(match)) { alert('Only the host may delete this match'); return }
-    if (!confirm('Delete this match? This action cannot be undone.')) return
+    // show themed confirm modal
+    openConfirm('delete', match)
+}
+
+async function deleteMatchConfirmed(match) {
+    if (!match) return
     if (!match.__dbPath) {
         // fallback: remove locally
         matches.value = matches.value.filter(m => m !== match)
@@ -1150,7 +1377,11 @@ async function deleteMatch(match) {
 async function startMatch(match) {
     if (!currentUser.value) { alert('Please sign in'); return }
     if (!isHost(match)) { alert('Only the host may start this match'); return }
-    if (!confirm('Start this match now?')) return
+    openConfirm('start', match)
+}
+
+async function startMatchConfirmed(match) {
+    if (!match) return
     // optimistic local flag
     match._started = true
     if (match.__dbPath) {
@@ -1161,7 +1392,8 @@ async function startMatch(match) {
             await setChildData(`${path}/${id}`, 'started', true)
             await setChildData(`${path}/${id}`, 'startedAt', new Date().toISOString())
             // after successfully starting, navigate to the MatchRoom
-            try { router.push({ name: 'MatchRoom', params: { id: match.id } }) } catch(e) { router.push(`/match/${match.id}`) }
+            const query = { path: match.__dbPath }
+            try { router.push({ name: 'MatchRoom', params: { id: match.id }, query }) } catch(e) { router.push({ path: `/match/${match.id}`, query }) }
         } catch (e) {
             console.error('Failed to set started flag', e)
             alert('Failed to start match — try again')
@@ -1176,7 +1408,11 @@ async function startMatch(match) {
 async function endMatch(match) {
     if (!currentUser.value) { alert('Please sign in'); return }
     if (!isHost(match)) { alert('Only the host may end this match'); return }
-    if (!confirm('End this match now?')) return
+    openConfirm('end', match)
+}
+
+async function endMatchConfirmed(match) {
+    if (!match) return
     // optimistic local update
     match._started = false
     match.started = false
@@ -1193,7 +1429,7 @@ async function endMatch(match) {
             console.error('Failed to end match', e)
             alert('Failed to end match — try again')
             // if the write failed, we may want to revert optimistic change
-            try { match.started = true } catch(_){}
+            try { match.started = true } catch(_){ }
         }
     }
 }
@@ -1331,7 +1567,7 @@ function formatDate(match) {
 }
 
 .tab {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(195, 67, 67, 0.03);
     color: #d7e3f6;
     padding: 8px 12px;
     border-radius: 8px;
@@ -1492,7 +1728,17 @@ function formatDate(match) {
     font-weight: 700;
     border: none;
 }
-.btn-join[disabled] { opacity: 0.45; cursor: not-allowed }
+.btn-join[disabled] {
+    /* Match the match-card background for a seamless look and add a subtle grey outline.
+       Keeps the button visible but signals disabled state via the border. */
+    opacity: 1;
+    cursor: not-allowed;
+    border: 1px solid rgba(128,128,128,0.55); /* subtle gray outline */
+    /* Use the same gradient as .match-card so the button visually blends with the card */
+    background: linear-gradient(180deg,#0f1418 0%, #0d1114 100%);
+    color: #464749; /* gray text when disabled */
+    box-shadow: none;
+}
 
 .btn-invite {
     background: #ff9a3c;

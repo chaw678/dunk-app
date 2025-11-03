@@ -77,17 +77,13 @@
         <div class="court-list">
           <div v-for="(court, idx) in visibleCourts" :key="court.id || court.name" class="court-card" :data-court-key="courtKey(court)" :data-court-index="idx">
             <div class="court-card-row">
-                <div class="court-info">
-                <h3 class="court-name">{{ court.name }} <span v-if="isCourtLive(court)" class="court-live-badge">LIVE</span></h3>
+              <div class="court-info">
+                <h3 class="court-name">{{ court.name }}</h3>
                 <div class="court-sub">{{ court.region ? (court.region.charAt(0).toUpperCase() + court.region.slice(1)) : '' }}</div>
-                <div class="court-rating"> 
-                  <span class="stars">★★★★★</span>
-                  <span class="reviews">(120 reviews)</span>
-                </div>
+                
               </div>
               <div class="court-actions">
                 <button class="view-matches-link" @click="toggleCourtExpand(court)">{{ expandedCourts[courtKey(court)] ? 'Hide Matches' : 'View Matches' }}</button>
-                <button v-if="canRemoveCourt(court)" class="remove-court-btn" @click="removeCourt(court)" title="Remove this court"><i class="bi bi-trash"></i></button>
               </div>
             </div>
 
@@ -165,7 +161,6 @@ const selectedCourt = ref(null)
 const currentUser = ref(null)
 const expandedCourts = ref({})
 const matchesCache = ref({})
-const courtLiveMap = ref({})
 const showPopup = ref(false)
 const isSigningIn = ref(false)
 //change 1: to allow more thna one filtering
@@ -289,6 +284,83 @@ if (map.value && court.lat && court.lon) {
     icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' }
   })
 }}
+
+const applyFilters = () => {
+  if (!map.value) {
+    // If map not ready, just skip (markers will be added after map initialises)
+    return;
+  }
+
+  const query = (searchQuery.value || '').toLowerCase().trim();
+  const activeRegions = (selectedRegions.value || []).map(r => (r || '').toString().toLowerCase().trim());
+
+  let filtered = (allCourts.value || []).slice();
+
+  if (!activeRegions.includes('all')) {
+    const set = new Set(activeRegions.filter(Boolean));
+    filtered = filtered.filter(c => {
+      const r = ((c.region ?? '') + '').toString().toLowerCase().trim();
+      return r && set.has(r);
+    });
+  }
+
+  if (query) {
+    filtered = filtered.filter(c => {
+      const name = (c.name ?? '').toString().toLowerCase();
+      const region = (c.region ?? '').toString().toLowerCase();
+      const keywords = (c.keywords ?? []).map(k => (k || '').toString().toLowerCase());
+      return name.includes(query) || region.includes(query) || keywords.some(k => k.includes(query));
+    });
+  }
+
+  console.debug('[applyFilters] regions=', selectedRegions.value, 'query=', searchQuery.value, 'matches=', filtered.length, filtered.map(c => ({ name: c.name, region: c.region })));
+  visibleCourts.value = filtered
+  addMarkers(filtered);
+};
+
+const loadCourtsFromFirebase = async () => {
+  const data = await getDataFromFirebase('courts');
+  let firebaseList = [];
+  if (data) {
+    firebaseList = Object.entries(data).map(([id, court]) => ({
+      id,
+      name: court.name ?? '',
+      region: ((court.region ?? '') + '').toString().toLowerCase().trim(),
+      lat: Number(court.lat),
+      lon: Number(court.lon),
+      keywords: court.keywords ?? [],
+      ...court
+    }));
+  }
+
+  const localNormalized = Array.isArray(courts.value)
+    ? courts.value.map(c => ({
+        ...c,
+        region: ((c.region ?? '') + '').toString().toLowerCase().trim(),
+        lat: Number(c.lat),
+        lon: Number(c.lon),
+        keywords: c.keywords ?? []
+      }))
+    : [];
+
+  // Combine and deduplicate courts based on name and coordinates
+  const combined = [...firebaseList, ...localNormalized];
+  const uniqueCourts = [];
+  const seen = new Set();
+
+  for (const court of combined) {
+    // Create a unique key based on name and coordinates
+    const key = `${(court.name || '').toLowerCase().trim()}_${court.lat}_${court.lon}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueCourts.push(court);
+    }
+  }
+
+  allCourts.value = uniqueCourts;
+  console.debug('[loadCourtsFromFirebase] loaded', allCourts.value.length, 'courts (after deduplication)', allCourts.value.map(x => ({ name: x.name, region: x.region })));
+  applyFilters();
+};
 
 onMounted(() => {
    onUserStateChanged((user) => {
@@ -416,25 +488,8 @@ handleSearch()
 
 
 function handleSearch() {
-const term = searchQuery.value.toLowerCase().trim()
-if (!term) return
-
-// const matchedCourts = courts.filter(court =>
-//   court.name.toLowerCase().includes(term) ||
-//   court.region.toLowerCase().includes(term) ||
-//   court.keywords.some(k => k.toLowerCase().includes(term))
-// )
-
-// change 8: allcourts
-    const matchedCourts = allCourts.value.filter(court =>
-    (court.name && court.name.toLowerCase().includes(term)) ||
-    (court.region && court.region.toLowerCase().includes(term)) ||
-    (court.keywords && court.keywords.some(k => k.toLowerCase().includes(term)))
-  )
-
-
-
-addMarkers(matchedCourts)
+  // Trigger filter application which will update both visibleCourts and markers
+  applyFilters()
 }
 
 function activatePinMode() {
@@ -613,36 +668,6 @@ function regionCount(region) {
 //   allCourts.value = [...firebaseList, ...courts];
 //   applyFilters(); // Always filter using the unified array!
 // };
-
-const loadCourtsFromFirebase = async () => {
-const data = await getDataFromFirebase('courts');
-let firebaseList = [];
-if (data) {
-  firebaseList = Object.entries(data).map(([id, court]) => ({
-    id,
-    name: court.name ?? '',
-    region: ((court.region ?? '') + '').toString().toLowerCase().trim(),
-    lat: Number(court.lat),
-    lon: Number(court.lon),
-    keywords: court.keywords ?? [],
-    ...court
-  }));
-}
-
-const localNormalized = Array.isArray(courts.value)
-  ? courts.value.map(c => ({
-      ...c,
-      region: ((c.region ?? '') + '').toString().toLowerCase().trim(),
-      lat: Number(c.lat),
-      lon: Number(c.lon),
-      keywords: c.keywords ?? []
-    }))
-  : [];
-
-allCourts.value = [...firebaseList, ...localNormalized];
-console.debug('[loadCourtsFromFirebase] loaded', allCourts.value.length, 'courts', allCourts.value.map(x => ({ name: x.name, region: x.region })));
-applyFilters();
-};
 
 // Called when AddMatchModal emits 'created' — refresh matches for the selected court so embedded lists update
 async function handleMatchCreated() {
@@ -869,46 +894,17 @@ console.log('Current markers:', markers.value.length, markers.value.map(m => m.g
 //   addMarkers(filtered);
 // };
 
-const applyFilters = () => {
-if (!map.value) {
-  // If map not ready, just skip (markers will be added after map initialises)
-  return;
-}
-
-const query = (searchQuery.value || '').toLowerCase().trim();
-const activeRegions = (selectedRegions.value || []).map(r => (r || '').toString().toLowerCase().trim());
-
-let filtered = (allCourts.value || []).slice();
-
-if (!activeRegions.includes('all')) {
-  const set = new Set(activeRegions.filter(Boolean));
-  filtered = filtered.filter(c => {
-    const r = ((c.region ?? '') + '').toString().toLowerCase().trim();
-    return r && set.has(r);
-  });
-}
-
-if (query) {
-  filtered = filtered.filter(c => {
-    const name = (c.name ?? '').toString().toLowerCase();
-    const region = (c.region ?? '').toString().toLowerCase();
-    const keywords = (c.keywords ?? []).map(k => (k || '').toString().toLowerCase());
-    return name.includes(query) || region.includes(query) || keywords.some(k => k.includes(query));
-  });
-}
-
-console.debug('[applyFilters] regions=', selectedRegions.value, 'query=', searchQuery.value, 'matches=', filtered.length, filtered.map(c => ({ name: c.name, region: c.region })));
-  visibleCourts.value = filtered
-  addMarkers(filtered);
-};
-
-
-
-
-
-//change 6: wather for allcourts:
+//change 6: watchers for allcourts, searchQuery, and selectedRegions:
 watch(allCourts, () => {
-applyFilters();
+  applyFilters();
+});
+
+watch(searchQuery, () => {
+  applyFilters();
+});
+
+watch(selectedRegions, () => {
+  applyFilters();
 });
 
 function courtKey(court) {
@@ -950,34 +946,11 @@ async function loadMatchesForCourt(court) {
       return sa - sb
     })
     matchesCache.value[key] = filtered
-    // determine whether any of these matches are currently live/started
-    try {
-      const now = new Date()
-      const live = filtered.some(m => {
-        if (m.started) return true
-        const { start, end } = getMatchStartEnd(m)
-        if (start && end) return now >= start && now <= end
-        return false
-      })
-      courtLiveMap.value[key] = !!live
-    } catch (e) {
-      courtLiveMap.value[key] = false
-    }
     return filtered
   } catch (e) {
     console.error('Failed to load matches for court', e)
     matchesCache.value[key] = []
-    courtLiveMap.value[key] = false
     return []
-  }
-}
-
-function isCourtLive(court) {
-  try {
-    const key = courtKey(court)
-    return !!courtLiveMap.value[key]
-  } catch (e) {
-    return false
   }
 }
 
@@ -1000,37 +973,6 @@ function openCreateMatchForCourt(court) {
     // fallback
     selectedCourt = court
     showAddMatchModal = true
-  }
-}
-
-function canRemoveCourt(court) {
-  // Only allow removal if:
-  // 1. User is signed in
-  // 2. Court has a createdBy field (meaning it was user-created, not from existing database)
-  // 3. The createdBy matches the current user's UID
-  if (!currentUser.value) return false
-  if (!court.createdBy) return false
-  return court.createdBy === currentUser.value.uid
-}
-
-async function removeCourt(court) {
-  if (!canRemoveCourt(court)) {
-    alert('You do not have permission to remove this court.')
-    return
-  }
-  
-  if (!confirm(`Are you sure you want to remove "${court.name}"? This action cannot be undone.`)) {
-    return
-  }
-  
-  try {
-    const { deleteChildData } = await import('../firebase/firebase')
-    await deleteChildData('courts', court.id)
-    alert('Court removed successfully!')
-    await loadCourtsFromFirebase()
-  } catch (error) {
-    console.error('Failed to remove court:', error)
-    alert('Failed to remove court: ' + error.message)
   }
 }
 
@@ -1082,15 +1024,6 @@ watch(selectedRegions, () => applyFilters(), { deep: true });
 // const filterByRegion = region => {
 //   selectedRegions.value = selectedRegions.value === region ? '' : region
 //   applyFilters()
-// }
-// watch(searchQuery, () => {
-//   if (selectedRegions.value !== 'all') applyFilters()
-// })
-
-watch(searchQuery, () => {
-applyFilters();
-});
-
 onMounted(() => {
 
 
@@ -1299,17 +1232,21 @@ font-weight: 500;
 }
 
 .search-input {
-flex: 1;
-padding: 12px 16px;
-border-radius: 10px 0 0 10px; /* rounded left corners */
-border: 1.5px solid #3b4252;
-border-right: none; /* remove right border for seamless button */
-background: #22262d;
-color: #e6eef8;
-font-size: 1.08rem;
-box-shadow: 0 1px 3px rgba(80, 80, 100, 0.07);
-transition: border-color 0.2s;
-outline: none;
+}
+.search-input {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 10px 0 0 10px; /* rounded left corners */
+  border: 1.5px solid #3b4252;
+  border-right: none; /* remove right border for seamless button */
+  background: #22262d;
+  color: #e6eef8;
+  font-size: 1.08rem;
+  box-shadow: 0 1px 3px rgba(80, 80, 100, 0.07);
+  transition: border-color 0.2s;
+  outline: none;
+  height: 48px; /* ensure identical height to button for visual alignment */
+  box-sizing: border-box;
 }
 .search-input::placeholder {
 color: #7e8899;
@@ -1429,58 +1366,13 @@ margin-bottom: 8px;
 color: orange;
 }
 
-/* small LIVE badge shown beside court title when a match at that court is live */
-.court-live-badge {
-  display: inline-block;
-  margin-left: 12px;
-  background: linear-gradient(180deg, #a83a3a 0%, #c84b4b 100%);
-  color: rgba(255, 220, 220, 0.95);
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-weight: 800;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid rgba(0,0,0,0.38);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 6px 12px rgba(200,50,50,0.12);
-  animation: court-live-blink 2.6s ease-in-out infinite;
-}
-
-@keyframes court-live-blink {
-  0% { opacity: 1; transform: translateZ(0) scale(1); }
-  45% { opacity: 0.45; transform: translateZ(0) scale(0.995); }
-  55% { opacity: 0.45; transform: translateZ(0) scale(0.995); }
-  100% { opacity: 1; transform: translateZ(0) scale(1); }
-}
-
 /* Court list and mini matches */
 .court-list { margin-top: 18px }
 .court-card { padding: 16px; margin-bottom: 12px }
 .court-card-row { display:flex; justify-content:space-between; align-items:center }
 .court-info { display:flex; flex-direction:column }
 .court-sub { color:#9fb0bf; font-size:0.95rem }
-.court-rating { color:#ffb14d; margin-top:6px }
-.stars { color:#ffb14d; letter-spacing: 1px; margin-right:8px }
-.reviews { color:#9fb0bf; font-size:0.85rem }
-.court-actions { display: flex; gap: 12px; align-items: center; }
 .view-matches-link { background:transparent; border:none; color:#ffb14d; font-weight:700; cursor:pointer }
-.remove-court-btn { 
-  background: transparent; 
-  border: 1px solid #ff5252; 
-  color: #ff5252; 
-  padding: 6px 10px; 
-  border-radius: 6px; 
-  cursor: pointer; 
-  font-weight: 600;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.remove-court-btn:hover { 
-  background: #ff5252; 
-  color: #fff; 
-}
 .mini-matches { margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.03) }
 .mini-match { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.02) }
 .mini-left { flex:1 }
@@ -1520,11 +1412,12 @@ background-color: #ffd59a;
 color: #232830;
 }
 .search-section {
-position: relative;
-display: flex;
-align-items: center;
-max-width: 390px;
-margin: 0 auto 26px auto;
+  position: relative;
+  display: flex;
+  /* stretch children so input and button share exact vertical dimensions */
+  align-items: stretch;
+  max-width: 390px;
+  margin: 0 auto 26px auto;
 }
 
 
@@ -1535,18 +1428,36 @@ font-size: 16px;
 }
 
 .search-btn {
-padding: 12px 20px;
-background-color: #ff9500;
-color: white;
-border: none;
-border-radius: 0 10px 10px 0; /* rounded right corners */
-cursor: pointer;
-font-weight: 700;
-font-size: 1rem;
-transition: background-color 0.3s;
+}
+.search-btn {
+  padding: 12px 20px;
+  color: rgb(39, 39, 39);
+  border: 1.5px solid #3b4252;
+  border-right: none; /* remove right border for seamless button */
+  /* keep visible orange background by default */
+  background-color: #eaa340;
+  border-radius: 0 10px 10px 0; /* rounded right corners */
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1rem;
+  transition: background-color 0.3s;
+  height: 48px; /* match input height */
+  display: inline-flex; /* center text vertically */
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.search-btn {
+  /* match the input's border thickness so edges align exactly */
+  border-top: 1.5px solid #3b4252;
+  border-bottom: 1.5px solid #3b4252;
+  border-right: 1.5px solid #3b4252;
+  border-left: none; /* keep seamless join with input */
 }
 .search-btn:hover {
-background-color: #ffb751;
+  /* on hover switch to gray as requested */
+  background-color: #24262b; /* gray-500 */
+  color: #fff;
 }
 
 /* Region filter badge (small rounded count) */
