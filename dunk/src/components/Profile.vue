@@ -160,7 +160,7 @@
           />
 
           <div class="follow-list">
-            <div class="follow-item" v-for="f in filteredFollowList" :key="f.uid">
+            <div class="follow-item" v-for="f in filteredFollowList" :key="f.uid" v-if="matchesQuery(f)">
               <div
                 role="button"
                 tabindex="0"
@@ -199,7 +199,7 @@
           />
 
           <div class="follow-list">
-            <div class="follow-item" v-for="f in filteredFollowList" :key="f.uid">
+            <div class="follow-item" v-for="f in filteredFollowList" :key="f.uid" v-if="matchesQuery(f)">
               <div
                 role="button"
                 tabindex="0"
@@ -364,18 +364,31 @@ const filteredFollowList = computed(() => {
   const searchList = (list) => {
     if (!q) return list
     return list.filter(u => {
-      const name = (u.name || '').toLowerCase()
-      const email = (u.email || '').toLowerCase()
-      return (name && name.startsWith(q)) || (email && email.startsWith(q))
+      // match only the first token of the display name (first name) or the local-part of the email
+      const rawName = ((u.name || u.username) || '').toLowerCase().trim()
+      const firstToken = (rawName.split(/\s+/)[0] || '')
+      const emailLocal = ((u.email || '').toLowerCase().split('@')[0] || '')
+      return (firstToken && firstToken.startsWith(q)) || (emailLocal && emailLocal.startsWith(q))
     })
   }
 
-  if (showFollowersModal.value) {
-    // use authoritative computed list instead of the copied ref to avoid stale data
-    return searchList(followersList.value)
-  }
-  if (showFollowingModal.value) {
-    return searchList(followingList.value)
+  try {
+    if (showFollowersModal.value) {
+      const out = searchList(followersList.value)
+      // debug: log query and results to help trace filtering issues in browser console
+      // eslint-disable-next-line no-console
+      console.debug('[Profile] filteredFollowList - followers', { q, baseCount: (followersList.value || []).length, resultCount: out.length, sample: out.slice(0,8).map(u => u.name || u.email) })
+      return out
+    }
+    if (showFollowingModal.value) {
+      const out = searchList(followingList.value)
+      // eslint-disable-next-line no-console
+      console.debug('[Profile] filteredFollowList - following', { q, baseCount: (followingList.value || []).length, resultCount: out.length, sample: out.slice(0,8).map(u => u.name || u.email) })
+      return out
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[Profile] filteredFollowList error', e)
   }
   return []
 })
@@ -617,6 +630,22 @@ function openPublicProfile(targetUid) {
   } catch (e) {}
   // navigate to the public profile route
   router.push({ name: 'PublicProfile', params: { uid: targetUid } })
+}
+
+// Helper used by the template v-if to ensure only strictly matching items are shown.
+function matchesQuery(u) {
+  try {
+    const q = (searchQuery.value || '').toLowerCase().trim()
+    if (!q) return true
+    const rawName = ((u.name || u.username) || '').toLowerCase().trim()
+    const firstToken = (rawName.split(/\s+/)[0] || '')
+    const emailLocal = ((u.email || '').toLowerCase().split('@')[0] || '')
+    return (firstToken && firstToken.startsWith(q)) || (emailLocal && emailLocal.startsWith(q))
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[Profile] matchesQuery error', e)
+    return false
+  }
 }
 </script>
 
