@@ -576,25 +576,71 @@ async function loadAllMatchesAndDetermineOngoing() {
 
 // Function to determine which courts have ongoing matches
 function updateCourtsWithOngoingMatches() {
-  const now = new Date()
   const ongoingCourts = new Set()
   
-  allMatches.value.forEach(match => {
+  console.log('=== Checking all matches for live status ===')
+  
+  allMatches.value.forEach((match, index) => {
     // Check if match was manually ended
-    if (match.endedAt || match.endedAtISO) return
+    if (match.endedAt || match.endedAtISO) {
+      console.log(`Match ${index} ended:`, match.court)
+      return
+    }
     
-    const { start, end } = getMatchStartEnd(match)
-    const isOngoing = start && end && now >= start && now <= end
+    // Only show LIVE if the match has been explicitly started by the host
+    // Check for actual status indicators that show the match is active
+    let isActuallyLive = false
+    let reason = ''
     
-    if (isOngoing) {
-      const courtName = (match.court || '').toString().toLowerCase()
+    if (match.status === 'live' || match.status === 'active' || match.status === 'ongoing') {
+        isActuallyLive = true
+        reason = `status: ${match.status}`
+        console.log('🔴 Match is live by status:', match.court, match.status)
+    }
+    
+    // Check if match has been manually started by host
+    if (match.started === true || match.isStarted === true || match.matchStarted === true) {
+        isActuallyLive = true
+        reason += (reason ? ', ' : '') + `started flags: started=${match.started}, isStarted=${match.isStarted}, matchStarted=${match.matchStarted}`
+        console.log('🔴 Match is live by started flag:', match.court, { started: match.started, isStarted: match.isStarted, matchStarted: match.matchStarted })
+    }
+    
+    // Check if match has a start timestamp indicating it was actually begun
+    if (match.startedAt || match.actualStartTime) {
+        isActuallyLive = true
+        reason += (reason ? ', ' : '') + `timestamps: startedAt=${match.startedAt}, actualStartTime=${match.actualStartTime}`
+        console.log('🔴 Match is live by timestamp:', match.court, { startedAt: match.startedAt, actualStartTime: match.actualStartTime })
+    }
+    
+    // Debug: Log all matches for problematic courts
+    const courtName = (match.court || '').toString().toLowerCase()
+    if (courtName.includes('pasir ris') || courtName.includes('punggol') || courtName.includes('firefly')) {
+        console.log(`🔍 ${match.court} match data:`, {
+            court: match.court,
+            status: match.status,
+            started: match.started,
+            isStarted: match.isStarted,
+            matchStarted: match.matchStarted,
+            startedAt: match.startedAt,
+            actualStartTime: match.actualStartTime,
+            endedAt: match.endedAt,
+            endedAtISO: match.endedAtISO,
+            isActuallyLive: isActuallyLive,
+            reason: reason || 'not live'
+        })
+    }
+    
+    // Only add to ongoing courts if match is actually live (not just scheduled)
+    if (isActuallyLive) {
       if (courtName) {
         ongoingCourts.add(courtName)
+        console.log(`✅ Added to ongoing courts: "${courtName}" (reason: ${reason})`)
       }
     }
   })
   
   courtsWithOngoingMatches.value = ongoingCourts
+  console.log('🎯 Final courts with ongoing matches:', Array.from(ongoingCourts))
 }
 
 // Function to check if a court has ongoing matches
@@ -1362,7 +1408,12 @@ margin-bottom: 12px;
 
 .page-bg {
 min-height: 100vh;
-background: #000000;
+background: 
+  linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)),
+  url('../assets/CourtFinderBG.webp') center center;
+background-size: cover;
+background-repeat: no-repeat;
+background-attachment: fixed;
 display: flex;
 justify-content: center;
 align-items: flex-start;

@@ -324,7 +324,7 @@
 
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 const props = defineProps({
     courtFilter: { type: String, default: '' },
     embedded: { type: Boolean, default: false }
@@ -367,6 +367,10 @@ function closeCreatedPopup() {
 }
 
 const router = useRouter()
+const route = useRoute()
+
+// Check for tab query parameter on mount
+const selectedTab = ref(route.query.tab || 'all')
 
 // function openMatch(match, event) {
 //     if (!match) return
@@ -1306,8 +1310,6 @@ async function loadCourts() {
 //     owner: 'alice'
 // })
 
-const selectedTab = ref('all')
-
 function isHost(match) {
     if (!currentUser.value || !match) return false
     const uid = currentUser.value.uid
@@ -2020,6 +2022,31 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 </script>
 
 <style scoped>
+.page-bg {
+    min-height: 100vh;
+    background-image: url('../assets/matchBG.jpg');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    position: relative;
+}
+
+.page-bg::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7));
+    z-index: 1;
+}
+
+.page-bg > * {
+    position: relative;
+    z-index: 2;
+}
+
 .large-card {
     padding: 28px;
     border:1px solid #22272e;
