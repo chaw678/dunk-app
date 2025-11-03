@@ -4,7 +4,7 @@
       <Crown :size="22" class="me-2 text-warning" />
       <h2 class="mb-0 fw-bold text-warning">Leaderboard</h2>
     </div>
-    <p class="text-muted mb-3 small">See who's at the top of their game.</p>
+    <p class="text-light mb-3 small">See who's at the top of their game.</p>
 
     <!-- Segmented tabs -->
     <div class="segmented mb-3" role="tablist" aria-label="Leaderboard filter">
@@ -94,8 +94,8 @@
             <div class="col-score text-end fw-bold text-warning">{{ Number(p.tabWins||0) }}</div>
           </div>
 
-          <div v-if="displayed.length === 0" class="text-center text-muted py-4">No players for this tab yet.</div>
-          <div v-else-if="displayed.length < 4" class="text-center text-muted py-3 small">Not enough players to display more rankings.</div>
+          <div v-if="displayed.length === 0" class="text-center text-light py-4">No players for this tab yet.</div>
+          <div v-else-if="displayed.length < 4" class="text-center text-light py-4">Not enough players to display more rankings.</div>
         </div>
       </div>
     </div>

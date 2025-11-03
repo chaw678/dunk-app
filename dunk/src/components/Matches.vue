@@ -113,7 +113,7 @@
             <div v-if="isTabEmpty" class="embedded-empty-state" v-cloak>
                 <div class="empty-card card">
                     <div class="card-body">
-                        <div class="empty-icon">🏀</div>
+                                                <DunkLogo />
                         <p class="lead mb-2">{{ emptyMessage }}</p>
                         <p class="text-muted small">Try switching tabs or create a match for this court.</p>
                     </div>
@@ -349,6 +349,7 @@ import AddMatchModal from './AddMatchModal.vue'
 import JoinedPlayersModal from './JoinedPlayersModal.vue'
 import InviteModal from './InviteModal.vue'
 import ConfirmModal from './ConfirmModal.vue'
+import DunkLogo from './DunkLogo.vue'
 
 const showPopup = ref(false)
 const isSigningIn = ref(false)
