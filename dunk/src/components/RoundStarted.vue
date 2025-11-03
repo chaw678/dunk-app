@@ -99,7 +99,7 @@
     </section>
     
       <!-- Wins bar chart -->
-      <section class="wins-chart" v-if="winsTotal > 0 || winsA || winsB">
+  <section class="wins-chart">
         <h3 style="text-align:center;margin-top:18px;color:#ffda99">Match Wins</h3>
         <div class="chart-row">
           <div class="chart-item">
@@ -120,7 +120,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getDataFromFirebase, setChildData, deleteChildData, onDataChange } from '../firebase/firebase'
+import { getDataFromFirebase, setChildData, deleteChildData, onDataChange, incrementField, getUserName } from '../firebase/firebase'
 
 const route = useRoute()
 const router = useRouter()
@@ -287,8 +287,11 @@ async function startRound() {
   // start the local timer so this view remains the active controller
   startTimer()
   try {
-    await setChildData(`matches/${matchId.value}`, 'roundActive', true)
-    await setChildData(`matches/${matchId.value}`, 'lastRoundStartedAt', new Date().toISOString())
+    const dbPath = await resolveMatchDbPath()
+    if (dbPath) {
+      await setChildData(dbPath, 'roundActive', true)
+      await setChildData(dbPath, 'lastRoundStartedAt', new Date().toISOString())
+    }
   } catch (e) { /* ignore write errors */ }
 }
 
@@ -300,8 +303,11 @@ async function endRound(confirmReq = true) {
   roundFinished.value = true
   timerSet.value = false
   try {
-    await setChildData(`matches/${matchId.value}`, 'roundActive', false)
-    await setChildData(`matches/${matchId.value}`, 'lastRoundEndedAt', new Date().toISOString())
+    const dbPath = await resolveMatchDbPath()
+    if (dbPath) {
+      await setChildData(dbPath, 'roundActive', false)
+      await setChildData(dbPath, 'lastRoundEndedAt', new Date().toISOString())
+    }
   } catch (e) {}
 }
 
@@ -312,19 +318,80 @@ function selectWinner(team) {
 async function confirmWinner() {
   if (!selectedWinner.value) return
   try {
-    await setChildData(`matches/${matchId.value}`, 'lastRoundWinner', selectedWinner.value)
-    await setChildData(`matches/${matchId.value}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: new Date().toISOString(), duration: timerTotal.value })
+    const dbPath = await resolveMatchDbPath()
+    if (dbPath) {
+      await setChildData(dbPath, 'lastRoundWinner', selectedWinner.value)
+      await setChildData(`${dbPath}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: new Date().toISOString(), duration: timerTotal.value })
+    }
   } catch (e) { console.warn(e) }
+  // persist a roundsplayed entry with team rosters and winner details
   try {
-    // remove teams so MatchRoom starts fresh for the next allocation
-    await deleteChildData(`matches/${matchId.value}`, 'teams')
-  } catch (e) {
-    console.warn('Could not delete teams after confirming winner', e)
+    const ts = Date.now().toString()
+    const teamAUids = (teamA.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
+    const teamBUids = (teamB.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
+    const winners = (selectedWinner.value === 'A' ? teamAUids : teamBUids)
+    const payload = {
+      teamA: teamAUids,
+      teamB: teamBUids,
+      winningTeam: selectedWinner.value,
+      winningTeamMembers: winners,
+      endedAt: new Date().toISOString(),
+      duration: timerTotal.value
+    }
+  const dbPath = await resolveMatchDbPath()
+  if (dbPath) {
+    await setChildData(`${dbPath}/roundsplayed`, ts, payload)
+    // also keep a lightweight list of winning members per round for quick access
+    try {
+      if ((winners || []).length) await setChildData(`${dbPath}/winningTeamMembers`, ts, winners)
+    } catch (e) { console.warn('Could not persist winningTeamMembers entry', e) }
   }
+  } catch (e) { console.warn('Could not persist roundsplayed entry', e) }
+  // keep teams persisted — do NOT delete teams here so allocations remain available
+  // (MatchRoom will continue to load teams from the canonical DB path or history state)
 
-  // clear local teams too
-  teamA.value = []
-  teamB.value = []
+  // increment per-player wins for the winning team
+  try {
+    const winners = selectedWinner.value === 'A' ? teamA.value : teamB.value
+        await Promise.all((winners || []).map(async p => {
+      const uid = (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)
+      if (!uid) return
+      try {
+        // Always maintain a generic per-user wins counter for quick lookups
+        await incrementField(`users/${uid}`, 'wins', 1)
+            // Also increment the user's totalWins so profile reflects sum of typed wins
+            try { await incrementField(`users/${uid}`, 'totalWins', 1) } catch (e) { /* non-fatal */ }
+        // If match type is present, also increment the typed counter (open/intermediate/professional)
+        try {
+          // attempt to resolve match type (try local cache, then DB) so typed counters update reliably
+          const matchType = await resolveMatchType()
+          if (matchType) {
+            const field = (k => k.startsWith('open') ? 'openWins' : (k.startsWith('inter') ? 'intermediateWins' : (k.startsWith('prof') ? 'professionalWins' : 'openWins')))(String(matchType).toLowerCase())
+            await incrementField(`users/${uid}`, field, 1)
+          } else {
+            // type unknown — skip typed increment but log for easier debugging
+            console.warn('typed win increment skipped: match type unknown for', uid)
+          }
+        } catch (e) { console.warn('Could not increment typed user win for', uid, e) }
+
+        // Also increment a per-match playersMap counter so the match node tracks per-player wins
+        try {
+          const dbPath = await resolveMatchDbPath()
+          if (dbPath) await incrementField(`${dbPath}/playersMap/${uid}`, 'NumberOfWins', 1)
+        } catch (e) { console.warn('Could not increment playersMap NumberOfWins for', uid, e) }
+
+        // Also increment a sibling WinsByEachPlayer keyed by username under the match node
+        try {
+          const dbPath = await resolveMatchDbPath()
+          if (dbPath) {
+            const uname = (await getUserName(uid)) || uid
+            const safeKey = String(uname).replace(/[.$#\[\]\/]/g, '_')
+            await incrementField(`${dbPath}/WinsByEachPlayer`, safeKey, 1)
+          }
+        } catch (e) { console.warn('Could not increment WinsByEachPlayer for', uid, e) }
+      } catch (e) { console.warn('Could not increment user win for', uid, e) }
+    }))
+  } catch (e) { console.warn('increment wins failed', e) }
 
   // navigate back to MatchRoom to confirm teams again; include DB path if available
   const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
@@ -335,17 +402,73 @@ async function confirmWinner() {
 async function confirmWinnerNextRound() {
   if (!selectedWinner.value) return
   try {
-    await setChildData(`matches/${matchId.value}`, 'lastRoundWinner', selectedWinner.value)
-    await setChildData(`matches/${matchId.value}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: new Date().toISOString(), duration: timerTotal.value })
-    // increment wins
-    const currentWins = await getDataFromFirebase(`matches/${matchId.value}/wins`) || { A: 0, B: 0 }
-    const newWins = { A: Number(currentWins.A || 0), B: Number(currentWins.B || 0) }
-    if (selectedWinner.value === 'A') newWins.A += 1
-    if (selectedWinner.value === 'B') newWins.B += 1
-    await setChildData(`matches/${matchId.value}`, 'wins', newWins)
-    winsA.value = newWins.A
-    winsB.value = newWins.B
+    const dbPath = await resolveMatchDbPath()
+    if (dbPath) {
+      await setChildData(dbPath, 'lastRoundWinner', selectedWinner.value)
+      await setChildData(`${dbPath}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: new Date().toISOString(), duration: timerTotal.value })
+      // increment wins (non-transactional existing behavior)
+      const currentWins = await getDataFromFirebase(`${dbPath}/wins`) || { A: 0, B: 0 }
+      const newWins = { A: Number(currentWins.A || 0), B: Number(currentWins.B || 0) }
+      if (selectedWinner.value === 'A') newWins.A += 1
+      if (selectedWinner.value === 'B') newWins.B += 1
+      await setChildData(dbPath, 'wins', newWins)
+      winsA.value = newWins.A
+      winsB.value = newWins.B
+    }
   } catch (e) { console.warn('confirmWinnerNextRound error', e) }
+  // persist roundsplayed entry with roster + winner details
+  try {
+    const ts = Date.now().toString()
+    const teamAUids = (teamA.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
+    const teamBUids = (teamB.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
+    const winners = (selectedWinner.value === 'A' ? teamAUids : teamBUids)
+    const payload = { teamA: teamAUids, teamB: teamBUids, winningTeam: selectedWinner.value, winningTeamMembers: winners, endedAt: new Date().toISOString(), duration: timerTotal.value }
+  const dbPath = await resolveMatchDbPath()
+  if (dbPath) {
+    await setChildData(`${dbPath}/roundsplayed`, ts, payload)
+    try {
+      if ((winners || []).length) await setChildData(`${dbPath}/winningTeamMembers`, ts, winners)
+    } catch (err) { console.warn('Could not persist winningTeamMembers entry', err) }
+  }
+  } catch (err) { console.warn('Could not persist roundsplayed entry', err) }
+  // increment each winning player's counters (always increment generic wins and per-match counters)
+  try {
+    const winners = selectedWinner.value === 'A' ? teamA.value : teamB.value
+    await Promise.all((winners || []).map(async p => {
+      const uid = (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)
+      if (!uid) return
+      try {
+        // Always increment generic wins
+        await incrementField(`users/${uid}`, 'wins', 1)
+            // Also increment totalWins for profile aggregation
+            try { await incrementField(`users/${uid}`, 'totalWins', 1) } catch (err) { /* ignore */ }
+        // If match type exists, increment typed counter as well
+        try {
+          const matchType = await resolveMatchType()
+          if (matchType) {
+            const field = (k => k.startsWith('open') ? 'openWins' : (k.startsWith('inter') ? 'intermediateWins' : (k.startsWith('prof') ? 'professionalWins' : 'openWins')))(String(matchType).toLowerCase())
+            await incrementField(`users/${uid}`, field, 1)
+          } else {
+            console.warn('typed win increment skipped: match type unknown for', uid)
+          }
+        } catch (err) { console.warn('Could not increment typed user win for', uid, err) }
+
+        try {
+          const dbPath = await resolveMatchDbPath()
+          if (dbPath) await incrementField(`${dbPath}/playersMap/${uid}`, 'NumberOfWins', 1)
+        } catch (err) { console.warn('Could not increment playersMap NumberOfWins for', uid, err) }
+
+        try {
+          const dbPath = await resolveMatchDbPath()
+          if (dbPath) {
+            const uname = (await getUserName(uid)) || uid
+            const safeKey = String(uname).replace(/[.$#\[\]\/]/g, '_')
+            await incrementField(`${dbPath}/WinsByEachPlayer`, safeKey, 1)
+          }
+        } catch (err) { console.warn('Could not increment WinsByEachPlayer for', uid, err) }
+      } catch (err) { console.warn('Could not increment user win for', uid, err) }
+    }))
+  } catch (e) { console.warn('increment wins failed', e) }
 
   // navigate back to MatchRoom to start the next round; keep teams intact
   const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
@@ -358,18 +481,74 @@ async function confirmWinnerEndMatch() {
   // ask user to confirm ending the match to avoid accidents
   if (!confirm('Are you sure you want to end this match? This will move it to past matches.')) return
   try {
-    await setChildData(`matches/${matchId.value}`, 'lastRoundWinner', selectedWinner.value)
-    await setChildData(`matches/${matchId.value}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: new Date().toISOString(), duration: timerTotal.value })
-    // increment wins
-    const currentWins = await getDataFromFirebase(`matches/${matchId.value}/wins`) || { A: 0, B: 0 }
-    const newWins = { A: Number(currentWins.A || 0), B: Number(currentWins.B || 0) }
-    if (selectedWinner.value === 'A') newWins.A += 1
-    if (selectedWinner.value === 'B') newWins.B += 1
-    await setChildData(`matches/${matchId.value}`, 'wins', newWins)
-    // mark match ended
-    await setChildData(`matches/${matchId.value}`, 'endedAt', new Date().toISOString())
-    await setChildData(`matches/${matchId.value}`, 'status', 'ended')
+    const dbPath = await resolveMatchDbPath()
+    if (dbPath) {
+      await setChildData(dbPath, 'lastRoundWinner', selectedWinner.value)
+      await setChildData(`${dbPath}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: new Date().toISOString(), duration: timerTotal.value })
+      // increment wins
+      const currentWins = await getDataFromFirebase(`${dbPath}/wins`) || { A: 0, B: 0 }
+      const newWins = { A: Number(currentWins.A || 0), B: Number(currentWins.B || 0) }
+      if (selectedWinner.value === 'A') newWins.A += 1
+      if (selectedWinner.value === 'B') newWins.B += 1
+      await setChildData(dbPath, 'wins', newWins)
+      // mark match ended
+      await setChildData(dbPath, 'endedAt', new Date().toISOString())
+      await setChildData(dbPath, 'status', 'ended')
+    }
   } catch (e) { console.warn('confirmWinnerEndMatch error', e) }
+
+  // increment each winning player's per-type win counter
+  try {
+    // Always increment generic wins and totalWins for each winning player.
+    // Additionally, resolve the match type (local cache or DB) and increment the typed counter
+    const matchType = await resolveMatchType()
+    const typedField = matchType ? (k => k.startsWith('open') ? 'openWins' : (k.startsWith('inter') ? 'intermediateWins' : (k.startsWith('prof') ? 'professionalWins' : 'openWins')))(String(matchType).toLowerCase()) : null
+    const winners = selectedWinner.value === 'A' ? teamA.value : teamB.value
+    await Promise.all((winners || []).map(async p => {
+      const uid = (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)
+      if (!uid) return
+      try {
+        await incrementField(`users/${uid}`, 'wins', 1)
+        try { await incrementField(`users/${uid}`, 'totalWins', 1) } catch (err) {}
+        if (typedField) {
+          try { await incrementField(`users/${uid}`, typedField, 1) } catch (err) { console.warn('Could not increment typed user win for', uid, err) }
+        } else {
+          // typedField missing means matchType couldn't be resolved; log for debug
+          console.warn('typedField unset — matchType unresolved for', uid)
+        }
+
+        try {
+          const dbPath = await resolveMatchDbPath()
+          if (dbPath) await incrementField(`${dbPath}/playersMap/${uid}`, 'NumberOfWins', 1)
+        } catch (err) { console.warn('Could not increment playersMap NumberOfWins for', uid, err) }
+
+        try {
+          const dbPath = await resolveMatchDbPath()
+          if (dbPath) {
+            const uname = (await getUserName(uid)) || uid
+            const safeKey = String(uname).replace(/[.$#\[\]\/]/g, '_')
+            await incrementField(`${dbPath}/WinsByEachPlayer`, safeKey, 1)
+          }
+        } catch (err) { console.warn('Could not increment WinsByEachPlayer for', uid, err) }
+      } catch (err) { console.warn('Could not increment user win for', uid, err) }
+    }))
+  } catch (e) { console.warn('increment wins failed', e) }
+
+  // persist roundsplayed entry for this final round
+  try {
+    const ts = Date.now().toString()
+    const teamAUids = (teamA.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
+    const teamBUids = (teamB.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
+    const winners = (selectedWinner.value === 'A' ? teamAUids : teamBUids)
+    const payload = { teamA: teamAUids, teamB: teamBUids, winningTeam: selectedWinner.value, winningTeamMembers: winners, endedAt: new Date().toISOString(), duration: timerTotal.value }
+  const dbPath = await resolveMatchDbPath()
+  if (dbPath) {
+    await setChildData(`${dbPath}/roundsplayed`, ts, payload)
+    try {
+      if ((winners || []).length) await setChildData(`${dbPath}/winningTeamMembers`, ts, winners)
+    } catch (err) { console.warn('Could not persist winningTeamMembers entry', err) }
+  }
+  } catch (err) { console.warn('Could not persist roundsplayed entry', err) }
 
   // navigate to Matches list (past matches should be filtered there)
   await router.push({ path: '/matches' })
@@ -479,6 +658,32 @@ function goBack() {
   router.push({ name: 'MatchRoom', params: { id: matchId.value }, query })
 }
 
+async function resolveMatchDbPath() {
+  if (matchData.value && matchData.value.__dbPath) return matchData.value.__dbPath
+  if (matchId.value) return `matches/${matchId.value}`
+  return null
+}
+
+// Resolve the match type, trying local cache first then falling back to a DB read
+async function resolveMatchType() {
+  try {
+    let mt = (matchData.value && matchData.value.type) ? String(matchData.value.type) : null
+    if (mt) return mt
+    const dbPath = await resolveMatchDbPath()
+    if (!dbPath) return null
+    // fetch the match node in case this view was navigated with partial state
+    const remote = await getDataFromFirebase(dbPath)
+    if (remote && remote.type) {
+      // keep local cache in sync
+      matchData.value = { ...(matchData.value || {}), ...(remote || {}) }
+      return String(remote.type)
+    }
+  } catch (e) {
+    console.warn('resolveMatchType failed', e)
+  }
+  return null
+}
+
 // wins tracking (subscribe for realtime updates so both MatchRoom and RoundStarted show the same live stats)
 const winsA = ref(0)
 const winsB = ref(0)
@@ -497,17 +702,37 @@ const animateA = ref(false)
 const animateB = ref(false)
 
 // display title / round number shown in header (header already prints "Round — {{ displayTitle }}")
+// We track the number of persisted rounds (roundsplayed) under the match node so
+// the upcoming round number is (existingRounds + 1). If roundsplayed is not
+// present yet, fall back to any legacy `rounds` node or default to 1.
+const roundsCount = ref(0)
+const roundsUnsub = ref(null)
+
 const displayTitle = computed(() => {
   try {
-    // Prefer explicit rounds stored under the match data
-    const roundsNode = matchData.value && matchData.value.rounds ? matchData.value.rounds : null
-    const roundsCount = roundsNode ? Object.keys(roundsNode).length : 0
-    // Show the upcoming round number: existing rounds + 1, fallback to 1
-    return String(roundsCount > 0 ? roundsCount + 1 : 1)
+    const count = Number(roundsCount.value || 0)
+    return String(count > 0 ? count + 1 : 1)
   } catch (e) {
     return '1'
   }
 })
+
+async function loadRounds() {
+  try {
+    const dbPath = matchData.value && matchData.value.__dbPath ? matchData.value.__dbPath : (matchId.value ? `matches/${matchId.value}` : null)
+    if (!dbPath) return
+    if (roundsUnsub.value) {
+      try { roundsUnsub.value() } catch (e) {}
+      roundsUnsub.value = null
+    }
+    roundsUnsub.value = onDataChange(`${dbPath}/roundsplayed`, (val) => {
+      try {
+        if (!val) { roundsCount.value = 0; return }
+        roundsCount.value = Object.keys(val).length
+      } catch (err) { roundsCount.value = 0 }
+    })
+  } catch (e) { console.warn('loadRounds failed', e); roundsCount.value = 0 }
+}
 
 // trigger pop animation when wins change
 watch(winsA, (nv, ov) => {
@@ -543,15 +768,23 @@ async function loadWins() {
   }
 }
 
-onMounted(() => {
-  loadTeams()
-  loadWins()
+onMounted(async () => {
+  // Ensure teams/matchData is resolved before subscribing to wins so we
+  // subscribe to the correct (possibly nested) DB path.
+  await loadTeams()
+  await loadWins()
+  // subscribe to persisted roundsplayed so header round number reflects DB
+  await loadRounds()
 })
 onBeforeUnmount(() => {
   if (timerInterval.value) clearInterval(timerInterval.value)
   if (winsUnsub) {
     try { winsUnsub() } catch (e) {}
     winsUnsub = null
+  }
+  if (roundsUnsub && roundsUnsub.value) {
+    try { roundsUnsub.value() } catch (e) {}
+    roundsUnsub.value = null
   }
 })
 </script>
