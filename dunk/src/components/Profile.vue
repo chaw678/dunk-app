@@ -160,7 +160,7 @@
           />
 
           <div class="follow-list">
-            <div class="follow-item" v-for="f in filteredFollowers" :key="f.uid">
+            <div class="follow-item" v-for="f in filteredFollowList" :key="f.uid">
               <div
                 role="button"
                 tabindex="0"
@@ -199,7 +199,7 @@
           />
 
           <div class="follow-list">
-            <div class="follow-item" v-for="f in filteredFollowing" :key="f.uid">
+            <div class="follow-item" v-for="f in filteredFollowList" :key="f.uid">
               <div
                 role="button"
                 tabindex="0"
@@ -359,13 +359,23 @@ function closeFollowModal() {
 // keep a computed filtered output for modal list rendering
 const filteredFollowList = computed(() => {
   const q = (searchQuery.value || '').toLowerCase().trim()
+
+  // helper: perform strict prefix-only search on a list of users
+  const searchList = (list) => {
+    if (!q) return list
+    return list.filter(u => {
+      const name = (u.name || '').toLowerCase()
+      const email = (u.email || '').toLowerCase()
+      return (name && name.startsWith(q)) || (email && email.startsWith(q))
+    })
+  }
+
   if (showFollowersModal.value) {
-    if (!q) return filteredFollowers.value
-    return filteredFollowers.value.filter(u => (u.name||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q))
+    // use authoritative computed list instead of the copied ref to avoid stale data
+    return searchList(followersList.value)
   }
   if (showFollowingModal.value) {
-    if (!q) return filteredFollowing.value
-    return filteredFollowing.value.filter(u => (u.name||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q))
+    return searchList(followingList.value)
   }
   return []
 })

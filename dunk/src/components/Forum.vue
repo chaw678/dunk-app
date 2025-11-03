@@ -574,7 +574,8 @@ async function loadUploads() {
         } catch (e) {}
         f.likes = Object.keys(f.likedBy || {}).length
         f.liked = Boolean(currentUserId.value && f.likedBy && f.likedBy[currentUserId.value])
-        f.commentsCount = Object.keys(f.comments || {}).length
+        // combined count of comments + replies for display
+        f.commentsCount = computeTotalComments(f)
       }
     } else {
       uploadedFiles.value = []
@@ -604,6 +605,23 @@ function avatarForName(name) {
     return `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(s)}`
   } catch (e) {
     return '/src/assets/vue.svg'
+  }
+}
+
+// Compute total comment count for a post: top-level comments + all replies
+function computeTotalComments(file) {
+  if (!file || !file.comments) return 0
+  try {
+    let total = 0
+    for (const [cid, c] of Object.entries(file.comments || {})) {
+      if (!c) continue
+      total += 1 
+      const replies = c.replies || {}
+      total += Object.keys(replies).length
+    }
+    return total
+  } catch (e) {
+    return Object.keys(file.comments || {}).length
   }
 }
 
@@ -656,8 +674,9 @@ async function submitComment(file) {
     const key = 'c_' + Date.now()
     // attach avatar for immediate UI
     comment.avatar = avatarForName(comment.authorName)
-    file.comments[key] = comment
-    file.commentsCount = Object.keys(file.comments).length
+  file.comments[key] = comment
+  // update combined comments+replies count
+  file.commentsCount = computeTotalComments(file)
     file._newComment = ''
       // ensure UI shows comments after posting
       file._showComments = true
@@ -716,6 +735,8 @@ async function submitReply(file, cid) {
     file._replyTexts[key] = ''
     file._replyTarget = null
     file._replyTargetRid = null
+    // update visible comments count (include this new reply)
+    file.commentsCount = computeTotalComments(file)
   } catch (err) {
     console.error('Failed to submit reply', err)
     alert('Failed to submit reply')
@@ -781,7 +802,8 @@ async function deleteComment(file, cid) {
   try {
     await deleteDataFromFirebase(`forumUploads/${file.id}/comments/${cid}`)
     delete file.comments[cid]
-    file.commentsCount = Object.keys(file.comments || {}).length
+    // recompute since deleting a comment also removes its nested replies
+    file.commentsCount = computeTotalComments(file)
   } catch (err) {
     console.error('Failed to delete comment', err)
     alert('Failed to delete comment')
@@ -864,6 +886,8 @@ async function deleteReply(file, cid, rid) {
   try {
     await deleteDataFromFirebase(`forumUploads/${file.id}/comments/${cid}/replies/${rid}`)
     delete file.comments[cid].replies[rid]
+    // removed a reply — recompute totals
+    try { file.commentsCount = computeTotalComments(file) } catch(e){}
   } catch (err) {
     console.error('Failed to delete reply', err)
     alert('Failed to delete reply')
