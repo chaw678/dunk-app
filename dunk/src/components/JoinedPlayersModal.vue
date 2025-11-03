@@ -134,11 +134,11 @@ async function unfollowUser(uid) {
 .jp-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(2,6,11,0.6);
+  background: rgba(2,6,11,0.8);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1200;
+  z-index: 9999;
   padding: 24px;
 }
 .jp-modal {
