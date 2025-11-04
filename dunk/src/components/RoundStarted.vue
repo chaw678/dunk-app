@@ -2,7 +2,7 @@
   <div class="matchroom-container">
     <header>
       <button @click="goBack" class="back-btn">← Back</button>
-      <h1>Round — {{ displayTitle }}</h1>
+  <h1>Round #{{ displayTitle }}</h1>
       <div></div>
     </header>
 
@@ -12,7 +12,7 @@
         <div class="timer-header">Round Timer</div>
 
         <div class="timer-main">
-          <div class="timer-setter-inline" v-if="!timerSet && !roundActive">
+          <div class="timer-setter-inline" v-if="!timerSet && !roundActive && !roundFinished">
             <div class="setter-row">
               <div class="time-inputs-inline">
                 <input class="time-input" type="number" min="0" v-model.number="timerMinutes" placeholder="Min" :disabled="timerControlsDisabled" />
@@ -38,15 +38,16 @@
         <div class="timer-controls">
           <button
             class="btn-start"
-            v-if="!roundActive"
+            v-if="!roundActive && !roundFinished"
             @click="startRound"
             :disabled="!startEnabled"
             :class="{ 'disabled-btn': !startEnabled, pulsate: startShouldPulse }"
           >Start Round</button>
 
           <button class="btn" v-if="roundActive && !timerPaused" @click="pauseTimer">Pause</button>
-          <button class="btn" v-if="roundActive && timerPaused" @click="resumeTimer">Resume</button>
-          <button class="btn-reset" v-if="!roundActive && timerSet" @click="resetTimer">Reset</button>
+          <button class="btn-reset" v-if="roundActive && timerPaused" @click="resumeTimer">Resume</button>
+          <button class="btn-reset" v-if="roundActive && timerPaused" @click.prevent.stop="restartRound">Restart</button>
+          <button class="btn-reset" v-if="!roundActive && timerSet && !roundFinished" @click="resetTimer">Reset</button>
           <button class="btn-end" v-if="roundActive" @click.prevent.stop="endRound(true)">End Round</button>
         </div>
       </div>
@@ -54,28 +55,28 @@
 
     <!-- Teams vertical boxes (same visual style as MatchRoom) -->
     <section class="teams-grid">
-  <div :class="['team-card', teamAOutlineClass]" @click="roundFinished && selectWinner('A')" :aria-disabled="!roundFinished">
+  <div :class="['team-card', teamAOutlineClass, { 'pulsate-team': teamPulseActive }]" @click="roundFinished && selectWinner('A')" :aria-disabled="!roundFinished">
     <h2>Team A</h2>
     <div class="team-drop-list">
       <div v-for="p in teamA" :key="p.uid" class="player-tile">
         <div class="avatar-wrap">
-          <img v-if="p.avatar" :src="p.avatar" class="avatar-img" :alt="p.name || p.uid" />
-          <div v-else class="avatar-fallback">{{ initials(p.name || p.uid) }}</div>
+          <img v-if="displayAvatarFor(p)" :src="displayAvatarFor(p)" class="avatar-img" :alt="displayNameFor(p)" />
+          <div v-else class="avatar-fallback">{{ initials(displayNameFor(p)) }}</div>
         </div>
-        <div class="player-username">{{ p.name || p.uid }}</div>
+        <div class="player-username">{{ displayNameFor(p) }}</div>
       </div>
     </div>
   </div>
 
-  <div :class="['team-card', teamBOutlineClass]" @click="roundFinished && selectWinner('B')" :aria-disabled="!roundFinished">
+  <div :class="['team-card', teamBOutlineClass, { 'pulsate-team': teamPulseActive }]" @click="roundFinished && selectWinner('B')" :aria-disabled="!roundFinished">
     <h2>Team B</h2>
     <div class="team-drop-list">
       <div v-for="p in teamB" :key="p.uid" class="player-tile">
         <div class="avatar-wrap">
-          <img v-if="p.avatar" :src="p.avatar" class="avatar-img" :alt="p.name || p.uid" />
-          <div v-else class="avatar-fallback">{{ initials(p.name || p.uid) }}</div>
+          <img v-if="displayAvatarFor(p)" :src="displayAvatarFor(p)" class="avatar-img" :alt="displayNameFor(p)" />
+          <div v-else class="avatar-fallback">{{ initials(displayNameFor(p)) }}</div>
         </div>
-        <div class="player-username">{{ p.name || p.uid }}</div>
+        <div class="player-username">{{ displayNameFor(p) }}</div>
       </div>
     </div>
   </div>
@@ -98,22 +99,22 @@
       </div>
     </section>
     
-      <!-- Wins bar chart -->
-  <section class="wins-chart">
-        <h3 style="text-align:center;margin-top:18px;color:#ffda99">Match Wins</h3>
-        <div class="chart-row">
-          <div class="chart-item">
-            <div class="bar-label">Team A</div>
-            <div class="bar-outer"><div :class="['bar-inner', { pop: animateA }]" :style="{ height: winsPercentA + '%' }"></div></div>
-            <div class="bar-count">{{ winsA }}</div>
-          </div>
-          <div class="chart-item">
-            <div class="bar-label">Team B</div>
-            <div class="bar-outer"><div :class="['bar-inner','bar-b', { pop: animateB }]" :style="{ height: winsPercentB + '%' }"></div></div>
-            <div class="bar-count">{{ winsB }}</div>
-          </div>
+    <!-- Wins bar chart (matchroom style) -->
+    <section class="wins-chart">
+      <h1 class="wins-title">Match Wins</h1>
+      <div class="chart-row">
+        <div class="chart-item">
+          <div class="bar-label">Team A</div>
+          <div class="bar-outer"><div :class="['bar-inner', { pop: animateA }]" :style="{ height: winsPercentA + '%' }"></div></div>
+          <div class="bar-count">{{ winsA }}</div>
         </div>
-      </section>
+        <div class="chart-item">
+          <div class="bar-label">Team B</div>
+          <div class="bar-outer"><div :class="['bar-inner','bar-b', { pop: animateB }]" :style="{ height: winsPercentB + '%' }"></div></div>
+          <div class="bar-count">{{ winsB }}</div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -128,6 +129,19 @@ const router = useRouter()
 const matchId = computed(() => route.params.id)
 
 const matchData = ref({})
+// live users map so we can display canonical profile names
+const usersMap = ref({})
+let usersUnsub = null
+
+function subscribeUsers() {
+  if (usersUnsub) {
+    try { usersUnsub() } catch (e) {}
+    usersUnsub = null
+  }
+  try {
+    usersUnsub = onDataChange('users', (val) => { usersMap.value = val || {} })
+  } catch (e) { console.warn('subscribeUsers failed', e) }
+}
 const teamA = ref([])
 const teamB = ref([])
 const selectedWinner = ref(null)
@@ -160,7 +174,11 @@ const setShouldPulse = computed(() => teamsLocked.value && !timerSet.value && !r
 const timerControlsDisabled = computed(() => roundActive.value || roundFinished.value)
 
 const timerDisplay = computed(() => {
-  const secs = timerRemaining.value || timerTotal.value || 0
+  // Show the remaining time explicitly. Use nullish coalescing so 0 is
+  // respected (otherwise `||` would fall back to timerTotal when remaining
+  // is 0). This ensures the UI accurately reflects the stopped time when a
+  // round is ended early.
+  const secs = Number(timerRemaining.value ?? timerTotal.value ?? 0)
   const mm = Math.floor(secs / 60).toString().padStart(2, '0')
   const ss = (secs % 60).toString().padStart(2, '0')
   return `${mm}:${ss}`
@@ -168,6 +186,11 @@ const timerDisplay = computed(() => {
 
 const teamAOutlineClass = computed(() => teamA.value.length ? (selectedWinner.value === 'A' ? 'winner-outline' : 'active-outline') : 'inactive-outline')
 const teamBOutlineClass = computed(() => teamB.value.length ? (selectedWinner.value === 'B' ? 'winner-outline' : 'active-outline') : 'inactive-outline')
+
+// Pulse teams only while the timer is actively counting down (not paused)
+const teamPulseActive = computed(() => {
+  return roundActive.value && !timerPaused.value && (timerRemaining.value > 0)
+})
 
 // helpers to fetch/enrich players (minimal copy of MatchRoom logic)
 async function getUsersMap() {
@@ -277,6 +300,28 @@ function resetTimer() {
   timerTotal.value = 0
 }
 
+async function restartRound() {
+  // stop any running interval and clear local timer state so user can set a new timer
+  if (timerInterval.value) { clearInterval(timerInterval.value); timerInterval.value = null }
+  timerPaused.value = false
+  roundActive.value = false
+  roundFinished.value = false
+  // clear timer so setter UI appears
+  timerSet.value = false
+  timerRemaining.value = 0
+  timerTotal.value = 0
+  timerMinutes.value = 0
+  timerSeconds.value = 0
+
+  // persist that the round is no longer active so other clients reflect the stop
+  try {
+    const dbPath = await resolveMatchDbPath()
+    if (dbPath) {
+      try { await setChildData(dbPath, 'roundActive', false) } catch (e) {}
+    }
+  } catch (e) { console.warn('restartRound persistence failed', e) }
+}
+
 async function startRound() {
   // Start the round locally (start timer and mark active). Also persist the
   // roundActive flag and lastRoundStartedAt to DB so other clients see the
@@ -302,14 +347,22 @@ async function endRound(confirmReq = true) {
   timerPaused.value = false
   roundActive.value = false
   roundFinished.value = true
-  timerSet.value = false
+  // Do NOT clear `timerSet` here — keep the timer display showing the
+  // elapsed/remaining time so the user sees the moment the round was ended.
+  // Clearing `timerSet` would return the UI to the timer setter which is
+  // undesirable when ending a running round abruptly.
   try {
+    // Persist that the round is no longer active so other clients reflect the stop.
     const dbPath = await resolveMatchDbPath()
     if (dbPath) {
       await setChildData(dbPath, 'roundActive', false)
-      await setChildData(dbPath, 'lastRoundEndedAt', new Date().toISOString())
     }
-  } catch (e) {}
+  } catch (e) { /* ignore write errors */ }
+
+  // Do NOT navigate away from this view when the host simply ends the round.
+  // The round should only be finalized (persisted + navigation back to
+  // MatchRoom) after the host explicitly confirms a winner.
+  console.log('Round ended locally; awaiting explicit winner confirmation before finalizing.')
 }
 
 function selectWinner(team) {
@@ -320,9 +373,9 @@ async function confirmWinner() {
   if (!selectedWinner.value) return
   try {
     const dbPath = await resolveMatchDbPath()
-    if (dbPath) {
+      if (dbPath) {
       await setChildData(dbPath, 'lastRoundWinner', selectedWinner.value)
-      await setChildData(`${dbPath}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: new Date().toISOString(), duration: timerTotal.value })
+      await setChildData(`${dbPath}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: new Date().toISOString(), duration: getElapsedDuration() })
     }
   } catch (e) { console.warn(e) }
   // persist a roundsplayed entry with team rosters and winner details
@@ -337,11 +390,14 @@ async function confirmWinner() {
       winningTeam: selectedWinner.value,
       winningTeamMembers: winners,
       endedAt: new Date().toISOString(),
-      duration: timerTotal.value
+      duration: getElapsedDuration()
     }
   const dbPath = await resolveMatchDbPath()
   if (dbPath) {
     await setChildData(`${dbPath}/roundsplayed`, ts, payload)
+    // mark the canonical lastRoundEndedAt timestamp now that the winner is
+    // explicitly confirmed and the round is finalized.
+    try { await setChildData(dbPath, 'lastRoundEndedAt', new Date().toISOString()) } catch (e) { /* non-fatal */ }
     // also keep a lightweight list of winning members per round for quick access
     try {
       if ((winners || []).length) await setChildData(`${dbPath}/winningTeamMembers`, ts, winners)
@@ -396,7 +452,14 @@ async function confirmWinner() {
 
   // navigate back to MatchRoom to confirm teams again; include DB path if available
   const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
-  router.push({ name: 'MatchRoom', params: { id: matchId.value }, query })
+  try {
+    const state = { teams: { teamA: teamAUids, teamB: teamBUids }, confirmed: true }
+    if (matchData.value && matchData.value.__dbPath) state.matchPath = matchData.value.__dbPath
+    await router.push({ name: 'MatchRoom', params: { id: matchId.value }, query, state })
+  } catch (err) {
+    // fallback to simple push if state not supported
+    router.push({ name: 'MatchRoom', params: { id: matchId.value }, query })
+  }
 }
 
 // confirm winner and start next round (keep teams)
@@ -404,10 +467,10 @@ async function confirmWinnerNextRound() {
   if (!selectedWinner.value) return
   try {
     const dbPath = await resolveMatchDbPath()
-    if (dbPath) {
-      await setChildData(dbPath, 'lastRoundWinner', selectedWinner.value)
-      await setChildData(`${dbPath}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: new Date().toISOString(), duration: timerTotal.value })
-      // increment wins (non-transactional existing behavior)
+  if (dbPath) {
+  await setChildData(dbPath, 'lastRoundWinner', selectedWinner.value)
+  await setChildData(`${dbPath}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: new Date().toISOString(), duration: getElapsedDuration() })
+  // increment wins (non-transactional existing behavior)
       const currentWins = await getDataFromFirebase(`${dbPath}/wins`) || { A: 0, B: 0 }
       const newWins = { A: Number(currentWins.A || 0), B: Number(currentWins.B || 0) }
       if (selectedWinner.value === 'A') newWins.A += 1
@@ -423,13 +486,15 @@ async function confirmWinnerNextRound() {
     const teamAUids = (teamA.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
     const teamBUids = (teamB.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
     const winners = (selectedWinner.value === 'A' ? teamAUids : teamBUids)
-    const payload = { teamA: teamAUids, teamB: teamBUids, winningTeam: selectedWinner.value, winningTeamMembers: winners, endedAt: new Date().toISOString(), duration: timerTotal.value }
+  const payload = { teamA: teamAUids, teamB: teamBUids, winningTeam: selectedWinner.value, winningTeamMembers: winners, endedAt: new Date().toISOString(), duration: getElapsedDuration() }
   const dbPath = await resolveMatchDbPath()
   if (dbPath) {
     await setChildData(`${dbPath}/roundsplayed`, ts, payload)
     try {
       if ((winners || []).length) await setChildData(`${dbPath}/winningTeamMembers`, ts, winners)
     } catch (err) { console.warn('Could not persist winningTeamMembers entry', err) }
+    // mark the canonical lastRoundEndedAt now that the round is finalized
+    try { await setChildData(dbPath, 'lastRoundEndedAt', new Date().toISOString()) } catch (e) { /* non-fatal */ }
   }
   } catch (err) { console.warn('Could not persist roundsplayed entry', err) }
   // increment each winning player's counters (always increment generic wins and per-match counters)
@@ -473,7 +538,13 @@ async function confirmWinnerNextRound() {
 
   // navigate back to MatchRoom to start the next round; keep teams intact
   const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
-  await router.push({ name: 'MatchRoom', params: { id: matchId.value }, query })
+  try {
+    const state = { teams: { teamA: teamAUids, teamB: teamBUids }, confirmed: true }
+    if (matchData.value && matchData.value.__dbPath) state.matchPath = matchData.value.__dbPath
+    await router.push({ name: 'MatchRoom', params: { id: matchId.value }, query, state })
+  } catch (err) {
+    await router.push({ name: 'MatchRoom', params: { id: matchId.value }, query })
+  }
 }
 
 // confirm winner and end match (persist winner and rounds, mark match ended and go to Matches list)
@@ -484,9 +555,9 @@ async function confirmWinnerEndMatch() {
   try {
     const dbPath = await resolveMatchDbPath()
     if (dbPath) {
-      // persist final round + winner
-      await setChildData(dbPath, 'lastRoundWinner', selectedWinner.value)
-      await setChildData(`${dbPath}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: nowIso, duration: timerTotal.value })
+  // persist final round + winner
+  await setChildData(dbPath, 'lastRoundWinner', selectedWinner.value)
+  await setChildData(`${dbPath}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: nowIso, duration: getElapsedDuration() })
 
       // update wins counters
       const currentWins = await getDataFromFirebase(`${dbPath}/wins`) || { A: 0, B: 0 }
@@ -546,18 +617,28 @@ async function confirmWinnerEndMatch() {
     const teamAUids = (teamA.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
     const teamBUids = (teamB.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
     const winners = (selectedWinner.value === 'A' ? teamAUids : teamBUids)
-    const payload = { teamA: teamAUids, teamB: teamBUids, winningTeam: selectedWinner.value, winningTeamMembers: winners, endedAt: nowIso, duration: timerTotal.value }
+  const payload = { teamA: teamAUids, teamB: teamBUids, winningTeam: selectedWinner.value, winningTeamMembers: winners, endedAt: nowIso, duration: getElapsedDuration() }
     const dbPath = await resolveMatchDbPath()
     if (dbPath) {
-      await setChildData(`${dbPath}/roundsplayed`, ts, payload)
+  await setChildData(`${dbPath}/roundsplayed`, ts, payload)
       try {
         if ((winners || []).length) await setChildData(`${dbPath}/winningTeamMembers`, ts, winners)
       } catch (err) { console.warn('Could not persist winningTeamMembers entry', err) }
     }
   } catch (err) { console.warn('Could not persist roundsplayed entry', err) }
 
-  // navigate to Matches list (past matches should be filtered there)
-  await router.push({ path: '/matches' })
+  // navigate back to MatchRoom so the final round's team allocations are visible there
+  try {
+    const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
+    const teamAUids = (teamA.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
+    const teamBUids = (teamB.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
+    const state = { teams: { teamA: teamAUids, teamB: teamBUids }, confirmed: true }
+    if (matchData.value && matchData.value.__dbPath) state.matchPath = matchData.value.__dbPath
+    await router.push({ name: 'MatchRoom', params: { id: matchId.value }, query, state })
+  } catch (err) {
+    // fallback to matches list if navigation to matchroom fails
+    await router.push({ path: '/matches' })
+  }
 }
 
 // load persisted teams from DB and enrich players
@@ -659,9 +740,57 @@ function initials(name) {
   return (parts[0][0] + parts[1][0]).toUpperCase()
 }
 
+// Friendly display name helper for player elements (handles uid strings or enriched objects)
+function displayNameFor(element) {
+  if (!element) return ''
+  // if element is a plain uid string
+  if (typeof element === 'string') {
+    const uid = element
+    const resolved = usersMap.value && usersMap.value[uid]
+    return (resolved && (resolved.name || resolved.displayName || resolved.username)) || uid
+  }
+  // element is an object
+  const uid = element.uid || element.id || element.key || null
+  const resolved = uid && usersMap.value ? usersMap.value[uid] : null
+  // Prefer explicit element name, then resolved user name, then uid.
+  // Always return a non-empty fallback so the UI shows something.
+  const resolvedName = (resolved && (resolved.name || resolved.displayName || resolved.username)) || null
+  const fallback = uid || (element && element.name) || 'Player'
+  return element.name || resolvedName || fallback
+}
+
+// Prefer canonical avatar from the users map when available, otherwise fall
+// back to any avatar provided on the local player object.
+function displayAvatarFor(element) {
+  if (!element) return null
+  const uid = (typeof element === 'string') ? element : (element.uid || element.id || element.key || null)
+  const resolved = uid && usersMap.value ? usersMap.value[uid] : null
+  if (resolved) {
+    // prefer profilepicture when present (new canonical key), then other profile image fields
+    return resolved.profilepicture || resolved.avatar || resolved.photoURL || resolved.picture || resolved.photo || resolved.imageURL || resolved.thumbnail || null
+  }
+  // fallback to element.avatar if provided
+  if (typeof element === 'object' && element.avatar) return element.avatar
+  return null
+}
+
 function goBack() {
+  // Preserve current allocations in history state so MatchRoom can restore
+  // them immediately when the user navigates back, but do NOT force-lock
+  // them there — allow re-randomization.
   const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
-  router.push({ name: 'MatchRoom', params: { id: matchId.value }, query })
+  const state = {
+    teams: {
+      teamA: (teamA.value || []).map(p => (p && p.uid) ? p.uid : (p && p.id) ? p.id : p),
+      teamB: (teamB.value || []).map(p => (p && p.uid) ? p.uid : (p && p.id) ? p.id : p)
+    }
+  }
+  // indicate this is a manual restore (user pressed Back) so MatchRoom will
+  // restore the visual allocations even though the round was not confirmed
+  // by selecting a winner.
+  state.restore = true
+  if (matchData.value && matchData.value.__dbPath) state.matchPath = matchData.value.__dbPath
+  router.push({ name: 'MatchRoom', params: { id: matchId.value }, query, state })
 }
 
 async function resolveMatchDbPath() {
@@ -688,6 +817,16 @@ async function resolveMatchType() {
     console.warn('resolveMatchType failed', e)
   }
   return null
+}
+
+// Compute the elapsed duration (in seconds) for the current round. If a
+// timer was set, elapsed = timerTotal - timerRemaining. If no timer was set,
+// return 0 as a safe default.
+function getElapsedDuration() {
+  const total = Number(timerTotal.value || 0)
+  const remaining = Number(timerRemaining.value ?? 0)
+  if (total > 0) return Math.max(0, total - remaining)
+  return 0
 }
 
 // wins tracking (subscribe for realtime updates so both MatchRoom and RoundStarted show the same live stats)
@@ -775,6 +914,8 @@ async function loadWins() {
 }
 
 onMounted(async () => {
+  // start live users subscription first so enrichPlayers can resolve profile names
+  subscribeUsers()
   // Ensure teams/matchData is resolved before subscribing to wins so we
   // subscribe to the correct (possibly nested) DB path.
   await loadTeams()
@@ -792,6 +933,7 @@ onBeforeUnmount(() => {
     try { roundsUnsub.value() } catch (e) {}
     roundsUnsub.value = null
   }
+  if (usersUnsub) { try { usersUnsub() } catch (e) {} ; usersUnsub = null }
 })
 </script>
 
@@ -873,9 +1015,18 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 .pulsate { animation: pulse-glow 1.1s ease-in-out infinite; transform-origin: center; }
 @keyframes pulse-glow { 0% { box-shadow: 0 0 0 0 rgba(255,173,29,0); transform: scale(1); } 50% { box-shadow: 0 0 24px 6px rgba(255,173,29,0.20); transform: scale(1.02); } 100% { box-shadow: 0 0 0 0 rgba(255,173,29,0); transform: scale(1); } }
 
+/* Pulsing effect for the team cards while a round is active */
+.pulsate-team { animation: team-pulse 1.2s ease-in-out infinite; transform-origin: center; }
+@keyframes team-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255,173,29,0); transform: translateZ(0) scale(1); }
+  40% { box-shadow: 0 0 28px 8px rgba(255,173,29,0.18); transform: translateZ(0) scale(1.01); }
+  70% { box-shadow: 0 0 18px 4px rgba(255,173,29,0.12); transform: translateZ(0) scale(1.002); }
+  100% { box-shadow: 0 0 0 0 rgba(255,173,29,0); transform: translateZ(0) scale(1); }
+}
+
 .disabled-btn { background: linear-gradient(90deg,#4a4d52,#3b3d40) !important; color: #cfcfcf !important; opacity: 0.7; box-shadow: none !important; cursor: not-allowed !important; }
 
-/* Simple wins bar chart */
+/* Wins chart (matchroom style) */
 .wins-chart { max-width:700px; margin: 18px auto; }
 .chart-row { display:flex; gap:28px; justify-content:center; align-items:end; }
 .chart-item { display:flex; flex-direction:column; align-items:center; gap:8px; }
@@ -894,5 +1045,6 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
   100% { transform: scaleY(1); filter: blur(0px); }
 }
 .bar-label { color:#f3e6c2; font-weight:700; }
-.bar-count { color:#fff; font-weight:800; font-size:1.1rem; }
+.wins-title { text-align:center; margin-top:8px; color:#ffda99; font-size:2.6rem; font-weight:800; }
+.bar-count { color:#fff; font-weight:900; font-size:2rem; margin-top:10px; }
 </style>
