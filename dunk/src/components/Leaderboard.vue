@@ -105,6 +105,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { avatarForUser } from '../utils/avatar.js'
 import { Crown } from 'lucide-vue-next'
 import { getDataFromFirebase } from '../firebase/firebase'
 
@@ -131,10 +132,8 @@ function winsOf(u, key) {
   return Number(u?.[key] ?? 0)
 }
 
-function avatarFor(u) {
-  const name = u?.name || u?.username || u?.email || 'anon'
-  return `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(name)}`
-}
+// adapter used in template
+function avatarFor(u) { return avatarForUser(u) }
 
 const displayed = computed(() => {
   const tab = tabs.find(t => t.key === selectedTab.value) || tabs[0]

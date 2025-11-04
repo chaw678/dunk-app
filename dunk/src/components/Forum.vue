@@ -196,7 +196,7 @@
                 <!-- reply input (appears when replying to this comment) -->
                 <!-- show only when replying directly to the comment (no target reply id) -->
                 <div v-if="file._replyTarget === cid && !file._replyTargetRid" class="reply-input mt-2 d-flex gap-2 align-items-start">
-                  <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
+                  <div class="reply-avatar"><img :src="avatarForUid()" alt="you"/></div>
                   <input type="text" class="form-control" v-model="file._replyTexts['c_' + cid]" :placeholder="`Replying to ${displayNameForComment(c)}...`" @keydown.enter.prevent="submitReply(file, cid)" />
                   <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
                 </div>
@@ -249,7 +249,7 @@
 
                         <!-- if replying to this root reply, show nested input here -->
                         <div v-if="file._replyTarget === cid && file._replyTargetRid === node.rid" class="reply-input mt-2 d-flex gap-2 align-items-start nested-reply-input">
-                          <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
+                          <div class="reply-avatar"><img :src="avatarForUid()" alt="you"/></div>
                           <input type="text" class="form-control" v-model="file._replyTexts[node.rid]" :placeholder="`Replying to ${displayNameForComment(node.r)}...`" @keydown.enter.prevent="submitReply(file, cid)" />
                           <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
                         </div>
@@ -302,8 +302,8 @@
                           <div class="mt-2"><a href="#" class="reply-link" @click.prevent="startReply(file, cid, child.rid)">Reply</a></div>
 
                           <!-- nested reply input for replies to this child -->
-                          <div v-if="file._replyTarget === cid && file._replyTargetRid === child.rid" class="reply-input mt-2 d-flex gap-2 align-items-start nested-reply-input child-input">
-                            <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
+                              <div v-if="file._replyTarget === cid && file._replyTargetRid === child.rid" class="reply-input mt-2 d-flex gap-2 align-items-start nested-reply-input child-input">
+                            <div class="reply-avatar"><img :src="avatarForUid()" alt="you"/></div>
                             <input type="text" class="form-control" v-model="file._replyTexts[child.rid]" :placeholder="`Replying to ${displayNameForComment(child.r)}...`" @keydown.enter.prevent="submitReply(file, cid)" />
                             <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
                           </div>
@@ -356,7 +356,7 @@
 
                               <!-- nested reply input for replies to this grandchild -->
                               <div v-if="file._replyTarget === cid && file._replyTargetRid === g.rid" class="reply-input mt-2 d-flex gap-2 align-items-start nested-reply-input grandchild-input">
-                                <div class="reply-avatar"><img :src="avatarForName(currentUserName || 'You')" alt="you"/></div>
+                                <div class="reply-avatar"><img :src="avatarForUid()" alt="you"/></div>
                                 <input type="text" class="form-control" v-model="file._replyTexts[g.rid]" :placeholder="`Replying to ${displayNameForComment(g.r)}...`" @keydown.enter.prevent="submitReply(file, cid)" />
                                 <button class="btn btn-create" @click="submitReply(file, cid)">Reply</button>
                               </div>
@@ -665,6 +665,15 @@ function avatarForName(name) {
   }
 }
 
+// Return avatar URL for a given user id, falling back to current user name or seeded avatar
+function avatarForUid(uid) {
+  const id = uid || currentUserId.value
+  if (!id) return avatarForName(currentUserName.value || 'You')
+  const u = usersMap.value && usersMap.value[id]
+  if (u) return u.photoURL || u.avatar || avatarForName(u.name || u.username || currentUserName.value || 'You')
+  return avatarForName(currentUserName.value || 'You')
+}
+
 // Compute total comment count for a post: top-level comments + all replies
 function computeTotalComments(file) {
   if (!file || !file.comments) return 0
@@ -778,7 +787,24 @@ async function submitReply(file, cid) {
     createdAt: Date.now()
   }
   // if replying to an existing reply, include parentRid so we can thread
-  if (file._replyTargetRid) reply.parentRid = file._replyTargetRid
+  if (file._replyTargetRid) {
+    // If the target reply already has a parent (i.e. it's a child/grandchild),
+    // attach the new reply to the same parent so we don't indent further.
+    try {
+      const targetRid = file._replyTargetRid
+      const replies = file.comments[cid] && file.comments[cid].replies
+      if (replies && replies[targetRid] && replies[targetRid].parentRid) {
+        // target is already nested; attach new reply to its parent (sibling level)
+        reply.parentRid = replies[targetRid].parentRid
+      } else {
+        // target is a root reply — nest under it as normal
+        reply.parentRid = file._replyTargetRid
+      }
+    } catch (e) {
+      // defensive fallback: if anything goes wrong, fall back to attaching to target
+      reply.parentRid = file._replyTargetRid
+    }
+  }
   try {
     // push reply under forumUploads/{postId}/comments/{cid}/replies
     await pushDataToFirebase(`forumUploads/${file.id}/comments/${cid}/replies`, reply)
@@ -2607,6 +2633,25 @@ input.comment-edit-input:-webkit-autofill:focus {
   width: 100% !important;
 }
 
+/* Normalize comment/reply typography for visual consistency */
+.comment-item,
+.comment-body,
+.reply-bubble,
+.reply-item .reply-bubble,
+.child .reply-bubble,
+.grandchild .reply-bubble,
+.comment-left strong,
+.reply-bubble strong,
+.comment-item .text-muted,
+.reply-item .text-muted {
+  font-size: 1rem; /* consistent base size */
+  line-height: 1.45;
+}
+
+/* Slightly reduce meta text (timestamps) but keep consistent sizing overall */
+.comment-item .text-muted,
+.reply-item .text-muted { font-size: 0.9rem; opacity: 0.9 }
+
 .grandchild-list::before { left: calc((var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 2) + 22px - 1px) !important; }
 /* top-level comments panel guide (leftmost) to match avatar centers for the root comment */
 .comments-panel { position: relative; }
@@ -2622,5 +2667,105 @@ input.comment-edit-input:-webkit-autofill:focus {
   border-radius: 2px;
   z-index: 0;
   left: calc(22px - 1px); /* half of 44px avatar minus 1px */
+}
+
+/* Responsive tweaks: ensure the timeline / reply grid doesn't break on narrow viewports */
+@media (max-width: 900px) {
+  .forum-header-inner {
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .forum-actions {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .forum-title { font-size: 1.35rem; }
+}
+
+@media (max-width: 720px) {
+  .page { padding: 16px; --reply-avatar-col: 56px; }
+  /* slightly smaller avatars to save horizontal space */
+  .avatar, .comment-avatar, .reply-avatar { width: 36px; height: 36px; }
+  .avatar img, .comment-avatar img, .reply-avatar img { width: 36px; height: 36px; }
+  .reply-input .reply-avatar img { width: 36px; height: 36px; }
+  /* shift connector lines inward to match reduced avatar size */
+  .comment-replies::before { left: calc((var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 0) + 18px - 1px); }
+  .child-list::before { left: calc((var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 1) + 18px - 1px); }
+  .grandchild-list::before { left: calc((var(--reply-avatar-col) + var(--reply-indent-base) + var(--reply-indent-step) * 2) + 18px - 1px); }
+
+  /* Prevent connectors from overlapping by hiding them on medium-small screens if needed */
+  .comment-replies::before,
+  .child-list::before,
+  .grandchild-list::before { display: none !important; }
+
+  /* Ensure reply bubbles sit above any remaining visuals and can shrink to viewport */
+  .reply-bubble { position: relative; z-index: 2; max-width: calc(100vw - var(--reply-avatar-col) - 96px); word-break: break-word; }
+  .reply-item .reply-bubble, .child .reply-bubble, .grandchild .reply-bubble { min-width: 0; }
+
+  /* allow horizontal panning on smaller tablets/small phones */
+  .comments-panel { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .comments-panel .comments-list,
+  .comments-panel .comment-replies,
+  .comments-panel .child-list,
+  .comments-panel .grandchild-list { min-width: 420px; }
+}
+
+@media (max-width: 420px) {
+  /* compact layout: remove complex grid for replies and use simple flex rows to avoid overflow */
+  .page { padding: 12px; --reply-avatar-col: 48px; --reply-indent-base: 8px; --reply-indent-step: 28px; }
+  .forum-header-inner { flex-direction: column; align-items: flex-start; gap: 8px; }
+  /* collapse reply grid into a simple horizontal layout: avatar + bubble */
+  .reply-item,
+  .comment-replies .reply-item,
+  .child-list .reply-item,
+  .grandchild-list .reply-item {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    align-items: flex-start !important;
+  }
+  .reply-item .reply-bubble,
+  .child .reply-bubble,
+  .grandchild .reply-bubble { margin-left: 0; }
+  /* hide long vertical connector lines on very small screens to avoid layout overlap */
+  .comment-replies::before,
+  .child-list::before,
+  .grandchild-list::before { display: none !important; }
+  /* thin avatar rings on tiny screens */
+  .reply-avatar::before, .comment-avatar::before, .avatar::before { border-width: 2px !important; }
+  /* ensure reply inputs stack nicely */
+  .nested-reply-input, .child-input, .grandchild-input { flex-direction: column !important; }
+  .nested-reply-input .btn-create, .child-input .btn-create, .grandchild-input .btn-create { width: 100% !important; margin-left: 0 !important; margin-top: 8px !important; }
+  /* reduce floating FAB size slightly */
+  .fab-pencil { right: 12px; bottom: 12px; width: 48px; height: 48px; }
+  /* cap post images to avoid very tall/small images pushing layout */
+  .post-image { max-height: 280px; object-fit: cover; }
+}
+
+/* Alternative small-screen behavior: if the layout still doesn't fit, allow horizontal scroll
+   for the comments panel and reduce the left gutter further so content can be nudged left.
+   This prevents overlap by letting the user pan horizontally rather than wrap the grid. */
+@media (max-width: 480px) {
+  .comments-panel {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Force inner comments grid to a minimum width so it can be scrolled horizontally */
+  .comments-panel .comments-list,
+  .comments-panel .comment-replies,
+  .comments-panel .child-list,
+  .comments-panel .grandchild-list {
+    min-width: 560px;
+  }
+  /* Reduce the avatar column further to nudge content left */
+  .page { --reply-avatar-col: 40px; }
+  .avatar, .comment-avatar, .reply-avatar { width: 32px; height: 32px; }
+  .avatar img, .comment-avatar img, .reply-avatar img { width: 32px; height: 32px; }
+  /* make sure reply bubbles can shrink within the scroller */
+  .reply-item .reply-bubble,
+  .child .reply-bubble,
+  .grandchild .reply-bubble { min-width: 220px; max-width: none; word-break: break-word; }
 }
 </style>

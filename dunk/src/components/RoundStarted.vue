@@ -119,6 +119,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { avatarForUser } from '../utils/avatar.js'
 import { useRoute, useRouter } from 'vue-router'
 import { getDataFromFirebase, setChildData, deleteChildData, onDataChange, incrementField, getUserName } from '../firebase/firebase'
 
@@ -215,11 +216,10 @@ async function enrichPlayers(list) {
         resolved.thumbnail ||
         null
 
-      // only generate fallback if no profile/avatar exists
+      // only generate fallback if no profile/avatar exists - use centralized helper
       let finalAvatar = avatar
       if (!finalAvatar) {
-        const nameFull = encodeURIComponent((name || uid).split(' ')[0] || uid)
-        finalAvatar = `https://ui-avatars.com/api/?name=${nameFull}&background=1f262b&color=ffad1d&format=png&size=128`
+        finalAvatar = avatarForUser({ uid, name, gender: resolved.gender, photoURL: avatar })
       }
 
       return { uid, name, avatar: finalAvatar }

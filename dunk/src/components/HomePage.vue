@@ -1185,10 +1185,10 @@ onUnmounted(() => {
 }
 
 .hero-title {
-  font-size: 5rem;
-  font-weight: bold;
-  margin-bottom: 20px;
-  line-height: 1.2;
+  font-size: 3.2rem; /* reduced for improved balance */
+  font-weight: 700;
+  margin: 6px 0 10px 0;
+  line-height: 1.15;
   text-align: center;
   width: 100%;
   color: #dde3ea;
@@ -1197,14 +1197,16 @@ onUnmounted(() => {
 .hero-main {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 60px;
+  gap: 32px; /* tighter spacing */
   align-items: center;
   width: 100%;
+  align-content: center;
 }
 
 .hero-text {
   text-align: center;
-  padding-left: 180px;
+  padding-left: 24px; /* remove heavy left indent */
+  padding-right: 24px;
 }
 
 .brand-highlight {
@@ -1320,9 +1322,20 @@ onUnmounted(() => {
 }
 
 .basketball-icon {
-  font-size: 12rem;
+  font-size: 8rem; /* slightly smaller to reduce visual weight */
   animation: bounce 1.5s infinite ease-in-out;
 }
+
+/* Standard container for consistent horizontal padding/centering */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+/* Normalize section spacing for visual consistency */
+section { padding-top: 40px; padding-bottom: 40px; }
 
 @keyframes bounce {
   0%, 20%, 50%, 80%, 100% {
@@ -1358,7 +1371,7 @@ onUnmounted(() => {
 
 /* Invites Section */
 .invites-section {
-  padding: 60px 20px;
+  padding: 40px 20px;
   background: rgba(0, 0, 0, 0.1);
 }
 
@@ -1398,12 +1411,12 @@ onUnmounted(() => {
 }
 
 .invitations-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr); /* Fixed 3 columns */
-    gap: 20px;
-    width: 100%;
-    align-items: start;
-    justify-items: center; /* Center cards in grid cells */
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* Fixed 3 columns */
+  gap: 20px;
+  width: 100%;
+  align-items: start;
+  justify-items: stretch; /* allow cards to align consistently */
 }
 
 /* Carousel styles */
@@ -2178,6 +2191,19 @@ onUnmounted(() => {
   .cta-content h2 {
     font-size: 2rem;
   }
+}
+
+/* Stack hero text and image earlier for medium-large screens to avoid side-by-side overlap */
+@media (max-width: 1100px) {
+  .hero-main {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    align-items: center;
+    text-align: center;
+  }
+  .hero-text { padding-left: 16px; padding-right: 16px; }
+  .hero-image { justify-content: center; }
+  .basketball-icon { margin: 0 auto; }
 }
 
 @media (max-width: 480px) {

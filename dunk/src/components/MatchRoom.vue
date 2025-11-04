@@ -259,6 +259,7 @@ import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
  import draggable from 'vuedraggable'
  import { useRoute, useRouter } from 'vue-router'
 import { getDataFromFirebase, setChildData, onDataChange } from '../firebase/firebase'
+import { avatarForUser } from '../utils/avatar.js'
 // RoundsHistory inlined below; no external import
 // import your StatisticsModal if you want fancy end-of-match stats
 
@@ -348,18 +349,10 @@ const out = list.map(p => {
     // prefer explicit fields
     let avatar = p.avatar || (resolved && (resolved.avatar || resolved.photoURL || resolved.photo)) || null
 
-    // if no avatar, use gender-seeded service if gender present, otherwise UI Avatars fallback
+    // If no explicit avatar found, derive a stable one via the centralized helper.
     if (!avatar) {
-      const nameForSeed = encodeURIComponent(((p.name || (resolved && (resolved.name || resolved.displayName || resolved.username)) || uid) + '').split(' ')[0])
-      if (resolved && resolved.gender) {
-        avatar = (String(resolved.gender).toLowerCase() === 'female')
-          ? `https://avatar.iran.liara.run/public/girl?username=${nameForSeed}`
-          : `https://avatar.iran.liara.run/public/boy?username=${nameForSeed}`
-      } else {
-        // ui-avatars gives a consistent image even without gender
-        const nameFull = encodeURIComponent((p.name || (resolved && (resolved.name || resolved.displayName)) || uid).trim())
-        avatar = `https://ui-avatars.com/api/?name=${nameFull}&background=1f262b&color=ffad1d&format=png&size=128`
-      }
+      // Pass resolved user object if available so avatarForUser can prefer photoURL/avatar or use uid/email/name for seeding
+      avatar = avatarForUser(resolved || p)
     }
 
     const name = p.name || (resolved && (resolved.name || resolved.displayName || resolved.username)) || uid || 'Player'
