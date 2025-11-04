@@ -9,6 +9,7 @@ import { getDatabase, ref as dbRef, set, update } from 'firebase/database'
 
 //change 6: import dunk logo from assets
 import dunkLogo from '../assets/dunk-ball.svg'
+import ModalPortal from './ModalPortal.vue'
 
 
 
@@ -1006,7 +1007,7 @@ watch(animateBars, (v) => { if (v) animateCounts() })
 
 
     <!-- change 13: Edit Profile Popup Modal -->
-    <div v-if="showEditProfile" class="edit-profile-modal-overlay">
+    <ModalPortal v-if="showEditProfile" @overlay="() => showEditProfile = false">
       <div class="edit-profile-modal-content">
         <h3 class="mb-3 text-warning">Edit Profile</h3>
         <!-- Username -->
@@ -1068,7 +1069,7 @@ watch(animateBars, (v) => { if (v) animateCounts() })
           <button class="btn btn-secondary px-4" @click="showEditProfile = false">Cancel</button>
         </div>
       </div>
-    </div>
+    </ModalPortal>
 
     <!-- Step 3: Followers Popup -->
     <div v-if="showFollowers" class="follow-popup-overlay" @click.self="closePopup">

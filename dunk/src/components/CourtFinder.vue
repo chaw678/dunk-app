@@ -1311,6 +1311,47 @@ async function toggleCourtExpand(court) {
   }
 }
 
+/**
+ * Zoom / focus the map and UI on the provided court.
+ * Used by the template when a court name is clicked.
+ */
+function zoomToCourtMarker(court) {
+  if (!court) return
+  try {
+    selectedCourt.value = court
+
+    // center + animated zoom to matched court if coords available
+    if (map.value && isFinite(Number(court.lat)) && isFinite(Number(court.lon))) {
+      const pos = { lat: Number(court.lat), lng: Number(court.lon) }
+      try {
+        if (typeof map.value.panTo === 'function') map.value.panTo(pos)
+        else map.value.setCenter(pos)
+      } catch (e) {
+        try { map.value.setCenter(pos) } catch (err) { /* ignore */ }
+      }
+      try { animateZoomTo(15, 400) } catch (e) { try { map.value.setZoom(15) } catch (err) { } }
+    }
+
+    // place a temporary search marker
+    try {
+      if (searchMarker.value) { try { searchMarker.value.setMap(null) } catch (e) { } }
+      if (isFinite(Number(court.lat)) && isFinite(Number(court.lon))) {
+        searchMarker.value = new google.maps.Marker({
+          position: { lat: Number(court.lat), lng: Number(court.lon) },
+          map: map.value,
+          title: court.name || '',
+          icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' }
+        })
+      }
+    } catch (e) { /* ignore marker errors */ }
+
+    // Intentionally do NOT expand or scroll the court card into view.
+    // This keeps the list position unchanged when a court name is clicked.
+  } catch (err) {
+    console.warn('[zoomToCourtMarker] failed', err, court)
+  }
+}
+
 function openCreateMatchForCourt(court) {
   try {
     selectedCourt.value = court

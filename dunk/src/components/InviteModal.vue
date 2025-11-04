@@ -1,5 +1,5 @@
 <template>
-  <div class="inv-overlay" @click.self="close">
+  <ModalPortal @overlay="close">
     <div class="inv-modal card">
       <div class="card-header d-flex justify-content-between align-items-center following-header">
         <div>
@@ -46,10 +46,11 @@
             </div>
           </div>
     </div>
-  </div>
+  </ModalPortal>
 </template>
 
 <script setup>
+import ModalPortal from './ModalPortal.vue'
 import { ref, computed, watch } from 'vue'
 import { setChildData, getDataFromFirebase } from '../firebase/firebase'
 import { onUserStateChanged } from '../firebase/auth'

@@ -1,5 +1,5 @@
 <template>
-  <div class="modal-overlay" @click.self="closeModal">
+  <ModalPortal @overlay="closeModal">
     <div class="modal-content">
       <h2 class="modal-title">Add a New Court</h2>
       <p class="modal-desc">Enter the name of the court at the selected location.</p>
@@ -33,12 +33,13 @@
         <button type="submit" class="create-btn">Add Court</button>
       </form>
     </div>
-  </div>
+  </ModalPortal>
 </template>
 
 <script setup>
 
 import { ref, onMounted } from 'vue'
+import ModalPortal from './ModalPortal.vue'
 import { pushDataToFirebase } from '../firebase/firebase'
 
 const props = defineProps({
