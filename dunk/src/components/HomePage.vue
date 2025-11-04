@@ -13,7 +13,13 @@
             </div>
           </div>
           <div class="hero-image">
-            <div class="basketball-icon">🏀</div>
+            <div class="basketball-icon"><svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" color="#ffb14d">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M4.2 14.2c2.8-5.2 8.3-8.4 14.3-7.4" />
+      <path d="m11.3 21.8-1.9-2.8c-2.4-3.6-3.2-8.3-.7-12.4" />
+      <path d="M21.8 12.7c-2.4 4.5-8.2 6.8-13.4 5" />
+    </svg></div>
           </div>
         </div>
       </div>
@@ -137,10 +143,10 @@
     </section>
 
     <!-- Recommended Matches Section -->
-    <section v-if="currentUser" class="recommended-matches-section">
+    <section v-if="currentUser" class="invitesi-section">
       <div class="container">
-        <div class="recommendations-wrapper">
-          <div class="recommendations-section">
+        <div class="invitations-wrapper">
+          <div class="invitations-section">
             <div class="section-header">
               <h3 class="section-heading">
                 <i class="bi bi-star-fill me-2"></i>Recommended Matches for You
@@ -253,24 +259,24 @@
     <!-- Features Section -->
     <section class="features-section">
       <div class="container">
-        <h2 class="section-title">Why Choose Dunk+?</h2>
+        <h2 class="stat-number text-center">Why Choose Dunk+?</h2>
         <div class="features-grid">
-          <div class="feature-card">
+          <div class="feature-card"  @click="navigateToCourts">
             <div class="feature-icon">🏟️</div>
             <h3>Find Courts</h3>
             <p>Discover basketball courts across Singapore with real-time availability and ratings</p>
           </div>
-          <div class="feature-card">
+          <div class="feature-card"  @click="navigateToMatches">
             <div class="feature-icon">👥</div>
             <h3>Join Matches</h3>
             <p>Connect with players of similar skill levels and join exciting basketball matches</p>
           </div>
-          <div class="feature-card">
+          <div class="feature-card" @click="navigateToLeaderboard">
             <div class="feature-icon">📊</div>
             <h3>Track Progress</h3>
             <p>Monitor your performance, climb the leaderboard, and improve your game</p>
           </div>
-          <div class="feature-card">
+          <div class="feature-card" @click="navigateToRecommendedMatches">
             <div class="feature-icon">🎯</div>
             <h3>Smart Matching</h3>
             <p>Get personalized match recommendations based on your location, skill, and preferences</p>
@@ -1087,6 +1093,10 @@ const navigateToCourts = () => {
   router.push('/court-finder')
 }
 
+const navigateToLeaderboard = () => {
+  router.push('/leaderboard')
+}
+
 const getStarted = () => {
   // Navigate to matches or show sign-up if not logged in
   router.push('/matches')
@@ -1169,7 +1179,7 @@ onUnmounted(() => {
 /* Hero Section */
 .hero-section {
   padding: 20px 20px;
-  min-height: 80vh;
+  min-height: 10vh;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -1180,15 +1190,15 @@ onUnmounted(() => {
   max-width: 1200px;
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  /* gap:15px; */
   align-items: center;
 }
 
 .hero-title {
-  font-size: 3.2rem; /* reduced for improved balance */
-  font-weight: 700;
-  margin: 6px 0 10px 0;
-  line-height: 1.15;
+  font-size: 5rem;
+  font-weight: bold;
+  /* margin-bottom: 20px; */
+  line-height: 1.2;
   text-align: center;
   width: 100%;
   color: #dde3ea;
@@ -1197,7 +1207,7 @@ onUnmounted(() => {
 .hero-main {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 32px; /* tighter spacing */
+  gap: 50px;
   align-items: center;
   width: 100%;
   align-content: center;
@@ -1222,7 +1232,7 @@ onUnmounted(() => {
 .hero-subtitle {
   font-size: 1.25rem;
   color: #a2aec3;
-  margin-bottom: 40px;
+  margin-bottom: 30px;
   line-height: 1.6;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
   animation: fadeInUp 1s ease-out 0.5s both;
@@ -1322,7 +1332,7 @@ onUnmounted(() => {
 }
 
 .basketball-icon {
-  font-size: 8rem; /* slightly smaller to reduce visual weight */
+  font-size: 20rem;
   animation: bounce 1.5s infinite ease-in-out;
 }
 
@@ -2058,10 +2068,11 @@ section { padding-top: 40px; padding-bottom: 40px; }
 }
 
 .section-title {
-  font-size: 2.5rem;
+  font-size: 2rem;
   text-align: center;
   margin-bottom: 60px;
   color: #ff9500;
+  font-weight: bold;
 }
 
 .features-grid {

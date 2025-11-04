@@ -1,5 +1,5 @@
 <template>
-  <div class="jp-overlay" @click.self="close">
+  <ModalPortal @overlay="close">
     <div class="jp-modal card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <div>
@@ -46,10 +46,11 @@
         <div v-if="!players || !players.length" class="text-center text-muted py-4">No players yet</div>
       </div>
     </div>
-  </div>
+  </ModalPortal>
 </template>
 
 <script setup>
+import ModalPortal from './ModalPortal.vue'
 import { defineProps, defineEmits, ref } from 'vue'
 import { onUserStateChanged } from '../firebase/auth'
 import { getDataFromFirebase, setChildData, deleteChildData } from '../firebase/firebase'
