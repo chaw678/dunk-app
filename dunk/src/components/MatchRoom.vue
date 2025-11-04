@@ -1,9 +1,77 @@
 <template>
   <div class="matchroom-container">
+    <!-- Final Match Results View (shown when match is ended) -->
+    <div v-if="isMatchEnded" class="final-results-view">
+      <header class="final-results-header">
+        <h1>Final Match Results</h1>
+        <button @click="closeFinalResults" class="close-btn" aria-label="Close">✕</button>
+      </header>
+
+      <!-- Rounds History -->
+      <section class="rounds-history">
+        <h2 class="rounds-history-header">Rounds History</h2>
+
+        <div v-if="!(rounds && rounds.length)" class="rounds-empty">No rounds played yet.</div>
+
+        <div v-else class="round-list">
+          <div v-for="(r, idx) in (rounds || [])" :key="r.ts" class="round-card" :title="formatDate(r.endedAt)">
+            <div class="round-card-header">
+              <span class="round-index">Round {{ (rounds && rounds.length) ? (rounds.length - idx) : (idx + 1) }}</span>
+              <span class="round-time">{{ formatDate(r.endedAt) }}</span>
+              <span class="round-duration">{{ formatDuration(r.duration) }}</span>
+            </div>
+
+            <div class="round-teams">
+              <div class="round-team">
+                <div class="round-team-label">Team A</div>
+                <div class="round-team-roster">
+                  <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player">
+                    <div class="round-avatar">
+                      <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
+                      <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
+                    </div>
+                    <div class="round-player-name">{{ displayNameFor(uid) }}</div>
+                    <div class="round-player-stats">
+                      <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
+                      <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="round-team">
+                <div class="round-team-label">Team B</div>
+                <div class="round-team-roster">
+                  <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player">
+                    <div class="round-avatar">
+                      <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
+                      <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
+                    </div>
+                    <div class="round-player-name">{{ displayNameFor(uid) }}</div>
+                    <div class="round-player-stats">
+                      <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
+                      <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="r.winningTeam" class="round-winner">
+              Winner: Team {{ r.winningTeam }} ({{ winnersLabel(r) }})
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Normal Match Room View (shown when match is active) -->
+    <div v-else>
     <header>
-      <button @click="goBack" class="back-btn">← Back</button>
-      <h1>{{ displayTitle }}</h1>
-      <button @click="onEndMatch" class="end-match-btn">End Match</button>
+      <button @click="goBack" class="close-btn" aria-label="Close">✕</button>
+      <h1 v-if="teamsLocked">Round #{{ (rounds && rounds.length) ? (rounds.length + 1) : 1 }}</h1>
+      <h1 v-else>{{ displayTitle }}</h1>
+      <button v-if="!isPlayerView && isHost" @click="onEndMatch" class="end-match-btn">End Match</button>
     </header>
 
     <!-- Match details card -->
@@ -56,7 +124,7 @@
       <draggable
         v-model="bench"
         :group="'players'"
-        :disabled="teamsLocked"
+        :disabled="teamsLocked || !isHost"
         class="bench-list"
         item-key="uid"
       >
@@ -87,10 +155,20 @@
 
 
     <div class="center-timer">
-      <!-- Simple round controls (timer removed; control lives in RoundStarted) -->
-      
-
-      
+      <!-- If this is the player-only nested view and teams are locked, show a read-only timer card so
+           players see the round UI (but cannot set or start the timer). -->
+      <div v-if="isPlayerView && teamsLocked" class="timer-card">
+        <div class="timer-header">Round Timer</div>
+        <div class="timer-main">
+          <div class="time-large">00:00</div>
+          <div class="progress-wrap" aria-hidden="true">
+            <div class="progress-bar" style="width:0%"></div>
+          </div>
+        </div>
+        <div class="timer-controls">
+          <button class="btn-start disabled-btn" disabled>Start Round</button>
+        </div>
+      </div>
     </div>
 
   
@@ -99,7 +177,7 @@
     <section class="teams-grid">
       <div :class="['team-card', teamAOutlineClass]" @click="!teamsLocked && selectWinner('A')">
         <h2>Team A</h2>
-        <draggable v-model="teamA" :group="'players'" :disabled="teamsLocked" item-key="uid" class="team-drop-list">
+  <draggable v-model="teamA" :group="'players'" :disabled="teamsLocked || !isHost" item-key="uid" class="team-drop-list">
             <template #item="{ element }">
             <div class="player-avatar">
               <div class="player-left">
@@ -125,7 +203,7 @@
       </div>
       <div :class="['team-card', teamBOutlineClass]" @click="!teamsLocked && selectWinner('B')">
         <h2>Team B</h2>
-        <draggable v-model="teamB" :group="'players'" :disabled="teamsLocked" item-key="uid" class="team-drop-list">
+  <draggable v-model="teamB" :group="'players'" :disabled="teamsLocked || !isHost" item-key="uid" class="team-drop-list">
             <template #item="{ element }">
             <div class="player-avatar">
               <div class="player-left">
@@ -156,14 +234,20 @@
 
     <footer class="actions-row">
       <div class="controls-left">
-        <!-- <button @click="randomizeTeams" :disabled="teamsLocked">Randomize Teams</button>
-        <button @click="confirmTeams" :disabled="teamsLocked || !(teamA.length && teamB.length)">Confirm Teams</button> -->
-         <button @click="randomizeTeams" :disabled="teamsLocked">Randomize Teams</button>
-        <button
-          @click="confirmTeams"
-          :disabled="teamsLocked || !(teamA.length && teamB.length)"
-          :class="{ pulsate: confirmShouldPulse }"
-        >Confirm Teams</button>
+        <!-- Only show host controls when this is NOT the player-only nested view and the user is host -->
+        <template v-if="!isPlayerView && isHost">
+          <!-- Show "Go to Round" when round is active (teams locked from active round) -->
+          <button v-if="teamsLocked" @click="goToRound" class="go-to-round-btn">Go to Round</button>
+          <!-- Show team controls when round is not active -->
+          <template v-else>
+            <button @click="randomizeTeams">Randomize Teams</button>
+            <button
+              @click="confirmTeams"
+              :disabled="!(teamA.length && teamB.length)"
+              :class="{ pulsate: confirmShouldPulse }"
+            >Confirm Teams</button>
+          </template>
+        </template>
       </div>
 
     
@@ -188,65 +272,66 @@
 
   <!-- Rounds history panel (inlined & upgraded styling) -->
   <section class="rounds-history">
-    <div class="rounds-header">
-      <h2>Rounds History</h2>
-      <div class="rounds-sub">Recent rounds, winners & player win counts</div>
+    <h2 class="rounds-history-header">Rounds History</h2>
+
+    <div v-if="!(rounds && rounds.length)" class="rounds-empty">No rounds played yet. Start a round to see history here.</div>
+
+    <div v-else class="round-list">
+      <div v-for="(r, idx) in (rounds || [])" :key="r.ts" class="round-card" :title="formatDate(r.endedAt)">
+        <div class="round-card-header">
+          <span class="round-index">Round {{ (rounds && rounds.length) ? (rounds.length - idx) : (idx + 1) }}</span>
+          <span class="round-time">{{ formatDate(r.endedAt) }}</span>
+          <span class="round-duration">{{ formatDuration(r.duration) }}</span>
+        </div>
+
+        <div class="round-teams">
+          <div class="round-team">
+            <div class="round-team-label">Team A</div>
+            <div class="round-team-roster">
+              <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player">
+                <div class="round-avatar">
+                  <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
+                  <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
+                </div>
+                <div class="round-player-name">{{ displayNameFor(uid) }}</div>
+                <div class="round-player-stats">
+                  <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
+                  <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="round-team">
+            <div class="round-team-label">Team B</div>
+            <div class="round-team-roster">
+              <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player">
+                <div class="round-avatar">
+                  <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
+                  <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
+                </div>
+                <div class="round-player-name">{{ displayNameFor(uid) }}</div>
+                <div class="round-player-stats">
+                  <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
+                  <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="r.winningTeam" class="round-winner">
+          Winner: Team {{ r.winningTeam }} ({{ winnersLabel(r) }})
+        </div>
+      </div>
     </div>
-
-    <div v-if="!(rounds && rounds.length)" class="empty">No rounds played yet. Start a round to see history here.</div>
-
-    <ul v-else class="round-list">
-      <li v-for="(r, idx) in (rounds || [])" :key="r.ts" class="round-card" :title="formatDate(r.endedAt)">
-        <div class="card-left">
-          <div class="round-index">#{{ (rounds && rounds.length) ? (rounds.length - idx) : (idx + 1) }}</div>
-          <div class="round-time">{{ formatDate(r.endedAt) }}</div>
-          <div class="round-duration">⏱ {{ formatDuration(r.duration) }}</div>
-        </div>
-
-        <div class="card-main">
-          <div class="teams-row">
-            <div class="team-block team-a">
-              <div class="team-title">A</div>
-              <div class="team-members">
-                <template v-for="uid in (r.teamA || [])" :key="uid">
-                  <div class="member-pill">
-              <div class="member-avatar-small">{{ initials(displayNameFor(uid)) }}</div>
-              <div class="member-name">{{ displayNameFor(uid) }}</div>
-              <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
-              <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayMatchWinsForUid(uid) }}</div>
-                  </div>
-                </template>
-              </div>
-            </div>
-
-            <div class="team-block team-b">
-              <div class="team-title">B</div>
-              <div class="team-members">
-                <template v-for="uid in (r.teamB || [])" :key="uid">
-                  <div class="member-pill">
-                    <div class="member-avatar-small">{{ initials(displayNameFor(uid)) }}</div>
-                      <div class="member-name">{{ displayNameFor(uid) }}</div>
-                      <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
-                      <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayMatchWinsForUid(uid) }}</div>
-                  </div>
-                </template>
-              </div>
-            </div>
-          </div>
-
-          <div class="round-footer">
-            <div class="winner-pill">Winner: <strong>{{ r.winningTeam }} — {{ winnersLabel(r) }}</strong></div>
-            <div class="round-actions">
-              <button class="btn-mini">View details</button>
-            </div>
-          </div>
-        </div>
-      </li>
-    </ul>
   </section>
 
   <!-- Stats Modal -->
-  <StatisticsModal v-if="showStats" :stats="computedStats" @close="showStats=false" />
+  <!-- <StatisticsModal v-if="showStats" :stats="computedStats" @close="showStats=false" /> -->
+  <!-- nested child route outlet for player-only view -->
+  <router-view />
+  </div>
   </div>
   
 </template>
@@ -258,6 +343,7 @@
 import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
  import draggable from 'vuedraggable'
  import { useRoute, useRouter } from 'vue-router'
+import { onUserStateChanged } from '../firebase/auth'
 import { getDataFromFirebase, setChildData, onDataChange } from '../firebase/firebase'
 // RoundsHistory inlined below; no external import
 // import your StatisticsModal if you want fancy end-of-match stats
@@ -265,6 +351,40 @@ import { getDataFromFirebase, setChildData, onDataChange } from '../firebase/fir
 const route = useRoute()
 const router = useRouter()
 const matchId = computed(() => route.params.id)
+
+// determine if nested player child route is active
+const isPlayerView = computed(() => String(route.name) === 'PlayerRoom' || String(route.path || '').endsWith('/player'))
+
+// auth state so we can detect host user
+const currentUser = ref(null)
+onUserStateChanged((u) => { currentUser.value = u })
+
+const isHost = computed(() => {
+  try {
+    if (!currentUser.value || !matchData.value) return false
+    const owner = matchData.value.ownerId || matchData.value.ownerUid || matchData.value.owner || matchData.value.createdby || matchData.value.host
+    if (!owner) return false
+    const uid = currentUser.value.uid
+    if (owner === uid) return true
+    const name = currentUser.value.displayName || currentUser.value.email || ''
+    if (name && (owner === name || owner === currentUser.value.email)) return true
+    console.log('isHost check:', { currentUserUid: uid, owner, result: false })
+    return false
+  } catch (e) { 
+    console.log('isHost error:', e)
+    return false
+  }
+})
+
+const isMatchEnded = computed(() => {
+  try {
+    if (!matchData.value) return false
+    // Only show final results if matchEnded flag is explicitly set to true
+    return matchData.value.matchEnded === true
+  } catch (e) {
+    return false
+  }
+})
 
 // /** Initial player data */
 // const allPlayers = [
@@ -323,14 +443,26 @@ function subscribeUsers() {
     try { usersUnsub() } catch (e) {}
     usersUnsub = null
   }
-  usersUnsub = onDataChange('users', (val) => {
-    usersMap.value = val || {}
+  console.log('MatchRoom: Setting up users subscription')
+  return new Promise((resolve) => {
+    let firstLoad = true
+    usersUnsub = onDataChange('users', (val) => {
+      usersMap.value = val || {}
+      console.log('MatchRoom: usersMap updated with', Object.keys(usersMap.value).length, 'users')
+      if (firstLoad) {
+        firstLoad = false
+        resolve()
+      }
+    })
   })
 }
 
 async function enrichPlayers(list) {
   if (!list || !list.length) return []
   const users = usersMap.value || {}
+  console.log('MatchRoom enrichPlayers: input list', list)
+  console.log('MatchRoom enrichPlayers: usersMap has', Object.keys(users).length, 'users')
+  console.log('MatchRoom enrichPlayers: usersMap keys:', Object.keys(users))
 //   return list.map(p => {
 //     const uid = p.uid || p.id || p.key || ''
 //     const resolved = (users && users[uid]) || null
@@ -342,22 +474,49 @@ async function enrichPlayers(list) {
 //   })
 
 const out = list.map(p => {
-    const uid = p.uid || p.id || p.key || ''
-  const resolved = (users && users[uid]) || null
+    console.log('MatchRoom enrichPlayers: processing item', p, 'type:', typeof p)
+    // Handle both string UIDs and objects
+    const uid = (typeof p === 'string') ? p : (p.uid || p.id || p.key || '')
+    console.log('MatchRoom enrichPlayers: extracted uid:', uid)
+  // robust lookup: try direct key, trimmed key, then value-field matches
+  let resolved = (users && users[uid]) || null
+  let resolvedKey = resolved ? uid : null
+  if (!resolved) {
+    const keys = Object.keys(users || {})
+    // try trimmed exact match
+    const kTrim = keys.find(k => String(k).trim() === String(uid).trim())
+    if (kTrim) {
+      resolved = users[kTrim]
+      resolvedKey = kTrim
+    }
+  }
+  if (!resolved) {
+    // try to find user by matching common id fields inside the user objects
+    const found = Object.entries(users || {}).find(([k, v]) => {
+      if (!v || typeof v !== 'object') return false
+      return (v.uid === uid || v.id === uid || v.key === uid || v.userId === uid || v.username === uid)
+    })
+    if (found) {
+      resolvedKey = found[0]
+      resolved = found[1]
+    }
+  }
+  console.log('MatchRoom enrichPlayers: uid', uid, 'resolved:', resolved ? `FOUND (key=${resolvedKey})` : 'NOT FOUND', resolved ? resolved.name : '')
     // prefer profile values from usersMap (resolved) over any local fields on p
     // Prefer an explicit profilepicture field if present (new canonical key)
-    const avatar = (resolved && (resolved.profilepicture || resolved.avatar || resolved.photoURL || resolved.picture || resolved.photo || resolved.imageURL || resolved.thumbnail)) || p.avatar || null
+    const avatar = (resolved && (resolved.profilepicture || resolved.avatar || resolved.photoURL || resolved.picture || resolved.photo || resolved.imageURL || resolved.thumbnail)) || (typeof p === 'object' ? p.avatar : null) || null
 
     // If no avatar at all, generate a fallback seeded by profile name or local name
     let finalAvatar = avatar
     if (!finalAvatar) {
-      const seedName = encodeURIComponent(((resolved && (resolved.name || resolved.displayName || resolved.username)) || p.name || uid || '').split(' ')[0])
+      const pName = (typeof p === 'object') ? p.name : null
+      const seedName = encodeURIComponent(((resolved && (resolved.name || resolved.displayName || resolved.username)) || pName || uid || '').split(' ')[0])
       if (resolved && resolved.gender) {
         finalAvatar = (String(resolved.gender).toLowerCase() === 'female')
           ? `https://avatar.iran.liara.run/public/girl?username=${seedName}`
           : `https://avatar.iran.liara.run/public/boy?username=${seedName}`
       } else {
-        const nameFull = encodeURIComponent(((resolved && (resolved.name || resolved.displayName)) || p.name || uid).trim())
+        const nameFull = encodeURIComponent(((resolved && (resolved.name || resolved.displayName)) || pName || uid).trim())
         finalAvatar = `https://ui-avatars.com/api/?name=${nameFull}&background=1f262b&color=ffad1d&format=png&size=128`
       }
 
@@ -577,6 +736,110 @@ async function loadWins() {
   } catch (e) { console.warn('loadWins failed', e) }
 }
 
+let teamsUnsub = null
+let hasNavigatedToRound = false // Track if we've already navigated to prevent loops
+let manuallyReturnedToMatchRoom = false // Track if user manually clicked back from RoundStarted
+let lastTeamsHash = null // track last seen teams to detect changes
+let lastTeamsConfirmedAt = null
+let matchRoundActiveUnsub = null
+async function subscribeTeams(dbPath) {
+  try {
+    if (!dbPath) return
+    console.log('subscribeTeams: setting up subscription for', dbPath)
+    if (teamsUnsub) { try { teamsUnsub() } catch (e) {} ; teamsUnsub = null }
+    // Subscribe to teams node so non-host players update their UI when host confirms
+    teamsUnsub = onDataChange(`${dbPath}/teams`, async (val) => {
+      console.log('subscribeTeams: teams change detected', val)
+      try {
+        if (!val) {
+          // clear teams if DB teams removed
+          teamA.value = []
+          teamB.value = []
+          teamsLocked.value = false
+          await populateBenchFromMatch(matchData.value)
+          return
+        }
+        const rawA = Array.isArray(val.teamA) ? val.teamA : (val.teamA ? normalizePlayers(val.teamA) : [])
+        const rawB = Array.isArray(val.teamB) ? val.teamB : (val.teamB ? normalizePlayers(val.teamB) : [])
+        const enrichedA = await enrichPlayers(rawA)
+        const enrichedB = await enrichPlayers(rawB)
+        
+        // Only update teams if this is NOT the host, or if teams are currently empty
+        // This prevents overwriting the host's local team assignments when they return to MatchRoom
+        if (!isHost.value || (teamA.value.length === 0 && teamB.value.length === 0)) {
+          teamA.value = enrichedA
+          teamB.value = enrichedB
+          // Only lock teams for non-host players
+          // Hosts should always be able to reorganize teams for the next round
+          if (!isHost.value) {
+            teamsLocked.value = true
+          }
+          // remove assigned players from bench
+          try {
+            const removed = new Set([...(enrichedA || []).map(p => p.uid), ...(enrichedB || []).map(p => p.uid)])
+            bench.value = (bench.value || []).filter(p => !removed.has(p.uid))
+          } catch (e) { /* ignore */ }
+        }
+        
+        // If this is a non-host player viewing MatchRoom and teams just became locked,
+        // navigate them to RoundStarted so they see the same UI as the host.
+        // We compute a teams hash so that if teams change (host confirms new teams)
+        // we will clear the manual-return block and navigate players.
+        try {
+          const teamsArr = { teamA: (val && val.teamA) ? (Array.isArray(val.teamA) ? val.teamA : Object.values(val.teamA)) : [], teamB: (val && val.teamB) ? (Array.isArray(val.teamB) ? val.teamB : Object.values(val.teamB)) : [] }
+          const newHash = JSON.stringify({ a: (teamsArr.teamA || []).slice().sort(), b: (teamsArr.teamB || []).slice().sort() })
+          const hasTeams = !!(val && (val.teamA || val.teamB))
+          console.log('subscribeTeams: teams updated', { isHost: isHost.value, hasTeams, currentRoute: route.path, hasNavigated: hasNavigatedToRound, manualReturn: manuallyReturnedToMatchRoom, newHash, lastTeamsHash })
+
+          // If teams changed compared to last seen, allow navigation (clear manual-return)
+          if (lastTeamsHash !== newHash) {
+            console.log('subscribeTeams: detected teams change (hash mismatch). resetting manual return flag')
+            manuallyReturnedToMatchRoom = false
+            lastTeamsHash = newHash
+          }
+          // Also check for an explicit teamsConfirmedAt timestamp written by the host
+          const confirmedAt = (val && (val.teamsConfirmedAt || val.teamsConfirmedAt === 0)) ? String(val.teamsConfirmedAt) : (val && val.teamsConfirmed) ? String(val.teamsConfirmed) : null
+          if (confirmedAt && confirmedAt !== lastTeamsConfirmedAt) {
+            console.log('subscribeTeams: detected teamsConfirmedAt change', { new: confirmedAt, old: lastTeamsConfirmedAt })
+            manuallyReturnedToMatchRoom = false
+            lastTeamsConfirmedAt = confirmedAt
+          }
+
+          if (!hasNavigatedToRound && !isHost.value && hasTeams && !manuallyReturnedToMatchRoom) {
+            hasNavigatedToRound = true // Set flag to prevent re-navigation
+            console.log('Non-host detected with teams - navigating to RoundStarted')
+            // navigate to RoundStarted with teams in state
+            const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
+            const teamAUids = (enrichedA || []).map(p => p.uid || p.name || p)
+            const teamBUids = (enrichedB || []).map(p => p.uid || p.name || p)
+            const state = { teams: { teamA: teamAUids, teamB: teamBUids }, confirmed: true }
+            if (matchData.value && matchData.value.__dbPath) state.matchPath = matchData.value.__dbPath
+            // include owner so RoundStarted can detect non-host immediately
+            const owner = matchData.value && (matchData.value.ownerId || matchData.value.ownerUid || matchData.value.owner || matchData.value.createdby || matchData.value.host)
+            if (owner) state.owner = owner
+            console.log('Pushing to RoundStarted with state:', state)
+            await router.push({ name: 'RoundStarted', params: { id: matchId.value }, query, state })
+            console.log('Navigation complete')
+          }
+        } catch (e) { console.warn('Failed to navigate player to RoundStarted', e) }
+      } catch (e) { console.warn('subscribeTeams handler failed', e) }
+    })
+
+    // Also subscribe to an explicit teamsLocked boolean in case host toggles it separately
+    // Only apply this lock to non-hosts; hosts should always be able to edit teams
+    try {
+      onDataChange(`${dbPath}/teamsLocked`, (val) => {
+        try { 
+          if (!isHost.value) {
+            teamsLocked.value = !!val 
+          }
+        } catch (e) {}
+      })
+    } catch (e) { /* ignore */ }
+
+  } catch (e) { console.warn('subscribeTeams failed', e) }
+}
+
 // --- rounds history (inlined) ---
 const rounds = ref([])
 let roundsUnsub = null
@@ -629,6 +892,21 @@ function displayNameFor(element) {
   const resolvedName = (resolved && (resolved.name || resolved.displayName || resolved.username)) || null
   const fallback = uid || (element && element.name) || 'Player'
   return element.name || resolvedName || fallback
+}
+
+// Prefer canonical avatar from the users map when available, otherwise fall
+// back to any avatar provided on the local player object.
+function displayAvatarFor(element) {
+  if (!element) return null
+  const uid = (typeof element === 'string') ? element : (element.uid || element.id || element.key || null)
+  const resolved = uid && usersMap.value ? usersMap.value[uid] : null
+  if (resolved) {
+    // prefer profilepicture when present (new canonical key), then other profile image fields
+    return resolved.profilepicture || resolved.avatar || resolved.photoURL || resolved.picture || resolved.photo || resolved.imageURL || resolved.thumbnail || null
+  }
+  // fallback to element.avatar if provided
+  if (typeof element === 'object' && element.avatar) return element.avatar
+  return null
 }
 
 function sanitizeUserKey(uname) {
@@ -690,8 +968,10 @@ const computedStats = computed(() => ({
 onMounted(async () => {
   if (!matchId.value && !route.query.path) return
   try {
-    // start live users subscription so player wins are available when enriching
-    subscribeUsers()
+    // start live users subscription and wait for initial load
+    // so enrichPlayers can resolve profile names immediately
+    await subscribeUsers()
+    console.log('MatchRoom onMounted: subscribeUsers complete')
     let data = null
     const pathQuery = route.query.path
     // If navigation provided teams via history state (for example returning
@@ -711,7 +991,21 @@ onMounted(async () => {
         const rawB = Array.isArray(teams.teamB) ? teams.teamB.map(u => (typeof u === 'string' ? { uid: u } : (u && u.uid ? { uid: u.uid } : u))) : []
         teamA.value = await enrichPlayers(rawA)
         teamB.value = await enrichPlayers(rawB)
-        // do NOT set teamsLocked here; leaving it false allows re-randomization
+        // Lock teams if coming back from an active round, unlock if winner was selected
+        // roundActive: true = timer was running, lock teams and show "Go to Round"
+        // confirmed: true (without roundActive) = winner selected, unlock teams for next round
+        teamsLocked.value = historyState.roundActive === true
+        // compute and remember teams hash so subscribeTeams can detect future changes
+        try {
+          const a = Array.isArray(teams.teamA) ? teams.teamA : (teams.teamA ? Object.values(teams.teamA) : [])
+          const b = Array.isArray(teams.teamB) ? teams.teamB : (teams.teamB ? Object.values(teams.teamB) : [])
+          lastTeamsHash = JSON.stringify({ a: (a || []).slice().sort(), b: (b || []).slice().sort() })
+        } catch (e) { /* ignore */ }
+        // If restore flag is present, user manually clicked back - prevent immediate auto-navigation
+        if (historyState.restore === true) {
+          manuallyReturnedToMatchRoom = true
+          console.log('Manual return detected - will not auto-navigate to RoundStarted')
+        }
         restoredTeams = true
         // if matchPath provided, prefer it when loading matchData below
         if (historyState.matchPath) route.query.path = historyState.matchPath
@@ -719,12 +1013,18 @@ onMounted(async () => {
     }
     if (pathQuery) {
       data = await getDataFromFirebase(pathQuery)
-      if (data) { matchData.value = { ...(data || {}), __dbPath: String(pathQuery) }; return }
+      if (data) { 
+        matchData.value = { ...(data || {}), __dbPath: String(pathQuery) }
+        // Don't return here - continue to set up subscriptions below
+      }
     }
-    data = await getDataFromFirebase(`matches/${matchId.value}`)
-    if (data) {
-      matchData.value = { ...(data || {}), __dbPath: `matches/${matchId.value}` }
-    } else {
+    if (!data) {
+      data = await getDataFromFirebase(`matches/${matchId.value}`)
+      if (data) {
+        matchData.value = { ...(data || {}), __dbPath: `matches/${matchId.value}` }
+      }
+    }
+    if (!data) {
       const all = await getDataFromFirebase('matches')
       if (all && typeof all === 'object') {
         outer:
@@ -757,6 +1057,37 @@ onMounted(async () => {
       } catch (e) { console.warn('Failed to trim bench after restoring teams', e) }
       // subscribe to live wins updates for this match
       await loadWins()
+      // subscribe to teams so players see confirmed team allocations
+      try {
+        const dbPath = await resolveMatchDbPath()
+        console.log('onMounted: attempting to subscribe to teams at path:', dbPath)
+        if (dbPath) {
+          await subscribeTeams(dbPath)
+          console.log('onMounted: subscribeTeams completed successfully')
+          // subscribe to roundActive so hosts who navigate back while a round is
+          // active see locked teams and the 'Go to Round' button
+          try {
+            if (matchRoundActiveUnsub) { try { matchRoundActiveUnsub() } catch (e) {} ; matchRoundActiveUnsub = null }
+            matchRoundActiveUnsub = onDataChange(`${dbPath}/roundActive`, (val) => {
+              try {
+                // reflect remote round state locally
+                roundActive.value = !!val
+                // when a round is active, lock teams so they cannot be moved
+                if (roundActive.value) {
+                  teamsLocked.value = true
+                } else {
+                  // when round ends, allow teams to be unlocked according to DB
+                  teamsLocked.value = !!val
+                }
+              } catch (e) { console.warn('match roundActive handler failed', e) }
+            })
+          } catch (e) { console.warn('subscribe to match roundActive failed', e) }
+        } else {
+          console.warn('onMounted: dbPath is null, cannot subscribe to teams')
+        }
+      } catch (e) { 
+        console.error('subscribeTeams on mount failed', e) 
+      }
   } catch (e) {
     console.error('Failed to load match data', e)
   }
@@ -827,10 +1158,16 @@ async function saveTeamsToDB() {
     const payload = {
       teams: {
         teamA: teamA.value.map(p => p.uid || p.name || p),
-        teamB: teamB.value.map(p => p.uid || p.name || p)
+        teamB: teamB.value.map(p => p.uid || p.name || p),
+        teamsConfirmedAt: Date.now() // Write timestamp alongside teams so subscription sees it
       }
     }
     await setChildData(dbPath, 'teams', payload.teams)
+    // Persist a teamsLocked flag so other clients (players) can react and
+    // show the confirmed allocations immediately.
+    try { 
+      await setChildData(dbPath, 'teamsLocked', true)
+    } catch (e) { /* non-fatal */ }
   } catch (e) {
     console.warn('saveTeamsToDB failed', e)
   }
@@ -889,6 +1226,13 @@ async function confirmTeams() {
   // prefer named route and pass the match DB path so RoundStarted can return to the exact same DB node
   const navState = { teams: { teamA: teamA.value.map(p => p.uid || p.name || p), teamB: teamB.value.map(p => p.uid || p.name || p) } }
   if (matchData.value && matchData.value.__dbPath) navState.matchPath = matchData.value.__dbPath
+  // include owner info so RoundStarted can immediately detect host when
+  // navigation arrives via history state (avoids a round-trip to DB before
+  // enabling host-only controls)
+  try {
+    const owner = matchData.value && (matchData.value.ownerId || matchData.value.ownerUid || matchData.value.owner || matchData.value.createdby || matchData.value.host)
+    if (owner) navState.owner = owner
+  } catch (e) { /* ignore */ }
   const query = {}
   if (matchData.value && matchData.value.__dbPath) query.path = matchData.value.__dbPath
   // prefer named route and include history state + query path
@@ -902,6 +1246,35 @@ async function confirmTeams() {
     } catch (err2) {
       console.error('Navigation failed', err2)
       alert('Navigation failed — check console for details')
+    }
+  }
+}
+
+// Navigate to RoundStarted when round is already active
+async function goToRound() {
+  try {
+    const navState = { 
+      teams: { 
+        teamA: teamA.value.map(p => p.uid || p.name || p), 
+        teamB: teamB.value.map(p => p.uid || p.name || p) 
+      },
+      roundActive: true // Indicate round is already active
+    }
+    if (matchData.value && matchData.value.__dbPath) navState.matchPath = matchData.value.__dbPath
+    const owner = matchData.value && (matchData.value.ownerId || matchData.value.ownerUid || matchData.value.owner || matchData.value.createdby || matchData.value.host)
+    if (owner) navState.owner = owner
+    
+    const query = {}
+    if (matchData.value && matchData.value.__dbPath) query.path = matchData.value.__dbPath
+    
+    await router.push({ name: 'RoundStarted', params: { id: matchId.value }, query, state: navState })
+    console.log('Navigated to active round')
+  } catch (err) {
+    console.error('Navigation to round failed', err)
+    try {
+      await router.push(`/match/${encodeURIComponent(String(matchId.value))}/round`)
+    } catch (err2) {
+      console.error('Fallback navigation failed', err2)
     }
   }
 }
@@ -943,7 +1316,6 @@ function selectWinner(team) {
 async function onEndMatch() {
   // optionally confirm ending match
   if (!confirm('End the match now?')) return
-  showStats.value = true
   // persist match end state and ensure roundActive is false
   try {
     const dbPath = await resolveMatchDbPath()
@@ -952,24 +1324,37 @@ async function onEndMatch() {
       // ensure round is closed
       await setChildData(dbPath, 'roundActive', false)
       await setChildData(dbPath, 'lastRoundEndedAt', nowIso)
-      // mark match as ended so Matches.vue treats it as past immediately
-      try {
-        await setChildData(dbPath, 'started', false)
-      } catch (e) { /* non-fatal */ }
-      try {
-        await setChildData(dbPath, 'endedAt', nowIso)
-      } catch (e) { /* non-fatal */ }
-      // also set endAtISO for consistency with other places that check ISO fields
-      try { await setChildData(dbPath, 'endAtISO', nowIso) } catch (e) {}
+      // mark match as ended
+      await setChildData(dbPath, 'matchEnded', true)
+      await setChildData(dbPath, 'endedAt', nowIso)
+      await setChildData(dbPath, 'endAtISO', nowIso)
+      await setChildData(dbPath, 'started', false)
       // keep local model in sync so UI updates immediately
-      try { matchData.value = { ...(matchData.value || {}), started: false, endedAt: nowIso, endAtISO: nowIso } } catch (e) {}
-      // navigate back to Matches so the card shows under Past Matches
-      try { await router.push('/matches') } catch (e) { /* ignore navigation failures */ }
+      matchData.value = { ...(matchData.value || {}), matchEnded: true, started: false, endedAt: nowIso, endAtISO: nowIso }
     }
-  } catch (e) { /* ignore persistence errors */ }
+  } catch (e) { 
+    console.warn('End match error:', e)
+  }
 }
 
-function goBack() { router.back() }
+function closeFinalResults() {
+  // Navigate back to Matches so the card shows under Past Matches
+  try {
+    router.push('/matches')
+  } catch (e) {
+    console.warn('Navigation failed:', e)
+  }
+}
+
+function goBack() {
+  // Close MatchRoom and navigate to Matches organizer showing the All Matches tab
+  try {
+    router.push({ path: '/matches', query: { tab: 'all' } })
+  } catch (e) {
+    // fallback to history back if push fails
+    try { router.back() } catch (err) { /* ignore */ }
+  }
+}
 
 onBeforeUnmount(() => {
   if (winsUnsub) {
@@ -986,6 +1371,8 @@ onBeforeUnmount(() => {
   }
   if (playersMapUnsub) { try { playersMapUnsub() } catch (e) {} ; playersMapUnsub = null }
   if (winsByEachPlayerUnsub) { try { winsByEachPlayerUnsub() } catch (e) {} ; winsByEachPlayerUnsub = null }
+  if (teamsUnsub) { try { teamsUnsub() } catch (e) {} ; teamsUnsub = null }
+  if (matchRoundActiveUnsub) { try { matchRoundActiveUnsub() } catch (e) {} ; matchRoundActiveUnsub = null }
 })
 
 </script>
@@ -1013,8 +1400,46 @@ onBeforeUnmount(() => {
 
 .preset.pulsate, .btn-set-inline.pulsate, button.pulsate { outline: none; }
 
+/* Final Results View */
+.final-results-view {
+  min-height: 100vh;
+  padding: 20px;
+}
+.final-results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+.final-results-header h1 {
+  color: #ffd98a;
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin: 0;
+}
+.final-results-view .rounds-history {
+  margin-top: 0;
+}
+
 /* ensure disabled attribute still shows cursor not-allowed where needed */
 button[disabled] { cursor: not-allowed; opacity: 0.6; }
+
+/* Go to Round button styling */
+.go-to-round-btn {
+  background: linear-gradient(90deg, #4a9eff, #2e7bd4) !important;
+  color: #fff !important;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(74, 158, 255, 0.25);
+  transition: all 0.2s ease;
+}
+.go-to-round-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(74, 158, 255, 0.35);
+}
 
 .timer-setter-inline .setter-row { display:flex; flex-direction:column; gap:10px; width:100%; align-items:center; }
 .time-inputs-inline { display:flex; align-items:center; gap:10px; }
@@ -1119,6 +1544,22 @@ header { display: flex; align-items: center; justify-content: space-between; }
 @keyframes pulseborder { from { box-shadow: 0 0 0 0 #ffad1d55; } to { box-shadow: 0 0 20px 8px #ffad1d90; } }
 .actions-row { margin-top: 30px; display: flex; gap: 22px; justify-content: center; }
 .back-btn, .end-match-btn { border:none; background:#B23B3B; color: #fff; border-radius: 8px; padding:9px 18px; font-weight:700; }
+.close-btn {
+  border: none;
+  background: transparent;
+  color: #fff;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease;
+}
+.close-btn:hover { background: rgba(255,255,255,0.03); transform: scale(1.03) }
 .bench-section p { font-size: 0.96rem; color: #ccc; margin-bottom:16px; }
 .teams-grid { display: flex; gap: 34px; align-items: flex-start; justify-content: center; }
 
@@ -1144,31 +1585,149 @@ header { display: flex; align-items: center; justify-content: space-between; }
 .wins-title { text-align:center; margin-top:8px; color:#ffda99; font-size:2.6rem; font-weight:800; }
 .bar-count { color:#fff; font-weight:900; font-size:2rem; margin-top:10px; }
 
-/* --- Rounds history upgraded styles --- */
-.rounds-history { margin: 22px auto; max-width: 980px; background: linear-gradient(180deg,#0f1114,#15161a); padding: 16px; border-radius: 14px; border:1px solid rgba(255,255,255,0.04); box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
-.rounds-header { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:12px }
-.rounds-header h2 { color:#ffd98a; margin:0; font-size:1.6rem }
-.rounds-sub { color:#d3c7a3; font-size:0.9rem }
-.round-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:12px }
-.round-card { display:flex; gap:12px; align-items:flex-start; background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02)); padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.03); transition: transform 180ms ease, box-shadow 180ms ease; }
-.round-card:hover { transform: translateY(-6px); box-shadow: 0 18px 40px rgba(0,0,0,0.6); }
-.card-left { width:140px; display:flex; flex-direction:column; gap:6px; align-items:flex-start }
-.round-index { font-weight:900; color:#fff; font-size:1.1rem }
-.round-time { color:#d3c7a3; font-size:0.85rem }
-.round-duration { color:#ffd98a; font-weight:800; font-size:0.85rem }
-.card-main { flex:1; display:flex; flex-direction:column; gap:10px }
-.teams-row { display:flex; gap:10px; align-items:flex-start }
-.team-block { flex:1; background: rgba(255,255,255,0.02); padding:8px; border-radius:10px }
-.team-title { font-weight:900; color:#fff4d1; margin-bottom:8px }
-.team-members { display:flex; gap:8px; flex-wrap:wrap }
-.member-pill { display:flex; gap:8px; align-items:center; background: linear-gradient(180deg, #0f1114, #141516); padding:6px 8px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); }
-.member-avatar-small { width:30px; height:30px; border-radius:50%; background:#ffad1d; color:#0b0b0b; display:flex; align-items:center; justify-content:center; font-weight:900 }
-  .member-name { color:#fff; font-weight:800; font-size:0.82rem }
-  .member-sub { color:#cfc9b0; font-weight:700; font-size:0.72rem; margin-left:4px }
-  .member-wins { color:#ffd98a; font-weight:900; margin-left:6px }
-.round-footer { display:flex; justify-content:space-between; align-items:center }
-.winner-pill { background: linear-gradient(90deg,#1f262b,#23272b); color:#ffd98a; padding:6px 10px; border-radius:10px; font-weight:800 }
-.btn-mini { background:#ffad1d; border:none; color:#0b0b0b; padding:6px 10px; border-radius:8px; font-weight:800; cursor:pointer }
+/* --- Rounds History Styles --- */
+.rounds-history { 
+  margin: 32px auto; 
+  max-width: 980px; 
+  background: linear-gradient(180deg,#0f1114,#15161a); 
+  padding: 20px; 
+  border-radius: 14px; 
+  border: 1px solid rgba(255,255,255,0.04); 
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6); 
+}
+.rounds-history-header { 
+  color: #ffd98a; 
+  margin: 0 0 16px 0; 
+  font-size: 1.8rem; 
+  font-weight: 800;
+  text-align: center;
+}
+.rounds-empty { 
+  color: #cfc9b0; 
+  text-align: center; 
+  padding: 20px; 
+  font-size: 0.95rem; 
+}
+.round-list { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 16px; 
+}
+.round-card { 
+  background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02)); 
+  padding: 16px; 
+  border-radius: 12px; 
+  border: 1px solid rgba(255,255,255,0.03); 
+  transition: transform 180ms ease, box-shadow 180ms ease; 
+}
+.round-card:hover { 
+  transform: translateY(-4px); 
+  box-shadow: 0 18px 40px rgba(0,0,0,0.6); 
+}
+.round-card-header { 
+  display: flex; 
+  gap: 16px; 
+  align-items: center; 
+  margin-bottom: 12px; 
+  flex-wrap: wrap;
+}
+.round-index { 
+  font-weight: 900; 
+  color: #fff; 
+  font-size: 1.1rem; 
+}
+.round-time { 
+  color: #d3c7a3; 
+  font-size: 0.85rem; 
+}
+.round-duration { 
+  color: #ffd98a; 
+  font-weight: 800; 
+  font-size: 0.85rem; 
+}
+.round-teams { 
+  display: flex; 
+  gap: 16px; 
+  margin-bottom: 12px; 
+}
+.round-team { 
+  flex: 1; 
+  background: rgba(255,255,255,0.02); 
+  padding: 12px; 
+  border-radius: 10px; 
+}
+.round-team-label { 
+  font-weight: 900; 
+  color: #fff4d1; 
+  margin-bottom: 10px; 
+  font-size: 0.95rem;
+}
+.round-team-roster { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 8px; 
+}
+.round-player { 
+  display: flex; 
+  gap: 10px; 
+  align-items: center; 
+  background: linear-gradient(180deg, #0f1114, #141516); 
+  padding: 8px 10px; 
+  border-radius: 8px; 
+  border: 1px solid rgba(255,255,255,0.03); 
+}
+.round-avatar { 
+  flex-shrink: 0; 
+}
+.round-avatar-img { 
+  width: 36px; 
+  height: 36px; 
+  border-radius: 50%; 
+  border: 2px solid #ffad1d; 
+  object-fit: cover; 
+}
+.round-avatar-fallback { 
+  width: 36px; 
+  height: 36px; 
+  border-radius: 50%; 
+  border: 2px solid #ffad1d; 
+  background: #1f262b; 
+  color: #ffad1d; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  font-weight: 700; 
+  font-size: 0.85rem; 
+}
+.round-player-name { 
+  color: #fff; 
+  font-weight: 800; 
+  font-size: 0.9rem; 
+  flex: 1; 
+}
+.round-player-stats { 
+  display: flex; 
+  gap: 6px; 
+}
+.stat-total { 
+  color: #cfc9b0; 
+  font-weight: 700; 
+  font-size: 0.72rem; 
+}
+.stat-trophy { 
+  color: #ffd98a; 
+  font-weight: 900; 
+  font-size: 0.82rem;
+}
+.round-winner { 
+  background: linear-gradient(90deg,#1f262b,#23272b); 
+  color: #ffd98a; 
+  padding: 10px 14px; 
+  border-radius: 10px; 
+  font-weight: 800; 
+  text-align: center;
+  font-size: 0.95rem;
+}
 
 /* pulse animation for wins increments */
 .pulse-win { animation: wins-pulse 820ms cubic-bezier(.2,.9,.2,1); transform-origin: center; }

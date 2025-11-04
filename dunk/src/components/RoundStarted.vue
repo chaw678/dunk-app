@@ -1,7 +1,72 @@
 <template>
   <div class="matchroom-container">
+    <!-- Final Match Results View (shown when match is ended) -->
+    <div v-if="isMatchEnded" class="final-results-view">
+      <header class="final-results-header">
+        <h1>Final Match Results</h1>
+        <button @click="closeFinalResults" class="close-btn" aria-label="Close">✕</button>
+      </header>
+
+      <!-- Rounds History -->
+      <section class="rounds-history">
+        <h2 class="rounds-history-header">Rounds History</h2>
+        <div v-if="!rounds || rounds.length === 0" class="rounds-empty">
+          No rounds played yet.
+        </div>
+        <div v-else class="round-list">
+          <div v-for="(r, idx) in rounds" :key="r.key || idx" class="round-card">
+            <div class="round-card-header">
+              <span class="round-index">Round {{ rounds.length - idx }}</span>
+              <span class="round-time">{{ formatDate(r.endedAt) }}</span>
+              <span class="round-duration">{{ formatDuration(r.duration) }}</span>
+            </div>
+            <div class="round-teams">
+              <div class="round-team">
+                <div class="round-team-label">Team A</div>
+                <div class="round-team-roster">
+                  <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player">
+                    <div class="round-avatar">
+                      <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
+                      <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
+                    </div>
+                    <div class="round-player-name">{{ displayNameFor(uid) }}</div>
+                    <div class="round-player-stats">
+                      <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
+                      <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="round-team">
+                <div class="round-team-label">Team B</div>
+                <div class="round-team-roster">
+                  <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player">
+                    <div class="round-avatar">
+                      <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
+                      <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
+                    </div>
+                    <div class="round-player-name">{{ displayNameFor(uid) }}</div>
+                    <div class="round-player-stats">
+                      <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
+                      <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-if="r.winningTeam" class="round-winner">
+              Winner: Team {{ r.winningTeam }} ({{ winnersLabel(r) }})
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Normal Round View (shown when match is active) -->
+    <div v-else>
     <header>
-      <button @click="goBack" class="back-btn">← Back</button>
+      <button v-if="isHost" @click="goBack" class="back-btn">← Back</button>
+      <button v-else @click="closePlayerView" class="close-btn" aria-label="Close">✕</button>
   <h1>Round #{{ displayTitle }}</h1>
       <div></div>
     </header>
@@ -12,7 +77,7 @@
         <div class="timer-header">Round Timer</div>
 
         <div class="timer-main">
-          <div class="timer-setter-inline" v-if="!timerSet && !roundActive && !roundFinished">
+          <div class="timer-setter-inline" v-if="isHost && !timerSet && !roundActive && !roundFinished">
             <div class="setter-row">
               <div class="time-inputs-inline">
                 <input class="time-input" type="number" min="0" v-model.number="timerMinutes" placeholder="Min" :disabled="timerControlsDisabled" />
@@ -35,7 +100,7 @@
           </div>
         </div>
 
-        <div class="timer-controls">
+  <div class="timer-controls" v-if="isHost">
           <button
             class="btn-start"
             v-if="!roundActive && !roundFinished"
@@ -49,7 +114,7 @@
           <button class="btn-reset" v-if="roundActive && timerPaused" @click.prevent.stop="restartRound">Restart</button>
           <button class="btn-reset" v-if="!roundActive && timerSet && !roundFinished" @click="resetTimer">Reset</button>
           <button class="btn-end" v-if="roundActive" @click.prevent.stop="endRound(true)">End Round</button>
-        </div>
+  </div>
       </div>
     </div>
 
@@ -84,8 +149,8 @@
 
 
 
-    <!-- Winner selection after round ended -->
-    <section v-if="!roundActive && roundFinished" class="winner-section">
+    <!-- Winner selection after round ended (host only) -->
+    <section v-if="isHost && !roundActive && roundFinished" class="winner-section">
       <p class="pick-txt">Pick winning team:</p>
       <div class="winner-buttons">
         <button @click="selectWinner('A')" :class="{ winnerBtn: selectedWinner === 'A' }" :disabled="!roundFinished">Team A</button>
@@ -115,6 +180,61 @@
         </div>
       </div>
     </section>
+
+    <!-- Rounds History (always visible for players) -->
+    <section class="rounds-history">
+      <h2 class="rounds-history-header">Rounds History</h2>
+      <div v-if="!rounds || rounds.length === 0" class="rounds-empty">
+        No rounds played yet.
+      </div>
+      <div v-else class="round-list">
+        <div v-for="(r, idx) in rounds" :key="r.key || idx" class="round-card">
+          <div class="round-card-header">
+            <span class="round-index">Round {{ rounds.length - idx }}</span>
+            <span class="round-time">{{ formatDate(r.endedAt) }}</span>
+            <span class="round-duration">{{ formatDuration(r.duration) }}</span>
+          </div>
+          <div class="round-teams">
+            <div class="round-team">
+              <div class="round-team-label">Team A</div>
+              <div class="round-team-roster">
+                <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player">
+                  <div class="round-avatar">
+                    <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
+                    <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
+                  </div>
+                  <div class="round-player-name">{{ displayNameFor(uid) }}</div>
+                  <div class="round-player-stats">
+                    <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
+                    <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="round-team">
+              <div class="round-team-label">Team B</div>
+              <div class="round-team-roster">
+                <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player">
+                  <div class="round-avatar">
+                    <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
+                    <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
+                  </div>
+                  <div class="round-player-name">{{ displayNameFor(uid) }}</div>
+                  <div class="round-player-stats">
+                    <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
+                    <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-if="r.winningTeam" class="round-winner">
+            Winner: Team {{ r.winningTeam }} ({{ winnersLabel(r) }})
+          </div>
+        </div>
+      </div>
+    </section>
+    </div>
   </div>
 </template>
 
@@ -122,24 +242,92 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getDataFromFirebase, setChildData, deleteChildData, onDataChange, incrementField, getUserName } from '../firebase/firebase'
+import { onUserStateChanged } from '../firebase/auth'
 
 const route = useRoute()
 const router = useRouter()
 const matchId = computed(() => route.params.id)
+
+// detect player nested child route the same way MatchRoom does
+const isPlayerView = computed(() => String(route.name) === 'PlayerRoom' || String(route.path || '').endsWith('/player'))
+
+async function closePlayerView() {
+  console.log('closePlayerView invoked - navigating to Matches list')
+  try {
+    await router.push({ path: '/matches', query: { tab: 'all' } })
+  } catch (e) {
+    console.warn('router.push to /matches failed, trying fallback', e)
+    try {
+      await router.push('/matches')
+    } catch (e2) {
+      console.warn('All navigation attempts failed', e2)
+      try { router.back() } catch (_) { /* no-op */ }
+    }
+  }
+}
 
 const matchData = ref({})
 // live users map so we can display canonical profile names
 const usersMap = ref({})
 let usersUnsub = null
 
+// auth state so we can determine whether the current client is the host
+const currentUser = ref(null)
+onUserStateChanged((u) => { currentUser.value = u })
+
+const isHost = computed(() => {
+  try {
+    if (!currentUser.value || !matchData.value) return false
+    const owner = matchData.value.ownerId || matchData.value.ownerUid || matchData.value.owner || matchData.value.createdby || matchData.value.host
+    if (!owner) return false
+    const uid = currentUser.value.uid
+    if (owner === uid) return true
+    const name = currentUser.value.displayName || currentUser.value.email || ''
+    if (name && (owner === name || owner === currentUser.value.email)) return true
+    return false
+  } catch (e) { return false }
+})
+
+const isMatchEnded = computed(() => {
+  try {
+    if (!matchData.value) return false
+    // Only show final results if matchEnded flag is explicitly set to true
+    return matchData.value.matchEnded === true
+  } catch (e) {
+    return false
+  }
+})
+
+function closeFinalResults() {
+  // Navigate back to Matches so the card shows under Past Matches
+  try {
+    router.push('/matches')
+  } catch (e) {
+    console.warn('Navigation failed:', e)
+  }
+}
+
 function subscribeUsers() {
   if (usersUnsub) {
     try { usersUnsub() } catch (e) {}
     usersUnsub = null
   }
-  try {
-    usersUnsub = onDataChange('users', (val) => { usersMap.value = val || {} })
-  } catch (e) { console.warn('subscribeUsers failed', e) }
+  return new Promise((resolve) => {
+    try {
+      let firstLoad = true
+      usersUnsub = onDataChange('users', (val) => { 
+        usersMap.value = val || {}
+        if (firstLoad) {
+          firstLoad = false
+          console.log('subscribeUsers: initial load complete with', Object.keys(usersMap.value).length, 'users')
+          resolve()
+        }
+      })
+    } catch (e) { 
+      console.warn('subscribeUsers failed', e)
+      resolve() // resolve anyway to not block
+    }
+  })
 }
 const teamA = ref([])
 const teamB = ref([])
@@ -157,8 +345,26 @@ const timerSet = ref(false)
 const timerInterval = ref(null)
 const timerPaused = ref(false)
 const roundActive = ref(false)
+// remote timer sync fields (for non-host clients)
+const remoteLastStartedAt = ref(null)
+const remoteRoundDuration = ref(0)
+let roundActiveUnsub = null
+let lastStartedUnsub = null
+let roundDurationUnsub = null
+// periodic resync to correct client drift (non-hosts only)
+const resyncInterval = ref(null)
+let teamsLockedUnsub = null
+let recentAllocationNav = false // debounce guard to avoid rapid re-navigation
+let prevTeamsLocked = null
+let teamsUnsub = null // subscription for live team updates
+let matchDataUnsub = null // subscription for matchEnded flag changes
 
-const startEnabled = computed(() => timerSet.value && teamA.value.length && teamB.value.length)
+const startEnabled = computed(() => {
+  // If matchData hasn't been loaded yet, allow enabling so host navigation
+  // that arrives with history state can still start the round immediately.
+  const mdLoaded = matchData.value && Object.keys(matchData.value).length > 0
+  return timerSet.value && teamA.value.length && teamB.value.length && (!mdLoaded || isHost.value)
+})
 const startShouldPulse = computed(() => startEnabled.value && !roundActive.value)
 
 // validate inputs for the inline setter (same as MatchRoom)
@@ -170,7 +376,11 @@ const validTimerInput = computed(() => {
 
 // pulse the Set/presets to encourage setting a timer once teams are locked
 const setShouldPulse = computed(() => teamsLocked.value && !timerSet.value && !roundFinished.value && !roundActive.value)
-const timerControlsDisabled = computed(() => roundActive.value || roundFinished.value)
+const timerControlsDisabled = computed(() => {
+  // Only disable timer controls for non-hosts after matchData is present
+  const mdLoaded = matchData.value && Object.keys(matchData.value).length > 0
+  return roundActive.value || roundFinished.value || (mdLoaded && !isHost.value)
+})
 
 const timerDisplay = computed(() => {
   // Show the remaining time explicitly. Use nullish coalescing so 0 is
@@ -214,8 +424,11 @@ function normalizePlayers(node) {
 
 async function enrichPlayers(list) {
   if (!list || !list.length) return []
-  const users = await getUsersMap()
-  return list
+  // Use the live usersMap subscription if available, otherwise fetch
+  const users = (usersMap.value && Object.keys(usersMap.value).length) ? usersMap.value : await getUsersMap()
+  console.log('enrichPlayers: usersMap has', Object.keys(users).length, 'users')
+  console.log('enrichPlayers: input list', list)
+  const result = list
     .map(item => {
       // allow either uid string or player object
       const p = typeof item === 'string' ? { uid: item } : (item || {})
@@ -223,6 +436,7 @@ async function enrichPlayers(list) {
       if (!uid) return null
 
       const resolved = users[uid] || {}
+      console.log('enrichPlayers: enriching uid', uid, 'resolved:', resolved)
       const name = p.name || resolved.name || resolved.displayName || resolved.username || uid
 
       // prefer profile image fields from the users record (match MatchRoom behavior)
@@ -233,6 +447,7 @@ async function enrichPlayers(list) {
         resolved.photoURL ||
         resolved.picture ||
         resolved.photo ||
+        resolved.profilepicture ||
         (resolved.profile && (resolved.profile.avatar || resolved.profile.picture)) ||
         resolved.imageURL ||
         resolved.thumbnail ||
@@ -245,9 +460,12 @@ async function enrichPlayers(list) {
         finalAvatar = `https://ui-avatars.com/api/?name=${nameFull}&background=1f262b&color=ffad1d&format=png&size=128`
       }
 
+      console.log('enrichPlayers: result for', uid, ':', { uid, name, avatar: finalAvatar })
       return { uid, name, avatar: finalAvatar }
     })
     .filter(Boolean)
+  console.log('enrichPlayers: final result', result)
+  return result
 }
 
 // timer functions (same as MatchRoom)
@@ -336,6 +554,8 @@ async function startRound() {
     const dbPath = await resolveMatchDbPath()
     if (dbPath) {
       await setChildData(dbPath, 'roundActive', true)
+      // persist duration so other clients can mirror the countdown
+  try { await setChildData(dbPath, 'roundDuration', Number(timerTotal.value) || 0) } catch (e) { /* non-fatal */ }
       await setChildData(dbPath, 'lastRoundStartedAt', new Date().toISOString())
     }
   } catch (e) { /* ignore write errors */ }
@@ -470,6 +690,9 @@ async function confirmWinnerNextRound() {
   if (dbPath) {
   await setChildData(dbPath, 'lastRoundWinner', selectedWinner.value)
   await setChildData(`${dbPath}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: new Date().toISOString(), duration: getElapsedDuration() })
+  // Clear roundActive and teamsLocked flags so teams are unlocked for next round
+  try { await setChildData(dbPath, 'roundActive', false) } catch (e) { /* non-fatal */ }
+  try { await setChildData(dbPath, 'teamsLocked', false) } catch (e) { /* non-fatal */ }
   // increment wins (non-transactional existing behavior)
       const currentWins = await getDataFromFirebase(`${dbPath}/wins`) || { A: 0, B: 0 }
       const newWins = { A: Number(currentWins.A || 0), B: Number(currentWins.B || 0) }
@@ -662,8 +885,14 @@ async function loadTeams() {
         const rawB = Array.isArray(teams.teamB) ? teams.teamB : normalizePlayers(teams.teamB)
         teamA.value = await enrichPlayers(rawA)
         teamB.value = await enrichPlayers(rawB)
-        // preserve match path if provided by MatchRoom via history state
-        if (historyState.matchPath) matchData.value = { __dbPath: historyState.matchPath }
+        // preserve match path and owner if provided by MatchRoom via history state
+        if (historyState.matchPath) {
+          matchData.value = { __dbPath: historyState.matchPath }
+          if (historyState.owner) {
+            // attach owner to local matchData so isHost can compute immediately
+            try { matchData.value.ownerId = historyState.owner } catch (e) {}
+          }
+        }
         teamsLocked.value = true
         return
       }
@@ -759,6 +988,51 @@ function displayNameFor(element) {
   return element.name || resolvedName || fallback
 }
 
+function formatDate(iso) {
+  if (!iso) return '—'
+  try { return new Date(iso).toLocaleString() } catch (e) { return String(iso) }
+}
+
+function formatDuration(sec) {
+  if (!sec && sec !== 0) return '—'
+  const s = Number(sec) || 0
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const rem = s % 60
+  return `${m}m ${rem}s`
+}
+
+function sanitizeUserKey(uname) {
+  if (!uname) return String(uname || '').replace(/[.$#\[\]\/]/g, '_')
+  return String(uname).replace(/[.$#\[\]\/]/g, '_')
+}
+
+// Return match-scoped wins for UI pills: prefer WinsByEachPlayer (username-keyed)
+// then per-match playersMap.NumberOfWins. DO NOT fall back to users.wins here.
+function displayMatchWinsForUid(uid) {
+  if (!uid) return 0
+  const u = usersMap.value && usersMap.value[uid]
+  const uname = (u && (u.username || u.name || u.displayName)) || uid
+  const safe = sanitizeUserKey(uname)
+  if (winsByEachPlayer.value && typeof winsByEachPlayer.value[safe] !== 'undefined') return Number(winsByEachPlayer.value[safe] || 0)
+  const pm = playersMap.value && playersMap.value[uid]
+  if (pm && typeof pm.NumberOfWins !== 'undefined') return Number(pm.NumberOfWins || 0)
+  return 0
+}
+
+// Return user's aggregate total wins (from users/<uid>/totalWins)
+function displayTotalWinsForUid(uid) {
+  if (!uid) return 0
+  const u = usersMap.value && usersMap.value[uid]
+  if (u && typeof u.totalWins !== 'undefined') return Number(u.totalWins || 0)
+  return 0
+}
+
+function winnersLabel(r) {
+  if (!r || !r.winningTeamMembers) return '—'
+  return r.winningTeamMembers.map(uid => displayNameFor(uid)).join(', ')
+}
+
 // Prefer canonical avatar from the users map when available, otherwise fall
 // back to any avatar provided on the local player object.
 function displayAvatarFor(element) {
@@ -776,8 +1050,7 @@ function displayAvatarFor(element) {
 
 function goBack() {
   // Preserve current allocations in history state so MatchRoom can restore
-  // them immediately when the user navigates back, but do NOT force-lock
-  // them there — allow re-randomization.
+  // them immediately when the user navigates back.
   const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
   const state = {
     teams: {
@@ -785,9 +1058,10 @@ function goBack() {
       teamB: (teamB.value || []).map(p => (p && p.uid) ? p.uid : (p && p.id) ? p.id : p)
     }
   }
+  // Pass roundActive state so MatchRoom knows whether to lock teams
+  state.roundActive = roundActive.value
   // indicate this is a manual restore (user pressed Back) so MatchRoom will
-  // restore the visual allocations even though the round was not confirmed
-  // by selecting a winner.
+  // restore the visual allocations
   state.restore = true
   if (matchData.value && matchData.value.__dbPath) state.matchPath = matchData.value.__dbPath
   router.push({ name: 'MatchRoom', params: { id: matchId.value }, query, state })
@@ -846,12 +1120,17 @@ const winsPercentB = computed(() => {
 const animateA = ref(false)
 const animateB = ref(false)
 
+// Additional refs needed for rounds history helper functions
+const winsByEachPlayer = ref({})
+const playersMap = ref({})
+
 // display title / round number shown in header (header already prints "Round — {{ displayTitle }}")
 // We track the number of persisted rounds (roundsplayed) under the match node so
 // the upcoming round number is (existingRounds + 1). If roundsplayed is not
 // present yet, fall back to any legacy `rounds` node or default to 1.
 const roundsCount = ref(0)
 const roundsUnsub = ref(null)
+const rounds = ref([]) // full rounds data for history display
 
 const displayTitle = computed(() => {
   try {
@@ -872,11 +1151,29 @@ async function loadRounds() {
     }
     roundsUnsub.value = onDataChange(`${dbPath}/roundsplayed`, (val) => {
       try {
-        if (!val) { roundsCount.value = 0; return }
+        if (!val) { 
+          roundsCount.value = 0
+          rounds.value = []
+          return 
+        }
         roundsCount.value = Object.keys(val).length
-      } catch (err) { roundsCount.value = 0 }
+        // Build full rounds array sorted by timestamp descending
+        rounds.value = Object.entries(val)
+          .map(([key, round]) => ({
+            ...round,
+            key
+          }))
+          .sort((a, b) => {
+            const timeA = a.endedAt ? new Date(a.endedAt).getTime() : 0
+            const timeB = b.endedAt ? new Date(b.endedAt).getTime() : 0
+            return timeB - timeA // most recent first
+          })
+      } catch (err) { 
+        roundsCount.value = 0
+        rounds.value = []
+      }
     })
-  } catch (e) { console.warn('loadRounds failed', e); roundsCount.value = 0 }
+  } catch (e) { console.warn('loadRounds failed', e); roundsCount.value = 0; rounds.value = [] }
 }
 
 // trigger pop animation when wins change
@@ -894,6 +1191,8 @@ watch(winsB, (nv, ov) => {
 })
 
 let winsUnsub = null
+let playersMapUnsub = null
+let winsByEachPlayerUnsub = null
 async function loadWins() {
   try {
     const dbPath = (matchData.value && matchData.value.__dbPath) ? matchData.value.__dbPath : `matches/${matchId.value}`
@@ -906,6 +1205,20 @@ async function loadWins() {
       winsA.value = (val && val.A) ? Number(val.A) : 0
       winsB.value = (val && val.B) ? Number(val.B) : 0
     })
+    // subscribe to playersMap so we can display per-match NumberOfWins live
+    try {
+      if (playersMapUnsub) { try { playersMapUnsub() } catch (e) {} ; playersMapUnsub = null }
+      playersMapUnsub = onDataChange(`${dbPath}/playersMap`, (val) => {
+        playersMap.value = val || {}
+      })
+    } catch (e) { console.warn('playersMap subscribe failed', e) }
+    // subscribe to WinsByEachPlayer so we can show username-keyed match wins live
+    try {
+      if (winsByEachPlayerUnsub) { try { winsByEachPlayerUnsub() } catch (e) {} ; winsByEachPlayerUnsub = null }
+      winsByEachPlayerUnsub = onDataChange(`${dbPath}/WinsByEachPlayer`, (val) => {
+        winsByEachPlayer.value = val || {}
+      })
+    } catch (e) { console.warn('WinsByEachPlayer subscribe failed', e) }
   } catch (e) {
     console.warn('loadWins failed', e)
     winsA.value = 0
@@ -914,14 +1227,26 @@ async function loadWins() {
 }
 
 onMounted(async () => {
-  // start live users subscription first so enrichPlayers can resolve profile names
-  subscribeUsers()
+  // start live users subscription first and wait for initial load
+  // so enrichPlayers can resolve profile names
+  await subscribeUsers()
+  console.log('onMounted: subscribeUsers complete, usersMap has', Object.keys(usersMap.value || {}).length, 'users')
   // Ensure teams/matchData is resolved before subscribing to wins so we
   // subscribe to the correct (possibly nested) DB path.
   await loadTeams()
   await loadWins()
   // subscribe to persisted roundsplayed so header round number reflects DB
   await loadRounds()
+  // start remote timer subscription so non-host clients mirror host timer
+  try {
+    const dbPath = matchData.value && matchData.value.__dbPath ? matchData.value.__dbPath : (matchId.value ? `matches/${matchId.value}` : null)
+    if (dbPath) {
+      subscribeRemoteTimer(dbPath)
+      try { subscribeTeamsLocked(dbPath) } catch (e) { /* ignore */ }
+      try { subscribeToTeams(dbPath) } catch (e) { /* ignore */ }
+      try { subscribeMatchData(dbPath) } catch (e) { /* ignore */ }
+    }
+  } catch (e) { /* ignore */ }
 })
 onBeforeUnmount(() => {
   if (timerInterval.value) clearInterval(timerInterval.value)
@@ -929,12 +1254,179 @@ onBeforeUnmount(() => {
     try { winsUnsub() } catch (e) {}
     winsUnsub = null
   }
+  if (playersMapUnsub) {
+    try { playersMapUnsub() } catch (e) {}
+    playersMapUnsub = null
+  }
+  if (winsByEachPlayerUnsub) {
+    try { winsByEachPlayerUnsub() } catch (e) {}
+    winsByEachPlayerUnsub = null
+  }
   if (roundsUnsub && roundsUnsub.value) {
     try { roundsUnsub.value() } catch (e) {}
     roundsUnsub.value = null
   }
   if (usersUnsub) { try { usersUnsub() } catch (e) {} ; usersUnsub = null }
+  if (roundActiveUnsub) { try { roundActiveUnsub() } catch (e) {} ; roundActiveUnsub = null }
+  if (lastStartedUnsub) { try { lastStartedUnsub() } catch (e) {} ; lastStartedUnsub = null }
+  if (roundDurationUnsub) { try { roundDurationUnsub() } catch (e) {} ; roundDurationUnsub = null }
+  if (resyncInterval.value) { try { clearInterval(resyncInterval.value) } catch (e) {} ; resyncInterval.value = null }
+  if (teamsLockedUnsub) { try { teamsLockedUnsub() } catch (e) {} ; teamsLockedUnsub = null }
+  if (teamsUnsub) { try { teamsUnsub() } catch (e) {} ; teamsUnsub = null }
+  if (matchDataUnsub) { try { matchDataUnsub() } catch (e) {} ; matchDataUnsub = null }
+  recentAllocationNav = false
 })
+
+function subscribeRemoteTimer(dbPath) {
+  try {
+    if (roundActiveUnsub) { try { roundActiveUnsub() } catch (e) {} ; roundActiveUnsub = null }
+    if (lastStartedUnsub) { try { lastStartedUnsub() } catch (e) {} ; lastStartedUnsub = null }
+    if (roundDurationUnsub) { try { roundDurationUnsub() } catch (e) {} ; roundDurationUnsub = null }
+
+    roundActiveUnsub = onDataChange(`${dbPath}/roundActive`, (val) => {
+      try {
+        // boolean
+        roundActive.value = !!val
+        // when round becomes active, ensure we sync timer from server
+        if (roundActive.value && !isHost.value) {
+          // if we already have last started and duration, start syncing
+          syncTimerFromServer()
+          // start a periodic resync every 15s to correct drift
+          try {
+            if (!resyncInterval.value) {
+              resyncInterval.value = setInterval(() => {
+                try { syncTimerFromServer() } catch (e) { /* ignore */ }
+              }, 15000)
+            }
+          } catch (e) {}
+        } else if (!roundActive.value && !isHost.value) {
+          // clear local interval for non-host
+          if (timerInterval.value) { clearInterval(timerInterval.value); timerInterval.value = null }
+          if (resyncInterval.value) { clearInterval(resyncInterval.value); resyncInterval.value = null }
+        }
+      } catch (e) { console.warn('roundActive handler failed', e) }
+    })
+
+    lastStartedUnsub = onDataChange(`${dbPath}/lastRoundStartedAt`, (val) => {
+      remoteLastStartedAt.value = val || null
+      if (!isHost.value) syncTimerFromServer()
+      // ensure resync loop is active if roundActive is already true
+      try {
+        if (roundActive.value && !isHost.value && !resyncInterval.value) {
+          resyncInterval.value = setInterval(() => {
+            try { syncTimerFromServer() } catch (e) { /* ignore */ }
+          }, 15000)
+        }
+      } catch (e) {}
+    })
+
+    roundDurationUnsub = onDataChange(`${dbPath}/roundDuration`, (val) => {
+      remoteRoundDuration.value = Number(val) || 0
+      if (!isHost.value) syncTimerFromServer()
+      try {
+        if (roundActive.value && !isHost.value && !resyncInterval.value) {
+          resyncInterval.value = setInterval(() => {
+            try { syncTimerFromServer() } catch (e) { /* ignore */ }
+          }, 15000)
+        }
+      } catch (e) {}
+    })
+  } catch (e) { console.warn('subscribeRemoteTimer failed', e) }
+}
+
+function subscribeTeamsLocked(dbPath) {
+  try {
+    if (teamsLockedUnsub) { try { teamsLockedUnsub() } catch (e) {} ; teamsLockedUnsub = null }
+    teamsLockedUnsub = onDataChange(`${dbPath}/teamsLocked`, async (val) => {
+      try {
+        // Normalize to boolean-ish
+        const newLocked = !!val
+        // Only navigate when teams transitioned from locked -> unlocked
+        if (!isHost.value && prevTeamsLocked === true && newLocked === false) {
+          if (recentAllocationNav) return
+          recentAllocationNav = true
+          setTimeout(() => { recentAllocationNav = false }, 3000)
+          console.log('subscribeTeamsLocked: detected teamsLocked change true->false — navigating player to MatchRoom allocation')
+          try {
+            const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
+            await router.push({ name: 'MatchRoom', params: { id: matchId.value }, query })
+          } catch (err) {
+            console.warn('subscribeTeamsLocked navigation failed', err)
+          }
+        }
+        prevTeamsLocked = newLocked
+      } catch (e) { console.warn('teamsLocked handler failed', e) }
+    })
+  } catch (e) { console.warn('subscribeTeamsLocked failed', e) }
+}
+
+function subscribeToTeams(dbPath) {
+  try {
+    if (teamsUnsub) { try { teamsUnsub() } catch (e) {} ; teamsUnsub = null }
+    teamsUnsub = onDataChange(`${dbPath}/teams`, async (val) => {
+      try {
+        if (!val || (!val.teamA && !val.teamB)) return
+        console.log('RoundStarted subscribeToTeams: teams changed', val)
+        
+        const rawA = Array.isArray(val.teamA) ? val.teamA : (val.teamA ? Object.values(val.teamA).filter(v => v && typeof v === 'string') : [])
+        const rawB = Array.isArray(val.teamB) ? val.teamB : (val.teamB ? Object.values(val.teamB).filter(v => v && typeof v === 'string') : [])
+        
+        const enrichedA = await enrichPlayers(rawA)
+        const enrichedB = await enrichPlayers(rawB)
+        
+        // Update teams for all clients (host and players) so they see live changes
+        teamA.value = enrichedA
+        teamB.value = enrichedB
+        console.log('RoundStarted: teams updated from subscription', { teamA: enrichedA.length, teamB: enrichedB.length })
+      } catch (e) { console.warn('subscribeToTeams handler failed', e) }
+    })
+  } catch (e) { console.warn('subscribeToTeams failed', e) }
+}
+
+function subscribeMatchData(dbPath) {
+  try {
+    if (matchDataUnsub) { try { matchDataUnsub() } catch (e) {} ; matchDataUnsub = null }
+    matchDataUnsub = onDataChange(dbPath, (val) => {
+      try {
+        if (!val) return
+        // Update matchData so isMatchEnded computed becomes reactive
+        matchData.value = { ...(matchData.value || {}), ...val, __dbPath: dbPath }
+        console.log('RoundStarted subscribeMatchData: match data updated', { matchEnded: val.matchEnded })
+      } catch (e) { console.warn('subscribeMatchData handler failed', e) }
+    })
+  } catch (e) { console.warn('subscribeMatchData failed', e) }
+}
+
+function syncTimerFromServer() {
+  try {
+    if (!remoteLastStartedAt.value || !remoteRoundDuration.value) return
+    const started = Date.parse(remoteLastStartedAt.value)
+    if (isNaN(started)) return
+    const elapsed = Math.floor((Date.now() - started) / 1000)
+    const rem = Math.max(0, Number(remoteRoundDuration.value || 0) - elapsed)
+    timerTotal.value = Number(remoteRoundDuration.value || 0)
+    timerRemaining.value = rem
+    timerSet.value = timerTotal.value > 0
+    timerPaused.value = false
+    roundActive.value = rem > 0
+
+    // start a local ticking interval for non-hosts to mirror countdown
+    if (!isHost.value) {
+      if (timerInterval.value) { clearInterval(timerInterval.value); timerInterval.value = null }
+      timerInterval.value = setInterval(() => {
+        if (timerPaused.value) return
+        if (timerRemaining.value > 0) {
+          timerRemaining.value -= 1
+        } else {
+          if (timerInterval.value) { clearInterval(timerInterval.value); timerInterval.value = null }
+          roundActive.value = false
+          roundFinished.value = true
+          timerSet.value = false
+        }
+      }, 1000)
+    }
+  } catch (e) { console.warn('syncTimerFromServer failed', e) }
+}
 </script>
 
 <style scoped>
@@ -1047,4 +1539,169 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 .bar-label { color:#f3e6c2; font-weight:700; }
 .wins-title { text-align:center; margin-top:8px; color:#ffda99; font-size:2.6rem; font-weight:800; }
 .bar-count { color:#fff; font-weight:900; font-size:2rem; margin-top:10px; }
+
+/* --- Rounds History Styles --- */
+.rounds-history { 
+  margin: 32px auto; 
+  max-width: 980px; 
+  background: linear-gradient(180deg,#0f1114,#15161a); 
+  padding: 20px; 
+  border-radius: 14px; 
+  border: 1px solid rgba(255,255,255,0.04); 
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6); 
+}
+.rounds-history-header { 
+  color: #ffd98a; 
+  margin: 0 0 16px 0; 
+  font-size: 1.8rem; 
+  font-weight: 800;
+  text-align: center;
+}
+.rounds-empty { 
+  color: #cfc9b0; 
+  text-align: center; 
+  padding: 20px; 
+  font-size: 0.95rem; 
+}
+.round-list { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 16px; 
+}
+.round-card { 
+  background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02)); 
+  padding: 16px; 
+  border-radius: 12px; 
+  border: 1px solid rgba(255,255,255,0.03); 
+  transition: transform 180ms ease, box-shadow 180ms ease; 
+}
+.round-card:hover { 
+  transform: translateY(-4px); 
+  box-shadow: 0 18px 40px rgba(0,0,0,0.6); 
+}
+.round-card-header { 
+  display: flex; 
+  gap: 16px; 
+  align-items: center; 
+  margin-bottom: 12px; 
+  flex-wrap: wrap;
+}
+.round-index { 
+  font-weight: 900; 
+  color: #fff; 
+  font-size: 1.1rem; 
+}
+.round-time { 
+  color: #d3c7a3; 
+  font-size: 0.85rem; 
+}
+.round-duration { 
+  color: #ffd98a; 
+  font-weight: 800; 
+  font-size: 0.85rem; 
+}
+.round-teams { 
+  display: flex; 
+  gap: 16px; 
+  margin-bottom: 12px; 
+}
+.round-team { 
+  flex: 1; 
+  background: rgba(255,255,255,0.02); 
+  padding: 12px; 
+  border-radius: 10px; 
+}
+.round-team-label { 
+  font-weight: 900; 
+  color: #fff4d1; 
+  margin-bottom: 10px; 
+  font-size: 0.95rem;
+}
+.round-team-roster { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 8px; 
+}
+.round-player { 
+  display: flex; 
+  gap: 10px; 
+  align-items: center; 
+  background: linear-gradient(180deg, #0f1114, #141516); 
+  padding: 8px 10px; 
+  border-radius: 8px; 
+  border: 1px solid rgba(255,255,255,0.03); 
+}
+.round-avatar { 
+  flex-shrink: 0; 
+}
+.round-avatar-img { 
+  width: 36px; 
+  height: 36px; 
+  border-radius: 50%; 
+  border: 2px solid #ffad1d; 
+  object-fit: cover; 
+}
+.round-avatar-fallback { 
+  width: 36px; 
+  height: 36px; 
+  border-radius: 50%; 
+  border: 2px solid #ffad1d; 
+  background: #1f262b; 
+  color: #ffad1d; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  font-weight: 700; 
+  font-size: 0.85rem; 
+}
+.round-player-name { 
+  color: #fff; 
+  font-weight: 800; 
+  font-size: 0.9rem; 
+  flex: 1; 
+}
+.round-player-stats { 
+  display: flex; 
+  gap: 6px; 
+}
+.stat-total { 
+  color: #cfc9b0; 
+  font-weight: 700; 
+  font-size: 0.72rem; 
+}
+.stat-trophy { 
+  color: #ffd98a; 
+  font-weight: 900; 
+  font-size: 0.82rem;
+}
+.round-winner { 
+  background: linear-gradient(90deg,#1f262b,#23272b); 
+  color: #ffd98a; 
+  padding: 10px 14px; 
+  border-radius: 10px; 
+  font-weight: 800; 
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+/* Final Results View */
+.final-results-view {
+  min-height: 100vh;
+  padding: 20px;
+}
+.final-results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+.final-results-header h1 {
+  color: #ffd98a;
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin: 0;
+}
+.final-results-view .rounds-history {
+  margin-top: 0;
+}
 </style>
