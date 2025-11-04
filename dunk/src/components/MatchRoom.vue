@@ -237,7 +237,7 @@
           <div class="round-footer">
             <div class="winner-pill">Winner: <strong>{{ r.winningTeam }} — {{ winnersLabel(r) }}</strong></div>
             <div class="round-actions">
-              <button class="btn-mini">View details</button>
+              <!-- details button removed as requested -->
             </div>
           </div>
         </div>
@@ -969,7 +969,16 @@ async function onEndMatch() {
   } catch (e) { /* ignore persistence errors */ }
 }
 
-function goBack() { router.back() }
+async function goBack() {
+  // Prefer explicit navigation to the Matches list so the user lands on the
+  // matches index instead of returning to RoundStarted. Fall back to
+  // history back if navigation fails for any reason.
+  try {
+    await router.push('/matches')
+  } catch (e) {
+    try { router.back() } catch (err) { /* ignore */ }
+  }
+}
 
 onBeforeUnmount(() => {
   if (winsUnsub) {
