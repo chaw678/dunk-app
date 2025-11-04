@@ -270,18 +270,12 @@ async function sendInvites() {
   sending.value = true
   try {
     const matchId = props.match.id || (props.match.__dbPath ? props.match.__dbPath.split('/').pop() : (`m_${Date.now()}`))
-    const inviterName = props.me.displayName || props.me.email?.split('@')[0] || 'Unknown'
     const summary = {
       id: matchId,
       title: props.match.title || props.match.name || 'Match',
       court: props.match.court || props.match.location || '',
       date: props.match.date || props.match.startAtISO || new Date().toISOString(),
-      startTime: props.match.startTime || null,
-      endTime: props.match.endTime || null,
-      gender: props.match.gender || 'All',
-      type: props.match.type || props.match.level || 'Open',
       invitedBy: props.me.uid,
-      inviterName: inviterName,
       invitedAt: Date.now(),
       matchPath: props.match.__dbPath || null
     }

@@ -56,6 +56,7 @@
             <div class="tabs mb-3">
                 <div class="tabs-pill" role="tablist" aria-label="Match tabs">
                     <button :class="['tab-pill', selectedTab === 'all' ? 'active' : '']" @click="selectedTab = 'all'">All Matches</button>
+                    <button :class="['tab-pill', selectedTab === 'recommended' ? 'active' : '']" @click="selectedTab = 'recommended'">Recommended</button>
                     <button :class="['tab-pill', selectedTab === 'hosts' ? 'active' : '']" @click="selectedTab = 'hosts'">My Matches</button>
                     <button :class="['tab-pill', selectedTab === 'joined' ? 'active' : '']" @click="selectedTab = 'joined'">
                         Joined Matches
@@ -76,29 +77,25 @@
                     </h3>
                     <div class="invitations-grid">
                         <div class="invitation-card-wrapper" v-for="inv in invitations" :key="inv.id">
-                            <div class="invitation-card">
-                                <div class="invitation-header">
-                                    <h3 class="invitation-match-title">{{ inv.title }}</h3>
-                                
-                                </div>
-                                <div class="invitation-body">
-                                    <div class="invitation-court-name">{{ inv.court || 'Unknown court' }}</div>
-                                    <div class="invitation-date">{{ formatInvitationDate(inv.date) }}</div>
-                                    <div class="invitation-time">{{ formatInvitationTime(inv.startTime, inv.endTime) }}</div>
-                                    <div class="invitation-tags">
-                                        <span class="invitation-tag">{{ inv.gender || 'All' }}</span>
-                                        <span class="invitation-tag">{{ inv.type || 'Open' }}</span>
-                                    </div>
-                                    <div class="invitation-inviter">
-                                        <i class="bi bi-person-circle"></i>
-                                        <span>Invited by {{ inv.inviterName || 'Unknown' }}</span>
+                            <div class="card invitation-card">
+                                <div class="card-body">
+                                    <h5 class="invitation-title">{{ inv.title }}</h5>
+                                    <div class="invitation-details">
+                                        <div class="invitation-detail-item">
+                                            <i class="bi bi-geo-alt-fill"></i>
+                                            <span>{{ inv.court || 'Unknown court' }}</span>
+                                        </div>
+                                        <div class="invitation-detail-item">
+                                            <i class="bi bi-calendar-fill"></i>
+                                            <span>{{ formatInvitationDate(inv.date) }}</span>
+                                        </div>
                                     </div>
                                     <div class="invitation-actions">
-                                        <button class="btn-accept" @click="acceptInvite(inv)">
-                                            <i class="bi bi-check-lg"></i> Accept
+                                        <button class="btn btn-success btn-sm" @click="acceptInvite(inv)">
+                                            <i class="bi bi-check-lg me-1"></i>Accept
                                         </button>
-                                        <button class="btn-decline" @click="declineInvite(inv)">
-                                            <i class="bi bi-x-lg"></i> Decline
+                                        <button class="btn btn-outline-secondary btn-sm" @click="declineInvite(inv)">
+                                            <i class="bi bi-x-lg me-1"></i>Decline
                                         </button>
                                     </div>
                                 </div>
@@ -325,18 +322,20 @@
             </div> 
         </div>
 
-    <!-- render modal inside template so Vue can mount it -->
-    <AddMatchModal v-if="showAddMatchModal" :courtList="courts" :courtName="courtFilter || ''" @close="showAddMatchModal = false" @created="onMatchCreated" />
-    <InviteModal v-if="showInviteModal" :match="inviteMatch" :users="usersCache.value" :me="currentUser" @close="showInviteModal = false" @sent="onInvitesSent" />
-    <JoinedPlayersModal v-if="showPlayersModal" :players="activePlayers" :title="activeTitle" @close="closePlayersModal" />
+    <!-- render modals outside the main container using Teleport -->
+    <Teleport to="body">
+        <AddMatchModal v-if="showAddMatchModal" :courtList="courts" :courtName="courtFilter || ''" @close="showAddMatchModal = false" @created="onMatchCreated" />
+        <InviteModal v-if="showInviteModal" :match="inviteMatch" :users="usersCache.value" :me="currentUser" @close="showInviteModal = false" @sent="onInvitesSent" />
+        <JoinedPlayersModal v-if="showPlayersModal" :players="activePlayers" :title="activeTitle" @close="closePlayersModal" />
+    </Teleport>
     </div>
 </template>
 
 <script setup>
 
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, Teleport } from 'vue'
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 const props = defineProps({
     courtFilter: { type: String, default: '' },
     embedded: { type: Boolean, default: false }
@@ -424,6 +423,10 @@ function closeCreatedPopup() {
 }
 
 const router = useRouter()
+const route = useRoute()
+
+// Check for tab query parameter on mount
+const selectedTab = ref(route.query.tab || 'all')
 
 // function openMatch(match, event) {
 //     if (!match) return
@@ -672,8 +675,15 @@ const inviteMatch = ref(null)
 const invitations = ref([])
 const invitationsCount = computed(() => invitations.value.length)
 
+// Location and recommendation data
+const userLocation = ref(null)
+const locationPermissionGranted = ref(false)
+const courtsData = ref([]) // Cache courts data for distance calculations
+
 // Realtime subscription for invitations
 let invitesUnsub = null
+// Realtime subscription for matches list
+let matchesUnsub = null
 function subscribeInvitationsRealtime(uid) {
     // Clean up any existing listener
     if (invitesUnsub) {
@@ -796,7 +806,9 @@ function formatInvitationDate(dateStr) {
         return date.toLocaleDateString('en-US', { 
             weekday: 'short', 
             month: 'short', 
-            day: 'numeric'
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
         })
     } catch (err) {
         return dateStr
@@ -811,11 +823,434 @@ function formatInvitationTime(startTime, endTime) {
     return 'Time TBD'
 }
 
+// Location detection for recommendations
+async function getUserLocation() {
+    return new Promise((resolve) => {
+        if (!navigator.geolocation) {
+            console.warn('Geolocation not supported')
+            locationPermissionGranted.value = false
+            resolve(null)
+            return
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const location = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                }
+                userLocation.value = location
+                locationPermissionGranted.value = true
+                resolve(location)
+            },
+            (error) => {
+                console.warn('Geolocation error:', error)
+                locationPermissionGranted.value = false
+                // Fallback to profile location if available
+                if (currentUserProfile.value?.location) {
+                    userLocation.value = currentUserProfile.value.location
+                    resolve(currentUserProfile.value.location)
+                } else {
+                    resolve(null)
+                }
+            },
+            {
+                enableHighAccuracy: false,
+                timeout: 10000,
+                maximumAge: 300000 // 5 minutes
+            }
+        )
+    })
+}
+
+// Calculate distance between two coordinates using Haversine formula
+function calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371 // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLng = (lng2 - lng1) * Math.PI / 180
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c // Distance in kilometers
+}
+
+// Calculate skill level compatibility score
+function getSkillLevelScore(userSkill, matchRequiredSkill) {
+    if (!userSkill || !matchRequiredSkill) return 0.5 // neutral if no data
+    
+    // Use the correct skill levels for our app
+    const skillLevels = ['Open', 'Beginner', 'Intermediate', 'Professional']
+    const userSkillNormalized = normalizeSkill(userSkill)
+    const matchSkillNormalized = normalizeSkill(matchRequiredSkill)
+    
+    const userIndex = skillLevels.indexOf(userSkillNormalized)
+    const requiredIndex = skillLevels.indexOf(matchSkillNormalized)
+    
+    if (userIndex === -1 || requiredIndex === -1) return 0.5
+    
+    // Perfect match gets highest score
+    if (userIndex === requiredIndex) return 1.0
+    
+    // Open matches are accessible to everyone and get good scores
+    if (matchSkillNormalized === 'Open') return 0.9
+    
+    // Calculate based on skill level difference
+    const diff = Math.abs(userIndex - requiredIndex)
+    if (diff === 1) return 0.6 // close match
+    if (diff === 2) return 0.3 // moderate mismatch  
+    return 0.1 // poor match
+}
+
+// Calculate game type preference score based on user's skill level
+function getGameTypePreferenceScore(userSkillLevel, matchType) {
+    if (!userSkillLevel || !matchType) return 0.7 // neutral if no data
+    
+    const userSkill = normalizeSkill(userSkillLevel)
+    const matchSkill = normalizeSkill(matchType)
+    
+    // Perfect match: same skill level
+    if (userSkill === matchSkill) return 1.0
+    
+    // Good matches based on skill progression
+    if (userSkill === 'Open') {
+        // Open players can join any game type
+        if (matchSkill === 'Beginner') return 0.9
+        if (matchSkill === 'Intermediate') return 0.7
+        if (matchSkill === 'Professional') return 0.4
+    }
+    
+    if (userSkill === 'Beginner') {
+        // Beginners prefer beginner/open games, can try intermediate
+        if (matchSkill === 'Open') return 0.9
+        if (matchSkill === 'Intermediate') return 0.6
+        if (matchSkill === 'Professional') return 0.2
+    }
+    
+    if (userSkill === 'Intermediate') {
+        // Intermediate players are flexible
+        if (matchSkill === 'Open') return 0.8
+        if (matchSkill === 'Beginner') return 0.7
+        if (matchSkill === 'Professional') return 0.8
+    }
+    
+    if (userSkill === 'Professional') {
+        // Professionals prefer challenging games
+        if (matchSkill === 'Open') return 0.6
+        if (matchSkill === 'Beginner') return 0.3
+        if (matchSkill === 'Intermediate') return 0.9
+    }
+    
+    return 0.5 // default neutral score
+}
+
+// Calculate age compatibility based on existing players in the match
+function getAgeCompatibilityWithPlayers(userAge, match, usersData) {
+    if (!userAge || !match.joinedBy || !usersData) return 0.7 // neutral if no data
+    
+    const playerAges = []
+    
+    // Collect ages of current players
+    for (const uid of Object.keys(match.joinedBy)) {
+        if (usersData[uid] && usersData[uid].age) {
+            playerAges.push(usersData[uid].age)
+        }
+    }
+    
+    // If no age data from existing players, return neutral
+    if (playerAges.length === 0) return 0.7
+    
+    // Calculate age compatibility with existing players
+    const avgAge = playerAges.reduce((sum, age) => sum + age, 0) / playerAges.length
+    const ageDiff = Math.abs(userAge - avgAge)
+    
+    // Score based on age difference from group average
+    if (ageDiff <= 3) return 1.0      // Very close age match
+    if (ageDiff <= 5) return 0.9      // Close age match
+    if (ageDiff <= 8) return 0.7      // Moderate age difference
+    if (ageDiff <= 12) return 0.5     // Larger age gap but acceptable
+    return 0.3                        // Significant age gap
+}
+
+// Extract region from court or user location
+function getRegionFromLocation(location) {
+    if (!location) return null
+    
+    // If location is a string (like user profile location), return it directly
+    if (typeof location === 'string') {
+        return location.trim()
+    }
+    
+    // If location has lat/lng coordinates, determine region from coordinates
+    if (location.lat && location.lng) {
+        return getRegionFromCoordinates(location.lat, location.lng)
+    }
+    
+    // If it's a court object, check for region field
+    if (location.region) {
+        return location.region.trim()
+    }
+    
+    // If it's a court with address, try to extract region from address
+    if (location.address) {
+        const address = location.address.toLowerCase()
+        if (address.includes('central') || address.includes('orchard') || address.includes('marina') || address.includes('raffles')) {
+            return 'Central'
+        }
+        if (address.includes('east') || address.includes('bedok') || address.includes('tampines') || address.includes('pasir ris')) {
+            return 'East'
+        }
+        if (address.includes('west') || address.includes('jurong') || address.includes('clementi') || address.includes('bukit batok')) {
+            return 'West'
+        }
+        if (address.includes('north') || address.includes('woodlands') || address.includes('yishun') || address.includes('sembawang')) {
+            return 'North'
+        }
+        if (address.includes('south') || address.includes('sentosa') || address.includes('harbourfront')) {
+            return 'South'
+        }
+    }
+    
+    return null
+}
+
+// Determine Singapore region from GPS coordinates
+function getRegionFromCoordinates(lat, lng) {
+    // Singapore's approximate coordinate boundaries for each region
+    // Central: Marina Bay, Orchard, City Center
+    if (lat >= 1.26 && lat <= 1.32 && lng >= 103.82 && lng <= 103.87) {
+        return 'Central'
+    }
+    
+    // East: Bedok, Tampines, Pasir Ris, Changi
+    if (lat >= 1.30 && lat <= 1.38 && lng >= 103.87 && lng <= 104.00) {
+        return 'East'
+    }
+    
+    // West: Jurong, Clementi, Bukit Batok, Choa Chu Kang
+    if (lat >= 1.30 && lat <= 1.40 && lng >= 103.60 && lng <= 103.82) {
+        return 'West'
+    }
+    
+    // North: Woodlands, Yishun, Sembawang, Admiralty
+    if (lat >= 1.40 && lat <= 1.47 && lng >= 103.75 && lng <= 103.85) {
+        return 'North'
+    }
+    
+    // South: Sentosa, HarbourFront, anything south of central
+    if (lat >= 1.23 && lat <= 1.30 && lng >= 103.80 && lng <= 103.87) {
+        return 'South'
+    }
+    
+    // Default fallback based on general coordinates
+    if (lng < 103.82) return 'West'
+    if (lng > 103.87) return 'East'  
+    if (lat > 1.38) return 'North'
+    if (lat < 1.28) return 'South'
+    
+    return 'Central' // Default to Central if coordinates don't clearly fit other regions
+}
+
+// Calculate region compatibility score
+function getRegionCompatibilityScore(userRegion, courtRegion) {
+    if (!userRegion || !courtRegion) return 0.5 // neutral if no region data
+    
+    const userReg = userRegion.toLowerCase().trim()
+    const courtReg = courtRegion.toLowerCase().trim()
+    
+    // Since incompatible regions are now pre-filtered, this should always be a match
+    if (userReg === courtReg) return 1.0
+    
+    // Fallback (shouldn't reach here due to pre-filtering)
+    return 0.5
+}
+
+// Calculate recommendation score for a match
+function calculateRecommendationScore(match, userProfile, userLoc, usersData) {
+    let score = 0
+    let totalWeight = 0
+    
+    console.log('Calculating score for match:', match.title, {
+        match: match,
+        userProfile: userProfile,
+        userLoc: userLoc,
+        usersData: usersData
+    })
+    
+    // Region-based location matching (weight: 0.3)
+    // Prioritize GPS location over profile location
+    if (userLoc || userProfile?.location) {
+        const userRegion = getRegionFromLocation(userLoc) || getRegionFromLocation(userProfile?.location)
+        const courtRegion = getRegionFromLocation(match.court)
+        
+        console.log('Region matching:', { userRegion, courtRegion, match: match.court })
+        
+        if (userRegion && courtRegion) {
+            const regionScore = getRegionCompatibilityScore(userRegion, courtRegion)
+            score += regionScore * 0.3
+            totalWeight += 0.3
+            console.log('Region score:', regionScore, 'Total so far:', score)
+        }
+    }
+    
+    // Skill level matching (weight: 0.25)
+    if (userProfile?.skillLevel && match.type) {
+        const skillScore = getSkillLevelScore(userProfile.skillLevel, match.type)
+        score += skillScore * 0.25
+        totalWeight += 0.25
+        console.log('Skill score:', skillScore, 'Total so far:', score)
+    }
+    
+    // Game type preference based on user's skill level (weight: 0.2)
+    if (userProfile?.skillLevel && match.type) {
+        const gameTypeScore = getGameTypePreferenceScore(userProfile.skillLevel, match.type)
+        score += gameTypeScore * 0.2
+        totalWeight += 0.2
+        console.log('Game type preference score:', gameTypeScore, 'Total so far:', score)
+    }
+    
+    // Gender preference (weight: 0.15)
+    // Note: Incompatible gender matches are already filtered out, so this is just for scoring preference
+    if (match.gender && userProfile?.gender) {
+        let genderScore = 1.0 // Default to full score since incompatible matches are pre-filtered
+        if (match.gender === 'All') {
+            genderScore = 1.0 // Perfect match for mixed-gender preference
+        }
+        score += genderScore * 0.15
+        totalWeight += 0.15
+        console.log('Gender score:', genderScore, 'Total so far:', score)
+    }
+    
+    // Age compatibility with existing players (weight: 0.1)
+    if (userProfile?.age && match.joinedBy && usersData) {
+        const ageScore = getAgeCompatibilityWithPlayers(userProfile.age, match, usersData)
+        score += ageScore * 0.1
+        totalWeight += 0.1
+        console.log('Age compatibility score:', ageScore, 'Total so far:', score)
+    }
+    
+    // Normalize score
+    const finalScore = totalWeight > 0 ? score / totalWeight : 0
+    console.log('Final recommendation score:', finalScore, 'Total weight:', totalWeight)
+    return finalScore
+}
+
+// Load courts data for recommendation calculations
+async function loadCourtsData() {
+    try {
+        const data = await getDataFromFirebase('courts')
+        if (!data) {
+            courtsData.value = {}
+            return
+        }
+        
+        if (Array.isArray(data)) {
+            // Convert array to object with court IDs
+            const courtsObj = {}
+            data.forEach((court, index) => {
+                courtsObj[court.id || index] = court
+            })
+            courtsData.value = courtsObj
+        } else {
+            courtsData.value = data
+        }
+    } catch (e) {
+        console.warn('Failed to load courts data for recommendations:', e)
+        courtsData.value = {}
+    }
+}
+
+// Create a test match for recommendation debugging
+async function createTestRecommendationMatch() {
+    try {
+        const tomorrow = new Date()
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        const dateStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
+        
+        const testMatch = {
+            title: 'Test Recommendation Match',
+            court: 'Marina Bay Court', // Central region
+            date: dateStr,
+            startTime: '14:00',
+            endTime: '16:00',
+            startAtISO: `${dateStr}T06:00:00.000Z`, // 2PM Singapore time in UTC
+            endAtISO: `${dateStr}T08:00:00.000Z`,   // 4PM Singapore time in UTC
+            type: 'Intermediate', // Intermediate skill level for testing
+            gender: 'All', // All genders
+            maxPlayers: 10,
+            players: [],
+            joinedBy: {
+                'test-player-1': true,
+                'test-player-2': true
+            },
+            playersMap: {
+                'test-player-1': 'Alex Chen',
+                'test-player-2': 'Maya Singh'
+            },
+            createdAt: new Date().toISOString(),
+            createdby: 'test-user-id', // Different from current user
+            ownerId: 'test-user-id'
+        }
+        
+        // Also create some test user profiles for age compatibility testing
+        const testUsers = {
+            'test-player-1': {
+                name: 'Alex Chen',
+                age: 25,
+                skillLevel: 'Intermediate',
+                gender: 'Male'
+            },
+            'test-player-2': {
+                name: 'Maya Singh', 
+                age: 27,
+                skillLevel: 'Intermediate',
+                gender: 'Female'
+            }
+        }
+        
+        console.log('Creating test match with players:', testMatch)
+        console.log('Creating test user profiles:', testUsers)
+        
+        // Save the match
+        await pushDataToFirebase(`matches/Marina Bay Court/${dateStr}`, testMatch)
+        
+        // Save the test user profiles
+        for (const [uid, profile] of Object.entries(testUsers)) {
+            await pushDataToFirebase(`users/${uid}`, profile)
+        }
+        
+        console.log('Test match and user profiles created successfully')
+        
+        // Reload data to see the new test match and users
+        await loadMatches()
+        await loadUsers()
+        
+        console.log('Data reloaded. The test match should now appear in recommendations with:')
+        console.log('- Court in Central region (good location match if you\'re in Central)')
+        console.log('- Intermediate skill level')
+        console.log('- Players aged 25-27 (good age match if you\'re in this range)')
+        console.log('- Gender: All (perfect gender match)')
+        
+    } catch (e) {
+        console.error('Failed to create test match:', e)
+    }
+}
+
 onMounted(async () => {
     // subscribe to users realtime so profile/name changes propagate immediately
     subscribeUsersRealtime()
     await loadMatches()
+    // subscribe to realtime matches updates so lists update without navigation
+    try { subscribeMatchesRealtime() } catch (e) { console.warn('subscribeMatchesRealtime failed', e) }
     await loadCourts()
+    await loadCourtsData()
+    
+    // Try to get user location for recommendations
+    if (navigator.geolocation) {
+        getUserLocation()
+    }
+    
     // listen for auth state and load user profile
     onUserStateChanged(async (u) => {
         currentUser.value = u
@@ -867,6 +1302,10 @@ onUnmounted(() => {
     if (invitesUnsub) {
         try { invitesUnsub() } catch (e) {}
         invitesUnsub = null
+    }
+    if (matchesUnsub) {
+        try { matchesUnsub() } catch (e) {}
+        matchesUnsub = null
     }
     if (usersUnsub) {
         try { usersUnsub() } catch (e) {}
@@ -923,6 +1362,34 @@ async function loadMatches() {
     }
 }
 
+// Subscribe to matches node for realtime updates and keep matches.value in sync
+function subscribeMatchesRealtime() {
+    if (matchesUnsub) {
+        try { matchesUnsub() } catch (e) {}
+        matchesUnsub = null
+    }
+    matchesUnsub = onDataChange('matches', (data) => {
+        try {
+            const out = []
+            if (!data) { matches.value = []; return }
+            if (typeof data === 'object') {
+                for (const [k1, v1] of Object.entries(data)) {
+                    if (!v1 || typeof v1 !== 'object') continue
+                    for (const [k2, v2] of Object.entries(v1)) {
+                        if (!v2 || typeof v2 !== 'object') continue
+                        for (const [mid, mv] of Object.entries(v2)) {
+                            out.push({ id: mid, __dbPath: `matches/${k1}/${k2}/${mid}`, ...mv })
+                        }
+                    }
+                }
+            }
+            matches.value = out
+        } catch (err) {
+            console.error('subscribeMatchesRealtime handler error', err)
+        }
+    })
+}
+
 async function loadCourts() {
     try {
         const cdata = await getDataFromFirebase('courts')
@@ -948,8 +1415,6 @@ async function loadCourts() {
 //     maxPlayers: 6,
 //     owner: 'alice'
 // })
-
-const selectedTab = ref('all')
 
 function isHost(match) {
     if (!currentUser.value || !match) return false
@@ -1042,6 +1507,119 @@ const matchesForTab = computed(() => {
     }
     if (selectedTab.value === 'hosts') return base.filter(m => isHost(m) && !isPast(m))
     if (selectedTab.value === 'joined') return base.filter(m => !isHost(m) && Boolean(m.joinedBy && currentUser.value && m.joinedBy[currentUser.value.uid]) && !isPast(m))
+    if (selectedTab.value === 'recommended') {
+        if (!currentUser.value) return []
+        const uid = currentUser.value.uid
+        
+        // Filter out user's own matches, past matches, gender-incompatible matches, and skill-inappropriate matches
+        const availableMatches = base.filter(m => {
+            // Basic filters
+            if (isPast(m) || isHost(m) || (m.joinedBy && m.joinedBy[uid])) {
+                return false
+            }
+            
+            // Gender compatibility: exclude if match has specific gender requirement that doesn't match user
+            if (m.gender && m.gender !== 'All' && currentUserProfile.value?.gender) {
+                const userGender = currentUserProfile.value.gender.toLowerCase().trim()
+                const matchGender = m.gender.toLowerCase().trim()
+                
+                // If match requires specific gender and user doesn't match, exclude completely
+                if (matchGender !== 'all' && matchGender !== userGender) {
+                    return false
+                }
+            }
+            
+            // Skill level compatibility: exclude matches above user's skill level
+            if (m.type && currentUserProfile.value?.skillLevel) {
+                const userSkill = normalizeSkill(currentUserProfile.value.skillLevel)
+                const matchSkill = normalizeSkill(m.type)
+                
+                const skillLevels = ['Open', 'Beginner', 'Intermediate', 'Professional']
+                const userIndex = skillLevels.indexOf(userSkill)
+                const matchIndex = skillLevels.indexOf(matchSkill)
+                
+                // If we can determine skill levels and match is above user's level, exclude it
+                if (userIndex !== -1 && matchIndex !== -1 && matchIndex > userIndex) {
+                    // Exception: Open matches are always accessible to everyone
+                    if (matchSkill !== 'Open') {
+                        return false
+                    }
+                }
+            }
+            
+            // Region compatibility: exclude courts outside user's region
+            const userRegion = getRegionFromLocation(userLocation.value) || getRegionFromLocation(currentUserProfile.value?.location)
+            if (userRegion) {
+                let courtRegion = null
+                
+                // Try to get court region from various sources
+                if (m.courtId && courtsData.value[m.courtId]) {
+                    // Use enhanced court data if available
+                    courtRegion = getRegionFromLocation(courtsData.value[m.courtId])
+                } else if (m.court && typeof m.court === 'object') {
+                    // Match already has enhanced court data
+                    courtRegion = getRegionFromLocation(m.court)
+                } else if (m.court && typeof m.court === 'string') {
+                    // Try to find court by name in courtsData
+                    const courtName = m.court.toLowerCase().trim()
+                    for (const [id, courtData] of Object.entries(courtsData.value)) {
+                        if (courtData && courtData.name && courtData.name.toLowerCase().trim() === courtName) {
+                            courtRegion = getRegionFromLocation(courtData)
+                            break
+                        }
+                    }
+                }
+                
+                // If we can determine both regions and they don't match, exclude the match
+                if (courtRegion && userRegion) {
+                    const userReg = userRegion.toLowerCase().trim()
+                    const courtReg = courtRegion.toLowerCase().trim()
+                    
+                    if (userReg !== courtReg) {
+                        return false // Exclude courts outside user's region
+                    }
+                }
+            }
+            
+            return true
+        })
+        
+        // If no user profile or location data, return basic filtering
+        if (!currentUserProfile.value) return availableMatches
+        
+        // Calculate recommendation scores and sort by score
+        const recommendedMatches = availableMatches.map(match => {
+            // Enhance match data with court information for location calculations
+            const enhancedMatch = { ...match }
+            if (match.courtId && courtsData.value[match.courtId]) {
+                enhancedMatch.court = courtsData.value[match.courtId]
+            }
+            
+            const score = calculateRecommendationScore(
+                enhancedMatch, 
+                currentUserProfile.value, 
+                userLocation.value,
+                usersCache.value
+            )
+            
+            // Debug logging
+            console.log('Recommendation Debug:', {
+                matchTitle: match.title,
+                matchCourt: match.court,
+                enhancedCourt: enhancedMatch.court,
+                userProfile: currentUserProfile.value,
+                userLocation: userLocation.value,
+                score: score
+            })
+            
+            return { match, score }
+        })
+        .filter(item => item.score > 0.1) // Lowered threshold for debugging
+        .sort((a, b) => b.score - a.score) // Sort by highest score first
+        .map(item => item.match) // Extract the match objects
+        
+        return recommendedMatches
+    }
     // Pending Invites tab renders its own container; do not show matches here
     if (selectedTab.value === 'invites') return []
     return base.filter(m => !isPast(m))
@@ -1051,7 +1629,7 @@ const groupedMatches = computed(() => {
     const now = new Date()
     const out = { ongoing: [], scheduled: [], past: [] }
     const list = (matchesForTab.value || []).slice()
-    // sort by start time where possible (earliest first)
+    // sort by start time where possible (earliest first for ongoing/scheduled)
     list.sort((a, b) => {
         const aa = getMatchStartEnd(a).start
         const bb = getMatchStartEnd(b).start
@@ -1061,6 +1639,12 @@ const groupedMatches = computed(() => {
         return aa - bb
     })
     for (const m of list) {
+        // First check if match was manually ended
+        if (isPast(m)) {
+            out.past.push(m)
+            continue
+        }
+        
         const { start, end } = getMatchStartEnd(m)
         if (start && end) {
             if (now >= start && now <= end) out.ongoing.push(m)
@@ -1074,6 +1658,23 @@ const groupedMatches = computed(() => {
             out.scheduled.push(m)
         }
     }
+    
+    // For recommended tab, limit to top 6 matches (3 ongoing, 3 scheduled)
+    if (selectedTab.value === 'recommended') {
+        out.ongoing = out.ongoing.slice(0, 3)
+        out.scheduled = out.scheduled.slice(0, 3)
+    }
+    
+    // Sort past matches by most recent first (reverse chronological order)
+    out.past.sort((a, b) => {
+        const aa = getMatchStartEnd(a).start
+        const bb = getMatchStartEnd(b).start
+        if (!aa && !bb) return 0
+        if (!aa) return 1
+        if (!bb) return -1
+        return bb - aa  // Reversed: most recent first
+    })
+    
     return out
 })
 
@@ -1096,6 +1697,15 @@ const emptyMessage = computed(() => {
     if (t === 'joined') return "You haven't joined any upcoming matches."
     if (t === 'past') return 'You have no past matches.'
     if (t === 'invites') return 'You have no pending invitations.'
+    if (t === 'recommended') {
+        if (!currentUserProfile.value) {
+            return 'Complete your profile to see personalized match recommendations.'
+        }
+        if (!userLocation.value && !locationPermissionGranted.value) {
+            return 'Enable location access to see matches in your area. Allow location permission when prompted.'
+        }
+        return 'No recommended matches available in your area. Check back later or explore other regions.'
+    }
     return 'No upcoming matches found.'
 })
 
@@ -1206,12 +1816,9 @@ function skillRank(skill) {
     return idx === -1 ? 0 : idx
 }
 
-// Match types should be only Open / Intermediate / Professional. Legacy 'Beginner' match types
-// (if present in the DB) should be treated as 'Open' matches for join/permission checks.
+// Match types should be Open / Beginner / Intermediate / Professional
 function normalizeMatchType(type) {
-    const t = normalizeSkill(type)
-    if (t === 'Beginner') return 'Open'
-    return t
+    return normalizeSkill(type)
 }
 
 function canJoin(match) {
@@ -1542,10 +2149,38 @@ function formatDate(match) {
     return ''
 }
 
+// DEBUG: Expose test function globally for console access
+window.createTestRecommendationMatch = createTestRecommendationMatch
+
 // pushDataToFirebase('TEST', 123);
 </script>
 
 <style scoped>
+.page-bg {
+    min-height: 100vh;
+    background-image: url('../assets/matchBG.jpg');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    position: relative;
+}
+
+.page-bg::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7));
+    z-index: 1;
+}
+
+.page-bg > * {
+    position: relative;
+    z-index: 2;
+}
+
 .large-card {
     padding: 28px;
     border:1px solid #22272e;
@@ -1974,7 +2609,7 @@ function formatDate(match) {
 .invitations-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 20px;
+    gap: 16px;
     width: 100%;
 }
 
@@ -1984,148 +2619,64 @@ function formatDate(match) {
 }
 
 .invitation-card {
-    background: linear-gradient(135deg, #FF9A3C 0%, #FF8C1A 100%);
-    border-radius: 16px;
-    overflow: hidden;
+    background: linear-gradient(180deg, #0b0f12, #0d1114);
+    border: 1px solid rgba(255, 154, 60, 0.2);
+    border-radius: 10px;
+    transition: transform 0.2s, box-shadow 0.2s;
     width: 100%;
     max-width: 400px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    transition: transform 0.2s;
+}
+
+.invitation-card .card-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 .invitation-card:hover {
     transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 154, 60, 0.15);
 }
 
-.invitation-header {
-    padding: 20px 20px 16px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-}
-
-.invitation-match-title {
-    color: #000;
+.invitation-title {
+    color: #ff9a3c;
     font-weight: 700;
-    font-size: 1.25rem;
+    font-size: 1.15rem;
+    text-align: center;
     margin: 0;
-    flex: 1;
 }
 
-.invitation-invite-btn {
-    background: rgba(255, 255, 255, 0.25);
-    border: none;
-    color: #000;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: default;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.invitation-body {
-    background: #1a1d23;
-    padding: 20px;
+.invitation-details {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    border-radius: 0 0 16px 16px;
-}
-
-.invitation-court-name {
-    color: #fff;
-    font-size: 0.95rem;
-    font-weight: 600;
-}
-
-.invitation-date {
-    color: #fff;
-    font-size: 1rem;
-    font-weight: 700;
-    margin-top: 4px;
-}
-
-.invitation-time {
-    color: #fff;
-    font-size: 0.95rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-}
-
-.invitation-tags {
-    display: flex;
     gap: 8px;
-    margin-bottom: 8px;
 }
 
-.invitation-tag {
-    background: rgba(255, 154, 60, 0.15);
-    color: #ff9a3c;
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-
-.invitation-inviter {
+.invitation-detail-item {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     color: #9fb0bf;
     font-size: 0.9rem;
-    margin-bottom: 12px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.invitation-inviter i {
-    font-size: 1.2rem;
+.invitation-detail-item i {
+    color: #ff9a3c;
+    font-size: 1rem;
 }
 
 .invitation-actions {
     display: flex;
     gap: 12px;
+    margin-top: 4px;
 }
 
-.invitation-actions .btn-accept,
-.invitation-actions .btn-decline {
+.invitation-actions button {
     flex: 1;
-    padding: 12px 16px;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 0.95rem;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-}
-
-.invitation-actions .btn-accept {
-    background: #10b981;
-    color: #fff;
-}
-
-.invitation-actions .btn-accept:hover {
-    background: #059669;
-    transform: translateY(-1px);
-}
-
-.invitation-actions .btn-decline {
-    background: transparent;
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.invitation-actions .btn-decline:hover {
-    background: rgba(239, 68, 68, 0.2);
-    border-color: #ef4444;
-    color: #ef4444;
+    padding: 10px 16px;
+    font-weight: 600;
 }
 
 /* Responsive breakpoints */

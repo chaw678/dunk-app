@@ -884,8 +884,23 @@ async function onEndMatch() {
   try {
     const dbPath = await resolveMatchDbPath()
     if (dbPath) {
+      const nowIso = new Date().toISOString()
+      // ensure round is closed
       await setChildData(dbPath, 'roundActive', false)
-      await setChildData(dbPath, 'lastRoundEndedAt', new Date().toISOString())
+      await setChildData(dbPath, 'lastRoundEndedAt', nowIso)
+      // mark match as ended so Matches.vue treats it as past immediately
+      try {
+        await setChildData(dbPath, 'started', false)
+      } catch (e) { /* non-fatal */ }
+      try {
+        await setChildData(dbPath, 'endedAt', nowIso)
+      } catch (e) { /* non-fatal */ }
+      // also set endAtISO for consistency with other places that check ISO fields
+      try { await setChildData(dbPath, 'endAtISO', nowIso) } catch (e) {}
+      // keep local model in sync so UI updates immediately
+      try { matchData.value = { ...(matchData.value || {}), started: false, endedAt: nowIso, endAtISO: nowIso } } catch (e) {}
+      // navigate back to Matches so the card shows under Past Matches
+      try { await router.push('/matches') } catch (e) { /* ignore navigation failures */ }
     }
   } catch (e) { /* ignore persistence errors */ }
 }

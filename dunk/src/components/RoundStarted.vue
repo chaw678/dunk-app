@@ -15,16 +15,16 @@
           <div class="timer-setter-inline" v-if="!timerSet && !roundActive">
             <div class="setter-row">
               <div class="time-inputs-inline">
-                <input class="time-input" type="number" min="0" v-model.number="timerMinutes" placeholder="Min" />
+                <input class="time-input" type="number" min="0" v-model.number="timerMinutes" placeholder="Min" :disabled="timerControlsDisabled" />
                 <span class="colon">:</span>
-                <input class="time-input" type="number" min="0" max="59" v-model.number="timerSeconds" placeholder="Sec" />
-                <button class="btn-set-inline" :class="{ pulsate: setShouldPulse }" @click="setTimer" :disabled="!validTimerInput">Set</button>
+                <input class="time-input" type="number" min="0" max="59" v-model.number="timerSeconds" placeholder="Sec" :disabled="timerControlsDisabled" />
+                <button class="btn-set-inline" :class="{ pulsate: setShouldPulse }" @click="setTimer" :disabled="!validTimerInput || timerControlsDisabled">Set</button>
               </div>
               <div class="preset-buttons-inline">
-                <button class="preset" :class="{ pulsate: setShouldPulse }" @click="applyPreset(60)">1:00</button>
-                <button class="preset" :class="{ pulsate: setShouldPulse }" @click="applyPreset(120)">2:00</button>
-                <button class="preset" :class="{ pulsate: setShouldPulse }" @click="applyPreset(300)">5:00</button>
-                <button class="preset" :class="{ pulsate: setShouldPulse }" @click="applyPreset(600)">10:00</button>
+                <button class="preset" :class="{ pulsate: setShouldPulse }" @click="applyPreset(60)" :disabled="timerControlsDisabled">1:00</button>
+                <button class="preset" :class="{ pulsate: setShouldPulse }" @click="applyPreset(120)" :disabled="timerControlsDisabled">2:00</button>
+                <button class="preset" :class="{ pulsate: setShouldPulse }" @click="applyPreset(300)" :disabled="timerControlsDisabled">5:00</button>
+                <button class="preset" :class="{ pulsate: setShouldPulse }" @click="applyPreset(600)" :disabled="timerControlsDisabled">10:00</button>
               </div>
             </div>
           </div>
@@ -54,7 +54,7 @@
 
     <!-- Teams vertical boxes (same visual style as MatchRoom) -->
     <section class="teams-grid">
-  <div :class="['team-card', teamAOutlineClass]" @click="!roundActive && selectWinner('A')">
+  <div :class="['team-card', teamAOutlineClass]" @click="roundFinished && selectWinner('A')" :aria-disabled="!roundFinished">
     <h2>Team A</h2>
     <div class="team-drop-list">
       <div v-for="p in teamA" :key="p.uid" class="player-tile">
@@ -67,7 +67,7 @@
     </div>
   </div>
 
-  <div :class="['team-card', teamBOutlineClass]" @click="!roundActive && selectWinner('B')">
+  <div :class="['team-card', teamBOutlineClass]" @click="roundFinished && selectWinner('B')" :aria-disabled="!roundFinished">
     <h2>Team B</h2>
     <div class="team-drop-list">
       <div v-for="p in teamB" :key="p.uid" class="player-tile">
@@ -84,11 +84,11 @@
 
 
     <!-- Winner selection after round ended -->
-    <section v-if="!roundActive && (roundFinished || timerTotal > 0)" class="winner-section">
+    <section v-if="!roundActive && roundFinished" class="winner-section">
       <p class="pick-txt">Pick winning team:</p>
       <div class="winner-buttons">
-        <button @click="selectWinner('A')" :class="{ winnerBtn: selectedWinner === 'A' }">Team A</button>
-        <button @click="selectWinner('B')" :class="{ winnerBtn: selectedWinner === 'B' }">Team B</button>
+        <button @click="selectWinner('A')" :class="{ winnerBtn: selectedWinner === 'A' }" :disabled="!roundFinished">Team A</button>
+        <button @click="selectWinner('B')" :class="{ winnerBtn: selectedWinner === 'B' }" :disabled="!roundFinished">Team B</button>
       </div>
       <div v-if="selectedWinner" class="confirm-winner">
           <div style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
@@ -155,7 +155,8 @@ const validTimerInput = computed(() => {
 })
 
 // pulse the Set/presets to encourage setting a timer once teams are locked
-const setShouldPulse = computed(() => teamsLocked.value && !timerSet.value)
+const setShouldPulse = computed(() => teamsLocked.value && !timerSet.value && !roundFinished.value && !roundActive.value)
+const timerControlsDisabled = computed(() => roundActive.value || roundFinished.value)
 
 const timerDisplay = computed(() => {
   const secs = timerRemaining.value || timerTotal.value || 0
@@ -478,29 +479,37 @@ async function confirmWinnerNextRound() {
 // confirm winner and end match (persist winner and rounds, mark match ended and go to Matches list)
 async function confirmWinnerEndMatch() {
   if (!selectedWinner.value) return
-  // ask user to confirm ending the match to avoid accidents
   if (!confirm('Are you sure you want to end this match? This will move it to past matches.')) return
+  const nowIso = new Date().toISOString()
   try {
     const dbPath = await resolveMatchDbPath()
     if (dbPath) {
+      // persist final round + winner
       await setChildData(dbPath, 'lastRoundWinner', selectedWinner.value)
-      await setChildData(`${dbPath}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: new Date().toISOString(), duration: timerTotal.value })
-      // increment wins
+      await setChildData(`${dbPath}/rounds`, Date.now().toString(), { winner: selectedWinner.value, endedAt: nowIso, duration: timerTotal.value })
+
+      // update wins counters
       const currentWins = await getDataFromFirebase(`${dbPath}/wins`) || { A: 0, B: 0 }
       const newWins = { A: Number(currentWins.A || 0), B: Number(currentWins.B || 0) }
       if (selectedWinner.value === 'A') newWins.A += 1
       if (selectedWinner.value === 'B') newWins.B += 1
       await setChildData(dbPath, 'wins', newWins)
-      // mark match ended
-      await setChildData(dbPath, 'endedAt', new Date().toISOString())
+
+      // mark match ended and clear active flags so Matches.vue treats it as past
+      await setChildData(dbPath, 'started', false)
+      await setChildData(dbPath, 'roundActive', false)
+      await setChildData(dbPath, 'lastRoundEndedAt', nowIso)
+      await setChildData(dbPath, 'endedAt', nowIso)
+      await setChildData(dbPath, 'endAtISO', nowIso)
       await setChildData(dbPath, 'status', 'ended')
+
+      // update local cache so UI reacts immediately
+      try { matchData.value = { ...(matchData.value || {}), started: false, roundActive: false, lastRoundEndedAt: nowIso, endedAt: nowIso, endAtISO: nowIso, status: 'ended' } } catch (_) {}
     }
   } catch (e) { console.warn('confirmWinnerEndMatch error', e) }
 
-  // increment each winning player's per-type win counter
+  // increment each winning player's per-type win counter and auxiliary counters
   try {
-    // Always increment generic wins and totalWins for each winning player.
-    // Additionally, resolve the match type (local cache or DB) and increment the typed counter
     const matchType = await resolveMatchType()
     const typedField = matchType ? (k => k.startsWith('open') ? 'openWins' : (k.startsWith('inter') ? 'intermediateWins' : (k.startsWith('prof') ? 'professionalWins' : 'openWins')))(String(matchType).toLowerCase()) : null
     const winners = selectedWinner.value === 'A' ? teamA.value : teamB.value
@@ -512,9 +521,6 @@ async function confirmWinnerEndMatch() {
         try { await incrementField(`users/${uid}`, 'totalWins', 1) } catch (err) {}
         if (typedField) {
           try { await incrementField(`users/${uid}`, typedField, 1) } catch (err) { console.warn('Could not increment typed user win for', uid, err) }
-        } else {
-          // typedField missing means matchType couldn't be resolved; log for debug
-          console.warn('typedField unset — matchType unresolved for', uid)
         }
 
         try {
@@ -540,14 +546,14 @@ async function confirmWinnerEndMatch() {
     const teamAUids = (teamA.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
     const teamBUids = (teamB.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
     const winners = (selectedWinner.value === 'A' ? teamAUids : teamBUids)
-    const payload = { teamA: teamAUids, teamB: teamBUids, winningTeam: selectedWinner.value, winningTeamMembers: winners, endedAt: new Date().toISOString(), duration: timerTotal.value }
-  const dbPath = await resolveMatchDbPath()
-  if (dbPath) {
-    await setChildData(`${dbPath}/roundsplayed`, ts, payload)
-    try {
-      if ((winners || []).length) await setChildData(`${dbPath}/winningTeamMembers`, ts, winners)
-    } catch (err) { console.warn('Could not persist winningTeamMembers entry', err) }
-  }
+    const payload = { teamA: teamAUids, teamB: teamBUids, winningTeam: selectedWinner.value, winningTeamMembers: winners, endedAt: nowIso, duration: timerTotal.value }
+    const dbPath = await resolveMatchDbPath()
+    if (dbPath) {
+      await setChildData(`${dbPath}/roundsplayed`, ts, payload)
+      try {
+        if ((winners || []).length) await setChildData(`${dbPath}/winningTeamMembers`, ts, winners)
+      } catch (err) { console.warn('Could not persist winningTeamMembers entry', err) }
+    }
   } catch (err) { console.warn('Could not persist roundsplayed entry', err) }
 
   // navigate to Matches list (past matches should be filtered there)

@@ -689,6 +689,11 @@ function barHeight(value) {
 // animate bars on mount
 const animateBars = ref(false)
 
+// tooltip state
+const showTooltip = ref(false)
+const tooltipContent = ref('')
+const tooltipPosition = ref({ x: 0, y: 0 })
+
 // animated numeric displays for login page
 const displayOpen = ref(0)
 const displayIntermediate = ref(0)
@@ -713,6 +718,21 @@ function animateCounts(duration = 700) {
     if (t < 1) requestAnimationFrame(step)
   }
   requestAnimationFrame(step)
+}
+
+// tooltip functions
+function showBarTooltip(event, skillLevel, wins) {
+  const rect = event.target.getBoundingClientRect()
+  tooltipPosition.value = {
+    x: rect.left + rect.width / 2,
+    y: rect.top - 45
+  }
+  tooltipContent.value = `${skillLevel}: ${wins} win${wins !== 1 ? 's' : ''}`
+  showTooltip.value = true
+}
+
+function hideBarTooltip() {
+  showTooltip.value = false
 }
 
 onMounted(() => {
@@ -932,25 +952,42 @@ watch(animateBars, (v) => { if (v) animateCounts() })
           <p class="lead-text">You have a total of <span class="text-warning fw-semibold">{{ totalWins }}</span> wins across all skill levels. Here's the breakdown:</p>
           <div class="chart-grid-lines" aria-hidden="true"></div>
           <div class="stats-chart d-flex align-items-end justify-content-between">
-            <div class="chart-bar">
+            <div class="chart-bar" 
+                 @mouseenter="showBarTooltip($event, 'Open', statsFromProfile.open_wins)"
+                 @mouseleave="hideBarTooltip">
               <div class="bar-fill" :style="{ height: (statsFromProfile.open_wins > 0 ? (animateBars ? barHeight(statsFromProfile.open_wins) : '8px') : '4px'), background: (statsFromProfile.open_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (statsFromProfile.open_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '0ms' }" aria-hidden="true"></div>
               <div class="bar-value">{{ statsFromProfile.open_wins > 0 ? displayOpen : '' }}</div>
               <div class="bar-label">Open</div>
             </div>
 
-            <div class="chart-bar">
+            <div class="chart-bar"
+                 @mouseenter="showBarTooltip($event, 'Intermediate', statsFromProfile.intermediate_wins)"
+                 @mouseleave="hideBarTooltip">
               <div class="bar-fill" :style="{ height: (statsFromProfile.intermediate_wins > 0 ? (animateBars ? barHeight(statsFromProfile.intermediate_wins) : '8px') : '4px'), background: (statsFromProfile.intermediate_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (statsFromProfile.intermediate_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '90ms' }" aria-hidden="true"></div>
               <div class="bar-value">{{ statsFromProfile.intermediate_wins > 0 ? displayIntermediate : '' }}</div>
               <div class="bar-label">Intermediate</div>
             </div>
 
-            <div class="chart-bar">
+            <div class="chart-bar"
+                 @mouseenter="showBarTooltip($event, 'Professional', statsFromProfile.professional_wins)"
+                 @mouseleave="hideBarTooltip">
               <div class="bar-fill" :style="{ height: (statsFromProfile.professional_wins > 0 ? (animateBars ? barHeight(statsFromProfile.professional_wins) : '8px') : '4px'), background: (statsFromProfile.professional_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (statsFromProfile.professional_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '180ms' }" aria-hidden="true"></div>
               <div class="bar-value">{{ statsFromProfile.professional_wins > 0 ? displayProfessional : '' }}</div>
               <div class="bar-label">Professional</div>
             </div>
           </div>
         </div>
+
+    <!-- Tooltip -->
+    <div v-if="showTooltip" 
+         class="chart-tooltip" 
+         :style="{ 
+           left: tooltipPosition.x + 'px', 
+           top: tooltipPosition.y + 'px',
+           transform: 'translateX(-50%)' 
+         }">
+      {{ tooltipContent }}
+    </div>
 
     <!-- add here -->
    
@@ -1379,6 +1416,47 @@ watch(animateBars, (v) => { if (v) animateCounts() })
 
       .bar-value { color: #081017; font-weight:800; font-size:0.98rem; margin-bottom:6px }
       .bar-label { color:#9CA3AF; margin-top:10px; font-size:0.95rem }
+
+      /* Chart Tooltip */
+      .chart-tooltip {
+        position: fixed;
+        background: rgba(20, 25, 35, 0.95);
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        z-index: 1000;
+        pointer-events: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 202, 106, 0.3);
+        backdrop-filter: blur(8px);
+        white-space: nowrap;
+      }
+
+      .chart-tooltip::before {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-top-color: rgba(20, 25, 35, 0.95);
+      }
+
+      /* Add hover effects to chart bars */
+      .chart-bar {
+        cursor: pointer;
+        transition: transform 0.2s ease;
+      }
+
+      .chart-bar:hover {
+        transform: translateY(-2px);
+      }
+
+      .chart-bar:hover .bar-fill {
+        box-shadow: 0 8px 24px rgba(255, 173, 29, 0.4);
+      }
 
       @media (max-width: 540px) {
         .stats-chart { height: 180px }

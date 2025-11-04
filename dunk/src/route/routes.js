@@ -1,6 +1,7 @@
 import { createWebHistory, createRouter } from 'vue-router'
 import MainMenu from '../components/MainMenu.vue'
 import Home from '../components/Home.vue'
+import HomePage from '../components/HomePage.vue'
 import MatchRoom from '../components/MatchRoom.vue'
 import Upload from '../components/FileUpload.vue'
 import CourtFinder from '../components/CourtFinder.vue'
@@ -16,6 +17,7 @@ const history = createWebHistory()
 const routes = [
     { path: '/', component: MainMenu },
     { path: '/home', component: Home },
+    { path: '/homepage', component: HomePage },
     { path: '/match/:id', component: MatchRoom, name: 'MatchRoom' },
     { path: '/match/:id/round', component: () => import('../components/RoundStarted.vue'), name: 'RoundStarted' },
     { path: '/upload', component: Upload },
