@@ -210,10 +210,10 @@
               <div class="team-members">
                 <template v-for="uid in (r.teamA || [])" :key="uid">
                   <div class="member-pill">
-              <div class="member-avatar-small">{{ initials(displayNameFor(uid)) }}</div>
-              <div class="member-name">{{ displayNameFor(uid) }}</div>
-              <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
-              <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayMatchWinsForUid(uid) }}</div>
+                    <div class="member-avatar-small"><img :src="avatarForUid(uid)" :alt="displayNameFor(uid) + ' avatar'"/></div>
+                    <div class="member-name">{{ displayNameFor(uid) }}</div>
+                    <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
+                    <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayMatchWinsForUid(uid) }}</div>
                   </div>
                 </template>
               </div>
@@ -224,10 +224,10 @@
               <div class="team-members">
                 <template v-for="uid in (r.teamB || [])" :key="uid">
                   <div class="member-pill">
-                    <div class="member-avatar-small">{{ initials(displayNameFor(uid)) }}</div>
-                      <div class="member-name">{{ displayNameFor(uid) }}</div>
-                      <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
-                      <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayMatchWinsForUid(uid) }}</div>
+                    <div class="member-avatar-small"><img :src="avatarForUid(uid)" :alt="displayNameFor(uid) + ' avatar'"/></div>
+                    <div class="member-name">{{ displayNameFor(uid) }}</div>
+                    <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
+                    <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayMatchWinsForUid(uid) }}</div>
                   </div>
                 </template>
               </div>
@@ -617,6 +617,14 @@ function formatDuration(sec) {
 function nameFor(uid) {
   const u = usersMap.value && usersMap.value[uid]
   return (u && (u.name || u.displayName || u.username)) || uid
+}
+
+function avatarForUid(uid) {
+  if (!uid) return avatarForUser('anon')
+  const u = usersMap.value && usersMap.value[uid]
+  if (u && u.profilepicture) return u.profilepicture
+  if (u && u.avatar) return u.avatar
+  return avatarForUser(u || uid)
 }
 
 // Friendly display name helper for player elements (handles uid strings or enriched objects)
@@ -1179,6 +1187,7 @@ header { display: flex; align-items: center; justify-content: space-between; }
 .team-members { display:flex; gap:8px; flex-wrap:wrap }
 .member-pill { display:flex; gap:8px; align-items:center; background: linear-gradient(180deg, #0f1114, #141516); padding:6px 8px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); }
 .member-avatar-small { width:30px; height:30px; border-radius:50%; background:#ffad1d; color:#0b0b0b; display:flex; align-items:center; justify-content:center; font-weight:900 }
+  .member-avatar-small img { width:100%; height:100%; object-fit:cover; display:block }
   .member-name { color:#fff; font-weight:800; font-size:0.82rem }
   .member-sub { color:#cfc9b0; font-weight:700; font-size:0.72rem; margin-left:4px }
   .member-wins { color:#ffd98a; font-weight:900; margin-left:6px }
@@ -1206,5 +1215,43 @@ header { display: flex; align-items: center; justify-content: space-between; }
 /* subtle tile hover expansion */
 .player-avatar { transition: transform 180ms ease, box-shadow 180ms ease }
 .player-avatar:hover { transform: translateY(-6px); box-shadow: 0 18px 40px rgba(0,0,0,0.6) }
+
+</style>
+
+<style scoped>
+/* Responsive fixes for narrow viewports to prevent the matchroom UI from breaking */
+@media (max-width: 1100px) {
+  .matchroom-container { padding: 20px 16px; }
+  header h1 { font-size: 1.2rem; }
+  .teams-grid { flex-direction: column; gap: 18px; align-items: stretch; }
+  .team-card { min-width: 0 !important; width: 100%; }
+  .bench-list, .team-drop-list { gap: 14px; }
+  .wins-chart { max-width: 100%; padding: 0 8px; }
+  .wins-title { font-size: 2rem; }
+}
+
+@media (max-width: 720px) {
+  .matchroom-container { padding: 14px 10px; }
+  .details-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  .player-name { font-size: 0.9rem; }
+  .player-sub { font-size: 0.72rem; }
+  .member-pill { padding: 6px; gap: 10px; }
+  .member-name { font-size: 0.9rem }
+  .rounds-history { padding: 12px; }
+  .round-card { flex-direction: column; }
+  .card-left { width: 100%; display:flex; gap:8px; }
+  .card-main { width: 100%; }
+}
+
+/* Very small screens: allow horizontal scroll for the teams grid as a fallback */
+@media (max-width: 420px) {
+  .teams-grid { display: block; overflow-x: auto; white-space: nowrap; padding-bottom: 6px; }
+  .team-card { display: inline-block; vertical-align: top; white-space: normal; min-width: 280px; width: 86%; margin-right: 12px; }
+  .bench-list { overflow-x: auto; white-space: nowrap; }
+  .bench-list .player-avatar { display: inline-flex; width: auto; }
+}
+
+/* Always allow horizontal scrolling of the main container if content overflows */
+.matchroom-container { overflow-x: auto; }
 
 </style>

@@ -95,6 +95,11 @@ html, body, #app {
   width: clamp(280px, calc(85vw - var(--sidebar-collapsed-width)), 1400px);
 }
 
+/* When the sidebar is collapsed, center the main content cards so pages appear centered */
+.main-content.collapsed {
+  justify-content: center;
+}
+
 /* Left-align card inside main content (not centered) */
 .main-content { justify-content: flex-start; align-items: flex-start; box-sizing: border-box }
 
