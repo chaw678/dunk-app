@@ -2,9 +2,12 @@
   <div class="matchroom-container">
     <header>
       <button @click="goBack" class="back-btn">← Back</button>
-      <h1>{{ displayTitle }}</h1>
+  <h1 class="matchroom-title" style="text-align: center;">{{ displayTitle }}</h1>
       <button @click="onEndMatch" class="end-match-btn">End Match</button>
     </header>
+    <div class="title-actions" style="text-align: center;">
+      <button @click="showSummary = true" class="summary-btn">Match Summary</button>
+    </div>
 
     <!-- Match details card -->
     <section class="match-details">
@@ -61,12 +64,12 @@
         item-key="uid"
       >
 
-        <template #item="{ element }">
-            <div class="player-avatar" @click="openProfileModal(element.uid)">
+    <template #item="{ element }">
+  <div class="player-avatar" title="" @click="openProfileModal(element)">
               <div class="player-left">
                 <div class="avatar-block">
-                  <template v-if="element?.avatar">
-                    <img :src="element.avatar" class="avatar-img" :alt="displayNameFor(element)" />
+                  <template v-if="displayAvatarFor(element)">
+                    <img :src="displayAvatarFor(element)" class="avatar-img" :alt="displayNameFor(element)" />
                   </template>
                   <template v-else>
                     <div class="avatar-fallback">{{ initials(displayNameFor(element)) }}</div>
@@ -101,11 +104,11 @@
         <h2>Team A</h2>
         <draggable v-model="teamA" :group="'players'" :disabled="teamsLocked" item-key="uid" class="team-drop-list">
             <template #item="{ element }">
-            <div class="player-avatar" @click="openProfileModal(element.uid)">
+            <div class="player-avatar" title="" @click="openProfileModal(element)">
               <div class="player-left">
                 <div class="avatar-block">
-                  <template v-if="element?.avatar">
-                    <img :src="element.avatar" class="avatar-img" :alt="displayNameFor(element)" />
+                  <template v-if="displayAvatarFor(element)">
+                    <img :src="displayAvatarFor(element)" class="avatar-img" :alt="displayNameFor(element)" />
                   </template>
                   <template v-else>
                     <div class="avatar-fallback">{{ initials(displayNameFor(element)) }}</div>
@@ -127,11 +130,11 @@
         <h2>Team B</h2>
         <draggable v-model="teamB" :group="'players'" :disabled="teamsLocked" item-key="uid" class="team-drop-list">
             <template #item="{ element }">
-            <div class="player-avatar" @click="openProfileModal(element.uid)">
+            <div class="player-avatar" title="" @click="openProfileModal(element)">
               <div class="player-left">
                 <div class="avatar-block">
-                  <template v-if="element?.avatar">
-                    <img :src="element.avatar" class="avatar-img" :alt="displayNameFor(element)" />
+                  <template v-if="displayAvatarFor(element)">
+                    <img :src="displayAvatarFor(element)" class="avatar-img" :alt="displayNameFor(element)" />
                   </template>
                   <template v-else>
                     <div class="avatar-fallback">{{ initials(displayNameFor(element)) }}</div>
@@ -206,28 +209,28 @@
         <div class="card-main">
           <div class="teams-row">
             <div class="team-block team-a">
-              <div class="team-title">A</div>
+              <div class="team-title">Team A</div>
               <div class="team-members">
                 <template v-for="uid in (r.teamA || [])" :key="uid">
-                  <div class="member-pill" @click="openProfileModal(uid)">
-              <div class="member-avatar-small">{{ initials(displayNameFor(uid)) }}</div>
-              <div class="member-name">{{ displayNameFor(uid) }}</div>
-              <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
-              <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayMatchWinsForUid(uid) }}</div>
+                  <div class="member-pill" title="" @click="openProfileModal(uid)">
+                    <div class="member-avatar-small"><img :src="avatarForUid(uid)" :alt="displayNameFor(uid) + ' avatar'"/></div>
+                    <div class="member-name">{{ displayNameFor(uid) }}</div>
+                    <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
+                    <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayMatchWinsForUid(uid) }}</div>
                   </div>
                 </template>
               </div>
             </div>
 
             <div class="team-block team-b">
-              <div class="team-title">B</div>
+              <div class="team-title">Team B</div>
               <div class="team-members">
                 <template v-for="uid in (r.teamB || [])" :key="uid">
-                  <div class="member-pill" @click="openProfileModal(uid)">
-                    <div class="member-avatar-small">{{ initials(displayNameFor(uid)) }}</div>
-                      <div class="member-name">{{ displayNameFor(uid) }}</div>
-                      <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
-                      <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayMatchWinsForUid(uid) }}</div>
+                  <div class="member-pill" title="" @click="openProfileModal(uid)">
+                    <div class="member-avatar-small"><img :src="avatarForUid(uid)" :alt="displayNameFor(uid) + ' avatar'"/></div>
+                    <div class="member-name">{{ displayNameFor(uid) }}</div>
+                    <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
+                    <div class="member-wins" :class="{ 'pulse-win': winsPulse[uid] }">🏆 {{ displayMatchWinsForUid(uid) }}</div>
                   </div>
                 </template>
               </div>
@@ -246,8 +249,9 @@
   </section>
 
   <!-- Stats Modal -->
-  <StatisticsModal v-if="showStats" :stats="computedStats" @close="showStats=false" />
-  <ProfileModal v-if="showProfileModal" :uid="profileModalUid" @close="closeProfileModal" />
+  <EndMatchSummary v-if="showStats" :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" :matchData="matchData" @close="showStats=false" />
+  <EndMatchSummary v-if="showSummary" :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" :matchData="matchData" compact @close="showSummary=false" />
+  <ProfileModal v-if="showProfileModal" :uid="profileModalUid" :initialProfile="profileModalInitial" @close="closeProfileModal" />
   </div>
   
 </template>
@@ -262,8 +266,8 @@ import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { getDataFromFirebase, setChildData, onDataChange } from '../firebase/firebase'
 import { avatarForUser } from '../utils/avatar.js'
 import ProfileModal from './ProfileModal.vue'
+import EndMatchSummary from './EndMatchSummary.vue'
 // RoundsHistory inlined below; no external import
-// import your StatisticsModal if you want fancy end-of-match stats
 
 const route = useRoute()
 const router = useRouter()
@@ -272,12 +276,28 @@ const matchId = computed(() => route.params.id)
 // modal state for profile
 const showProfileModal = ref(false)
 const profileModalUid = ref(null)
-function openProfileModal(uid) {
-  if (!uid) return
-  profileModalUid.value = uid
+// optional initial profile object to render immediately in the modal so
+// the modal view matches the pill the user clicked (avoids mismatch while
+// the modal subscribes to the users/<uid> node).
+const profileModalInitial = ref(null)
+function openProfileModal(target) {
+  if (!target) return
+  // allow either a uid string or an enriched player object
+  if (typeof target === 'string') {
+    profileModalUid.value = target
+    profileModalInitial.value = null
+  } else if (typeof target === 'object' && target) {
+    const uid = target.uid || target.id || target.key || null
+    if (!uid) return
+    profileModalUid.value = uid
+    // keep the enriched object (name/avatar) so modal can render immediately
+    profileModalInitial.value = target
+  } else {
+    return
+  }
   showProfileModal.value = true
 }
-function closeProfileModal() { showProfileModal.value = false; profileModalUid.value = null }
+function closeProfileModal() { showProfileModal.value = false; profileModalUid.value = null; profileModalInitial.value = null }
 
 /** Initial player data */
 const allPlayers = []
@@ -579,6 +599,28 @@ function nameFor(uid) {
   return (u && (u.name || u.displayName || u.username)) || uid
 }
 
+function avatarForUid(uid) {
+  if (!uid) return avatarForUser('anon')
+  const u = usersMap.value && usersMap.value[uid]
+  if (u && u.profilepicture) return u.profilepicture
+  if (u && u.avatar) return u.avatar
+  return avatarForUser(u || uid)
+}
+
+// Resolve avatar for either an element object or a uid (keeps parity with Profile.vue)
+function displayAvatarFor(element) {
+  if (!element) return null
+  const uid = (typeof element === 'string') ? element : (element.uid || element.id || element.key || null)
+  const resolved = uid && usersMap.value ? usersMap.value[uid] : null
+  if (resolved) {
+    return resolved.profilepicture || resolved.avatar || resolved.photoURL || resolved.picture || resolved.photo || resolved.imageURL || resolved.thumbnail || null
+  }
+  // fallback to any avatar present on the element object
+  if (typeof element === 'object' && element.avatar) return element.avatar
+  // final fallback to seeded avatar helper
+  return avatarForUser(resolved || (uid || element))
+}
+
 // Friendly display name helper for player elements (handles uid strings or enriched objects)
 function displayNameFor(element) {
   if (!element) return ''
@@ -735,6 +777,7 @@ const teamB = ref([])
 const teamsLocked = ref(false)
 const roundActive = ref(false)
 const showStats = ref(false)
+const showSummary = ref(false)
 
 const teamReady = computed(() => (teamA.value.length > 0 && teamB.value.length > 0))
 const confirmShouldPulse = computed(() => teamReady.value && !teamsLocked.value)
@@ -967,6 +1010,35 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* Center header title and summary button; position nav buttons absolutely so title remains centered */
+.matchroom-container > header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+}
+.matchroom-container > header .back-btn {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #B23B3B; /* restored red background */
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-weight: 700;
+}
+.matchroom-container > header .end-match-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.title-actions { display:flex; justify-content:center; margin-top:8px; }
+.summary-btn { display:inline-flex; margin:0 auto; }
 
 .pulsate {
   animation: pulse-glow 1.1s ease-in-out infinite;
@@ -1095,6 +1167,8 @@ header { display: flex; align-items: center; justify-content: space-between; }
 @keyframes pulseborder { from { box-shadow: 0 0 0 0 #ffad1d55; } to { box-shadow: 0 0 20px 8px #ffad1d90; } }
 .actions-row { margin-top: 30px; display: flex; gap: 22px; justify-content: center; }
 .back-btn, .end-match-btn { border:none; background:#B23B3B; color: #fff; border-radius: 8px; padding:9px 18px; font-weight:700; }
+.summary-btn { border:none; background:#2b6baf; color:#fff; border-radius:8px; padding:9px 14px; font-weight:700; margin:0 6px; }
+.title-actions { margin:8px 0 16px; display:flex; gap:8px; justify-content:center; width:100%; align-items:center }
 .bench-section p { font-size: 0.96rem; color: #ccc; margin-bottom:16px; }
 .teams-grid { display: flex; gap: 34px; align-items: flex-start; justify-content: center; }
 
@@ -1141,6 +1215,7 @@ header { display: flex; align-items: center; justify-content: space-between; }
 .team-members { display:flex; gap:8px; flex-wrap:wrap }
 .member-pill { display:flex; gap:8px; align-items:center; background: linear-gradient(180deg, #0f1114, #141516); padding:6px 8px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); cursor: pointer; }
 .member-avatar-small { width:30px; height:30px; border-radius:50%; background:#ffad1d; color:#0b0b0b; display:flex; align-items:center; justify-content:center; font-weight:900 }
+  .member-avatar-small img { width:100%; height:100%; object-fit:cover; display:block }
   .member-name { color:#fff; font-weight:800; font-size:0.82rem }
   .member-sub { color:#cfc9b0; font-weight:700; font-size:0.72rem; margin-left:4px }
   .member-wins { color:#ffd98a; font-weight:900; margin-left:6px }
@@ -1159,6 +1234,16 @@ header { display: flex; align-items: center; justify-content: space-between; }
 
 /* Match details card */
 .match-details { max-width:980px; margin:18px auto; background: linear-gradient(180deg,#0f1114,#15161a); border-radius:12px; padding:12px 14px; border:1px solid rgba(255,255,255,0.03); }
+.matchroom-title {
+  margin: 0;
+  color: #fff;
+  /* Match style from Matches.vue: keep white color but match font-size/weight */
+  font-size: 48px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .details-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:12px; align-items:center }
 .detail-item { display:flex; gap:12px; align-items:center }
 .detail-icon { width:42px; height:42px; border-radius:8px; background:linear-gradient(180deg,#111315,#1b1f22); display:flex; align-items:center; justify-content:center; font-size:20px; color:#ffd98a; border:1px solid rgba(255,255,255,0.03) }
@@ -1168,5 +1253,43 @@ header { display: flex; align-items: center; justify-content: space-between; }
 /* subtle tile hover expansion */
 .player-avatar { transition: transform 180ms ease, box-shadow 180ms ease }
 .player-avatar:hover { transform: translateY(-6px); box-shadow: 0 18px 40px rgba(0,0,0,0.6) }
+
+</style>
+
+<style scoped>
+/* Responsive fixes for narrow viewports to prevent the matchroom UI from breaking */
+@media (max-width: 1100px) {
+  .matchroom-container { padding: 20px 16px; }
+  header h1 { font-size: 1.2rem; }
+  .teams-grid { flex-direction: column; gap: 18px; align-items: stretch; }
+  .team-card { min-width: 0 !important; width: 100%; }
+  .bench-list, .team-drop-list { gap: 14px; }
+  .wins-chart { max-width: 100%; padding: 0 8px; }
+  .wins-title { font-size: 2rem; }
+}
+
+@media (max-width: 720px) {
+  .matchroom-container { padding: 14px 10px; }
+  .details-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  .player-name { font-size: 0.9rem; }
+  .player-sub { font-size: 0.72rem; }
+  .member-pill { padding: 6px; gap: 10px; }
+  .member-name { font-size: 0.9rem }
+  .rounds-history { padding: 12px; }
+  .round-card { flex-direction: column; }
+  .card-left { width: 100%; display:flex; gap:8px; }
+  .card-main { width: 100%; }
+}
+
+/* Very small screens: allow horizontal scroll for the teams grid as a fallback */
+@media (max-width: 420px) {
+  .teams-grid { display: block; overflow-x: auto; white-space: nowrap; padding-bottom: 6px; }
+  .team-card { display: inline-block; vertical-align: top; white-space: normal; min-width: 280px; width: 86%; margin-right: 12px; }
+  .bench-list { overflow-x: auto; white-space: nowrap; }
+  .bench-list .player-avatar { display: inline-flex; width: auto; }
+}
+
+/* Always allow horizontal scrolling of the main container if content overflows */
+.matchroom-container { overflow-x: auto; }
 
 </style>

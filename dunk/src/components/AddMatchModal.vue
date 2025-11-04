@@ -10,8 +10,8 @@
       </div>
     </div>
 
-    <div class="modal-overlay" @click="handleOverlayClick">
-    <div class="modal-content">
+  <ModalPortal @overlay="handleOverlayClick">
+  <div class="modal-content">
       <button class="modal-close" @click.prevent="closeModal" aria-label="Close modal">&times;</button>
       <h2 class="modal-title">Create a New Match</h2>
       <p class="modal-desc">Fill in the details below to organize a new game.</p>
@@ -68,13 +68,14 @@
     <div v-if="submitDisabledReason && submitDisabledReason.length" style="margin-top:6px;font-size:0.92rem;color:#ffb4b4">{{ submitDisabledReason }}</div>
       </form>
     </div>
-  </div>
+    </ModalPortal>
   </div>
 </template>
 
 <script setup>
 import { pushDataToFirebase, getDataFromFirebase } from '../firebase/firebase'
 import { ref, computed, onMounted, watch } from 'vue'
+import ModalPortal from './ModalPortal.vue'
 import { onUserStateChanged } from '../firebase/auth'
 
 const props = defineProps({
@@ -357,19 +358,20 @@ function skillRank(skill) {
 
 // Gender options based on user's profile
 const availableGenders = computed(() => {
-  // Filter gender options based on user's own gender
-  // Female users can only create All or Female matches
-  // Male users can only create All or Male matches
-  const userGender = currentUserProfile.value?.gender
-  
-  if (userGender === 'Female') {
-    return ['All', 'Female']
-  } else if (userGender === 'Male') {
-    return ['All', 'Male']
+  // If user's gender has NOT been set, only allow 'All' (preselected)
+  const raw = currentUserProfile.value?.gender
+  const userGender = raw ? String(raw).toString().trim() : ''
+  if (!userGender) {
+    return ['All']
   }
-  
-  // Default to all options if gender is not set or unknown
-  return ['All', 'Female', 'Male']
+
+  // Normalize known values to be tolerant of casing/variants
+  const low = userGender.toLowerCase()
+  if (low.startsWith('f')) return ['All', 'Female']
+  if (low.startsWith('m')) return ['All', 'Male']
+
+  // Fallback: if profile contains unexpected value, allow only All
+  return ['All']
 })
 
 // Canonical match types (match "levels") — include all skill levels for match creation

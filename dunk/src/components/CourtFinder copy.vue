@@ -24,7 +24,7 @@
         <p class="card-desc">Locate basketball courts and check their availability.</p>
 
         <div class="search-section">
-          <input type="text" v-model="searchQuery" placeholder="Search courts by keyword..." class="search-input" @keydown.enter.prevent="handleSearch" />
+          <input type="text" v-model="searchQuery" placeholder="Search courts by keyword..." class="search-input" />
           <ul v-if="suggestions && suggestions.length" class="suggestions-list">
             <li v-for="court in suggestions" :key="court.name" @click="selectSuggestion(court)" class="suggestion-item">
               {{ court.name }}
@@ -67,19 +67,14 @@
               :data-court-key="courtKey(court)" :data-court-index="idx">
               <div class="court-card-row">
                 <div class="court-info">
-<h3 class="court-name clickable-court-name" @click="zoomToCourtMarker(court)">
-                  {{ court.name }}
-                  <span v-if="hasOngoingMatches(court)" class="live-indicator">LIVE</span>
-                </h3>
+                  <h3 class="court-name">{{ court.name }}</h3>
                   <div class="court-sub">{{ court.region ? (court.region.charAt(0).toUpperCase() +
                     court.region.slice(1)) : '' }}</div>
 
                 </div>
                 <div class="court-actions">
-                  <button class="view-matches-link" @click="toggleCourtExpand(court)">{{ expandedCourts[courtKey(court)] ? 'Hide Matches' : 'View Matches' }}</button>
-                <button v-if="isCourtCreator(court)" class="delete-court-btn" @click="deleteCourt(court)" title="Delete this court">
-                  <i class="bi bi-trash"></i>
-                </button>
+                  <button class="view-matches-link" @click="toggleCourtExpand(court)">{{ expandedCourts[courtKey(court)]
+                    ? 'Hide Matches' : 'View Matches' }}</button>
                 </div>
               </div>
 
@@ -123,9 +118,9 @@
 
 
 <script setup>
-import { ref, onMounted, watch, computed, onUnmounted } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { onUserStateChanged } from '../firebase/auth'
-import { getDataFromFirebase, deleteDataFromFirebase } from '../firebase/firebase'
+import { getDataFromFirebase } from '../firebase/firebase'
 import AddCourtModal2 from './AddCourtModal2.vue'
 import AddCourtModal from './AddCourtModal.vue'
 import AddMatchModal from './AddMatchModal.vue'
@@ -138,8 +133,6 @@ const mapContainer = ref(null)
 const markers = ref([])
 // non-reactive array that holds the actual google.maps.Marker instances
 let markerInstances = []
-// interval handle used by animateZoomTo to avoid concurrent animations
-let _zoomAnimIv = null
 const searchMarker = ref(null)
 const firebaseCourts = ref([])
 // change 5: unify court data base from firebase console and hardcoded courts:
@@ -162,108 +155,8 @@ const autocompleteInput = ref(null)
 const isDroppingPin = ref(false)
 const matchEventToShow = ref(null)
 const suggestions = ref([])
-const allMatches = ref([])
-const courtsWithOngoingMatches = ref(new Set())
-const matchesRefreshKey = ref(0) // Key to force Matches component refresh
-let ongoingMatchesInterval = null
 
 const courts = ref([]);
-// When true, temporarily prevent suggestions from being repopulated
-const suppressSuggestions = ref(false)
-
-/**
- * Smoothly animate the map zoom from current zoom to targetZoom.
- * Steps by integer zoom levels (Google Maps typically uses integer zooms) and
- * spaces them across `duration` ms. If map or zoom API isn't available, falls
- * back to a direct setZoom call.
- */
-function animateZoomTo(targetZoom, duration = 400) {
-  if (!map.value || typeof map.value.getZoom !== 'function' || typeof map.value.setZoom !== 'function') {
-    try { if (map.value && typeof map.value.setZoom === 'function') map.value.setZoom(targetZoom) } catch (e) { }
-    return
-  }
-
-  // clear any existing animation
-  if (_zoomAnimIv) {
-    clearInterval(_zoomAnimIv)
-    _zoomAnimIv = null
-  }
-
-  const start = Number(map.value.getZoom()) || 0
-  const end = Number(targetZoom)
-  const diff = end - start
-  if (!diff) return
-
-  const steps = Math.max(1, Math.abs(Math.round(diff)))
-  const interval = Math.max(30, Math.floor(duration / steps))
-  let step = 0
-
-  _zoomAnimIv = setInterval(() => {
-    step += 1
-    const next = start + Math.sign(diff) * step
-    try {
-      map.value.setZoom(next)
-    } catch (e) {
-      // If setZoom fails, try direct assignment fallback and stop
-      try { map.value.setZoom(end) } catch (err) { }
-      clearInterval(_zoomAnimIv)
-      _zoomAnimIv = null
-      return
-    }
-    if (step >= steps) {
-      clearInterval(_zoomAnimIv)
-      _zoomAnimIv = null
-    }
-  }, interval)
-}
-
-/**
- * Set selectedRegions based on a court object. Normalizes region strings and
- * attempts to find a matching known region. If no match is found, leaves
- * selection as ['all'] to avoid hiding results.
- */
-function setRegionForCourt(court) {
-  try {
-    if (!court) return
-    const raw = ((court.region || '') + '').toString().toLowerCase().trim()
-    if (!raw) {
-      console.debug('[setRegionForCourt] court has no region:', court)
-      selectedRegions.value = ['all']
-      return
-    }
-
-    // Normalize common separators (spaces, underscores, hyphens)
-    const compact = raw.replace(/[ _\-]+/g, '')
-
-    // Try exact or contains matching against known regions
-    let match = null
-    for (const r of regions) {
-      if (r === 'all') continue
-      if (compact === r || raw.includes(r) || compact.includes(r)) {
-        match = r
-        break
-      }
-    }
-
-    if (!match) {
-      // As a last resort, try to find any region token inside the raw region
-      for (const r of regions) {
-        if (r === 'all') continue
-        if (raw.indexOf(r) !== -1) {
-          match = r
-          break
-        }
-      }
-    }
-
-    if (match) selectedRegions.value = [match]
-    else selectedRegions.value = ['all']
-
-    console.debug('[setRegionForCourt] resolved region', raw, '->', selectedRegions.value)
-  } catch (err) {
-    console.warn('[setRegionForCourt] failed to set region for court', err, court)
-  }
-}
 
 // onMounted(async () => {
 //   const response = await fetch('/courts.json');
@@ -334,11 +227,6 @@ const handlePopupClose = (event) => {
 watch(searchQuery, updateSuggestions)
 
 function updateSuggestions() {
-  if (suppressSuggestions.value) {
-    // keep suggestions hidden briefly after an explicit search action
-    suggestions.value = []
-    return
-  }
   const term = searchQuery.value.toLowerCase().trim()
   if (!term) {
     suggestions.value = []
@@ -360,32 +248,16 @@ function updateSuggestions() {
   console.log('Suggestions updated:', suggestions.value)
 }
 
-function selectAllText(event) {
-  // Select all text in the input when clicked
-  if (event.target && event.target.select) {
-    event.target.select()
-  }
-}
-
 function selectSuggestion(court) {
   searchQuery.value = court.name
   selectedCourt.value = court
-  // hide and suppress suggestions (avoid watcher immediately repopulating)
   suggestions.value = []
-  suppressSuggestions.value = true
-  setTimeout(() => { suppressSuggestions.value = false }, 300)
 
   // Zoom map and pan to selected court coordinates
   if (map.value && court.lat && court.lon) {
     const position = { lat: court.lat, lng: court.lon }
-    // smooth pan + animated zoom
-    try {
-      if (typeof map.value.panTo === 'function') map.value.panTo(position)
-      else map.value.setCenter(position)
-    } catch (e) {
-      try { map.value.setCenter(position) } catch (err) { /* ignore */ }
-    }
-    try { animateZoomTo(16, 450) } catch (e) { try { map.value.setZoom(16) } catch (err) { } }
+    map.value.setCenter(position)
+    map.value.setZoom(16)  // Adjust zoom level as needed
 
     // Optional: add a marker or highlight on selected court
     if (searchMarker.value) searchMarker.value.setMap(null)
@@ -395,19 +267,6 @@ function selectSuggestion(court) {
       title: court.name,
       icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' }
     })
-    // Expand and scroll to the matching court card
-    try {
-      const key = courtKey(court)
-      setTimeout(() => {
-        const idx = markerInstances.findIndex(m => m.getTitle() === (court.name || ''))
-        let el = null
-        if (idx !== -1) el = document.querySelector(`[data-court-index="${idx}"]`)
-        if (!el) el = document.querySelector(`[data-court-key="${key}"]`)
-        if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }, 180)
-    } catch (e) {
-      /* ignore scroll errors */
-    }
   }
 }
 
@@ -612,218 +471,11 @@ function courtVisiblePlayers(arr) {
   return arr.slice(0, maxAvatarsSmall)
 }
 
-// Function to load all matches and determine ongoing matches by court
-async function loadAllMatchesAndDetermineOngoing() {
-  try {
-    const data = await getDataFromFirebase('matches')
-    const matches = []
-    if (data && typeof data === 'object') {
-      for (const [k1, v1] of Object.entries(data)) {
-        if (!v1) continue
-        if (typeof v1 === 'object') {
-          for (const [k2, v2] of Object.entries(v1)) {
-            if (!v2) continue
-            if (typeof v2 === 'object') {
-              for (const [mid, mv] of Object.entries(v2)) {
-                const copy = { id: mid, __dbPath: `matches/${k1}/${k2}/${mid}`, ...mv }
-                matches.push(copy)
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    allMatches.value = matches
-    updateCourtsWithOngoingMatches()
-  } catch (e) {
-    console.error('Failed to load all matches', e)
-  }
-}
-
-// Function to determine which courts have ongoing matches
-function updateCourtsWithOngoingMatches() {
-  const ongoingCourts = new Set()
-  
-  console.log('=== Checking all matches for live status ===')
-  
-  allMatches.value.forEach((match, index) => {
-    // Check if match was manually ended
-    if (match.endedAt || match.endedAtISO) {
-      console.log(`Match ${index} ended:`, match.court)
-      return
-    }
-    
-    // Only show LIVE if the match has been explicitly started by the host
-    // Check for actual status indicators that show the match is active
-    let isActuallyLive = false
-    let reason = ''
-    
-    if (match.status === 'live' || match.status === 'active' || match.status === 'ongoing') {
-        isActuallyLive = true
-        reason = `status: ${match.status}`
-        console.log('🔴 Match is live by status:', match.court, match.status)
-    }
-    
-    // Check if match has been manually started by host
-    if (match.started === true || match.isStarted === true || match.matchStarted === true) {
-        isActuallyLive = true
-        reason += (reason ? ', ' : '') + `started flags: started=${match.started}, isStarted=${match.isStarted}, matchStarted=${match.matchStarted}`
-        console.log('🔴 Match is live by started flag:', match.court, { started: match.started, isStarted: match.isStarted, matchStarted: match.matchStarted })
-    }
-    
-    // Check if match has a start timestamp indicating it was actually begun
-    if (match.startedAt || match.actualStartTime) {
-        isActuallyLive = true
-        reason += (reason ? ', ' : '') + `timestamps: startedAt=${match.startedAt}, actualStartTime=${match.actualStartTime}`
-        console.log('🔴 Match is live by timestamp:', match.court, { startedAt: match.startedAt, actualStartTime: match.actualStartTime })
-    }
-    
-    // Debug: Log all matches for problematic courts
-    const courtName = (match.court || '').toString().toLowerCase()
-    if (courtName.includes('pasir ris') || courtName.includes('punggol') || courtName.includes('firefly')) {
-        console.log(`🔍 ${match.court} match data:`, {
-            court: match.court,
-            status: match.status,
-            started: match.started,
-            isStarted: match.isStarted,
-            matchStarted: match.matchStarted,
-            startedAt: match.startedAt,
-            actualStartTime: match.actualStartTime,
-            endedAt: match.endedAt,
-            endedAtISO: match.endedAtISO,
-            isActuallyLive: isActuallyLive,
-            reason: reason || 'not live'
-        })
-    }
-    
-    // Only add to ongoing courts if match is actually live (not just scheduled)
-    if (isActuallyLive) {
-      if (courtName) {
-        ongoingCourts.add(courtName)
-        console.log(`✅ Added to ongoing courts: "${courtName}" (reason: ${reason})`)
-      }
-    }
-  })
-  
-  courtsWithOngoingMatches.value = ongoingCourts
-  console.log('🎯 Final courts with ongoing matches:', Array.from(ongoingCourts))
-}
-
-// Function to check if a court has ongoing matches
-function hasOngoingMatches(court) {
-  const courtName = (court.name || '').toString().toLowerCase()
-  return courtsWithOngoingMatches.value.has(courtName)
-}
-
-// Function to check if current user is the creator of the court
-function isCourtCreator(court) {
-  if (!currentUser.value || !court.createdBy) return false
-  return currentUser.value.uid === court.createdBy
-}
-
-// Function to delete a court
-async function deleteCourt(court) {
-  if (!currentUser.value) {
-    alert('Please sign in to delete courts.')
-    return
-  }
-  
-  if (!isCourtCreator(court)) {
-    alert('You can only delete courts that you created.')
-    return
-  }
-  
-  if (!confirm(`Are you sure you want to delete "${court.name}"? This action cannot be undone.`)) {
-    return
-  }
-  
-  try {
-    // Find the court in Firebase by matching the court data
-    const courtsData = await getDataFromFirebase('courts')
-    let courtKey = null
-    
-    if (courtsData && typeof courtsData === 'object') {
-      for (const [key, courtData] of Object.entries(courtsData)) {
-        if (courtData && 
-            courtData.name === court.name && 
-            courtData.lat === court.lat && 
-            courtData.lon === court.lon &&
-            courtData.createdBy === court.createdBy) {
-          courtKey = key
-          break
-        }
-      }
-    }
-    
-    if (!courtKey) {
-      alert('Court not found in database.')
-      return
-    }
-    
-    // Delete the court from Firebase
-    const success = await deleteDataFromFirebase(`courts/${courtKey}`)
-    
-    if (success) {
-      alert('Court deleted successfully!')
-      // Refresh the courts list
-      await loadCourtsFromFirebase()
-    } else {
-      alert('Failed to delete court. Please try again.')
-    }
-  } catch (error) {
-    console.error('Error deleting court:', error)
-    alert('Failed to delete court: ' + error.message)
-  }
-}
-
 // Perform search or update markers if needed
 handleSearch()
 
 
 function handleSearch() {
-  // Clear any visible suggestions when a search is triggered (user pressed Search or Enter)
-  suggestions.value = []
-  // briefly suppress suggestions from being repopulated by the input watcher
-  suppressSuggestions.value = true
-  setTimeout(() => { suppressSuggestions.value = false }, 300)
-
-  // If the search query matches a known court name, jump to that court's region and center on it.
-  const term = (searchQuery.value || '').toString().toLowerCase().trim()
-  if (term) {
-    const found = allCourts.value.find(c => (c.name || '').toString().toLowerCase().includes(term) || (c.keywords || []).some(k => (k || '').toString().toLowerCase().includes(term)))
-    if (found) {
-      setRegionForCourt(found)
-      // set selected court so UI reflects the searched court
-      selectedCourt.value = found
-      // center + animated zoom to matched court if coords available
-      if (map.value && isFinite(Number(found.lat)) && isFinite(Number(found.lon))) {
-        const pos = { lat: Number(found.lat), lng: Number(found.lon) }
-        try {
-          if (typeof map.value.panTo === 'function') map.value.panTo(pos)
-          else map.value.setCenter(pos)
-        } catch (e) {
-          try { map.value.setCenter(pos) } catch (err) { /* ignore */ }
-        }
-        try { animateZoomTo(16, 450) } catch (e) { try { map.value.setZoom(16) } catch (err) { } }
-      }
-      // ensure a visible search marker and expand the court card
-      try {
-        const position = { lat: Number(found.lat), lng: Number(found.lon) }
-        if (searchMarker.value) searchMarker.value.setMap(null)
-        searchMarker.value = new google.maps.Marker({ position, map: map.value, title: found.name, icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' } })
-        const key = courtKey(found)
-        setTimeout(() => {
-          const idx = markerInstances.findIndex(m => m.getTitle() === (found.name || ''))
-          let el = null
-          if (idx !== -1) el = document.querySelector(`[data-court-index="${idx}"]`)
-          if (!el) el = document.querySelector(`[data-court-key="${key}"]`)
-          if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }, 180)
-      } catch (e) { /* ignore marker/scroll errors */ }
-    }
-  }
-
   // Trigger filter application which will update both visibleCourts and markers
   applyFilters()
 }
@@ -1008,15 +660,6 @@ function regionCount(region) {
 // Called when AddMatchModal emits 'created' — refresh matches for the selected court so embedded lists update
 async function handleMatchCreated() {
   try {
-    // Clear all cache to ensure fresh data is loaded
-    matchesCache.value = {}
-    
-    // Refresh all matches to ensure global state is updated
-    await loadAllMatchesAndDetermineOngoing()
-    
-    // Force embedded Matches component to refresh
-    matchesRefreshKey.value++
-    
     if (selectedCourt.value) {
       await loadMatchesForCourt(selectedCourt.value)
       // ensure the court's expanded matches view is visible
@@ -1311,55 +954,14 @@ async function toggleCourtExpand(court) {
   }
 }
 
-/**
- * Zoom / focus the map and UI on the provided court.
- * Used by the template when a court name is clicked.
- */
-function zoomToCourtMarker(court) {
-  if (!court) return
-  try {
-    selectedCourt.value = court
-
-    // center + animated zoom to matched court if coords available
-    if (map.value && isFinite(Number(court.lat)) && isFinite(Number(court.lon))) {
-      const pos = { lat: Number(court.lat), lng: Number(court.lon) }
-      try {
-        if (typeof map.value.panTo === 'function') map.value.panTo(pos)
-        else map.value.setCenter(pos)
-      } catch (e) {
-        try { map.value.setCenter(pos) } catch (err) { /* ignore */ }
-      }
-      try { animateZoomTo(15, 400) } catch (e) { try { map.value.setZoom(15) } catch (err) { } }
-    }
-
-    // place a temporary search marker
-    try {
-      if (searchMarker.value) { try { searchMarker.value.setMap(null) } catch (e) { } }
-      if (isFinite(Number(court.lat)) && isFinite(Number(court.lon))) {
-        searchMarker.value = new google.maps.Marker({
-          position: { lat: Number(court.lat), lng: Number(court.lon) },
-          map: map.value,
-          title: court.name || '',
-          icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' }
-        })
-      }
-    } catch (e) { /* ignore marker errors */ }
-
-    // Intentionally do NOT expand or scroll the court card into view.
-    // This keeps the list position unchanged when a court name is clicked.
-  } catch (err) {
-    console.warn('[zoomToCourtMarker] failed', err, court)
-  }
-}
-
 function openCreateMatchForCourt(court) {
   try {
     selectedCourt.value = court
     showAddMatchModal.value = true
   } catch (e) {
     // fallback
-    try { selectedCourt.value = court } catch(_) { /* ignore */ }
-    try { showAddMatchModal.value = true } catch(_) { /* ignore */ }
+    selectedCourt = court
+    showAddMatchModal = true
   }
 }
 
@@ -1387,29 +989,7 @@ function toggleRegion(region) {
   console.log('testing', region, selectedRegions.value)
   if (r === 'all') {
     selectedRegions.value = ['all'];
-    // Clear search and suggestions when user explicitly selects 'All'
-    try {
-      searchQuery.value = ''
-      suggestions.value = []
-      selectedCourt.value = null
-      if (searchMarker.value) {
-        try { searchMarker.value.setMap(null) } catch (e) { }
-        searchMarker.value = null
-      }
-    } catch (e) { /* ignore */ }
     applyFilters();
-
-    // Zoom back out to default overview center
-    try {
-      const defaultCenter = { lat: 1.3521, lng: 103.8198 }
-      if (map.value) {
-        try {
-          if (typeof map.value.panTo === 'function') map.value.panTo(defaultCenter)
-          else map.value.setCenter(defaultCenter)
-        } catch (e) { try { map.value.setCenter(defaultCenter) } catch (err) { } }
-        try { animateZoomTo(12, 450) } catch (e) { try { map.value.setZoom(12) } catch (err) { } }
-      }
-    } catch (err) { /* ignore */ }
     return;
   }
 
@@ -1424,32 +1004,7 @@ function toggleRegion(region) {
 
   if (next.length === 0) next = ['all'];
   selectedRegions.value = next;
-  // Clear any active search/suggestion state when user toggles regions
-  searchQuery.value = ''
-  suggestions.value = []
-  selectedCourt.value = null
-  if (searchMarker.value) {
-    try { searchMarker.value.setMap(null) } catch (e) { }
-    searchMarker.value = null
-  }
-
   applyFilters();
-
-  // Zoom back out to default view (Singapore center) so user sees all region markers
-  try {
-    const defaultCenter = { lat: 1.3521, lng: 103.8198 }
-    if (map.value) {
-      try {
-        if (typeof map.value.panTo === 'function') map.value.panTo(defaultCenter)
-        else map.value.setCenter(defaultCenter)
-      } catch (e) {
-        try { map.value.setCenter(defaultCenter) } catch (err) { }
-      }
-      try { animateZoomTo(12, 450) } catch (e) { try { map.value.setZoom(12) } catch (err) { } }
-    }
-  } catch (err) {
-    // ignore
-  }
 }
 
 // ensure changes to selectedRegions trigger filtering (catch template changes)
@@ -1504,14 +1059,8 @@ onMounted(() => {
     if (!place.geometry) return
 
     const location = place.geometry.location
-    // pan then animate zoom for smoother effect
-    try {
-      if (typeof map.value.panTo === 'function') map.value.panTo(location)
-      else map.value.setCenter(location)
-    } catch (e) {
-      try { map.value.setCenter(location) } catch (err) { /* ignore */ }
-    }
-    try { animateZoomTo(15, 400) } catch (e) { try { map.value.setZoom(15) } catch (err) { } }
+    map.value.setCenter(location)
+    map.value.setZoom(15)
 
     if (searchMarker.value) searchMarker.value.setMap(null)
     searchMarker.value = new google.maps.Marker({
@@ -1539,28 +1088,8 @@ onMounted(() => {
 
 
     selectedCourt.value = matchedCourt || null
-      // hide suggestions once a place is selected from autocomplete and suppress watcher
-      suggestions.value = []
-      suppressSuggestions.value = true
-      setTimeout(() => { suppressSuggestions.value = false }, 300)
-      if (matchedCourt) {
-        // ensure marker, expand and scroll into view
-        try {
-          const pos = { lat: Number(matchedCourt.lat), lng: Number(matchedCourt.lon) }
-          if (searchMarker.value) searchMarker.value.setMap(null)
-          searchMarker.value = new google.maps.Marker({ position: pos, map: map.value, title: matchedCourt.name, icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' } })
-          const key = courtKey(matchedCourt)
-          setTimeout(() => {
-            const idx = markerInstances.findIndex(m => m.getTitle() === (matchedCourt.name || ''))
-            let el = null
-            if (idx !== -1) el = document.querySelector(`[data-court-index="${idx}"]`)
-            if (!el) el = document.querySelector(`[data-court-key="${key}"]`)
-            if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          }, 180)
-        } catch (e) { /* ignore marker/scroll errors */ }
-        applyFilters()
-      }
-      searchQuery.value = place.formatted_address
+    if (matchedCourt) applyFilters()
+    searchQuery.value = place.formatted_address
   })
 })
 </script>
@@ -1635,12 +1164,6 @@ onMounted(() => {
   padding: 0;
 }
 
-/* Ensure the content wrapper stays centered regardless of sidebar state */
-.content-wrapper {
-  margin: 0 auto;
-  box-sizing: border-box;
-}
-
 .card,
 .main-card {
   background: #20242b;
@@ -1651,9 +1174,6 @@ onMounted(() => {
   margin-bottom: 30px;
   position: relative;
 }
-
-/* Keep the card centered in its container even when global layout variables change */
-.card { margin: 0 auto; }
 
 .header-row {
   display: flex;
@@ -1719,8 +1239,6 @@ onMounted(() => {
   box-shadow: 0 1px 3px rgba(80, 80, 100, 0.07);
   transition: border-color 0.2s;
   outline: none;
-  box-sizing: border-box;
-  height: 44px;
 }
 
 .search-input::placeholder {
@@ -1733,46 +1251,6 @@ onMounted(() => {
   border-color: #ffa733;
   background: #262b33;
 }
-
-/* Layout wrapper for input + button so they align like the Add Court button */
-.search-section {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  max-width: 720px;
-  position: relative; /* anchors suggestions */
-  margin-bottom: 18px;
-}
-
-.search-btn {
-  background: #ffa733;
-  color: #181c23;
-  font-weight: 700;
-  font-size: 1rem;
-  padding: 0 18px;
-  border: 1.5px solid #3b4252;
-  border-left: none;
-  border-radius: 0 10px 10px 0;
-  cursor: pointer;
-  box-shadow: 0 2px 14px rgba(255, 167, 51, 0.14);
-  transition: all 0.18s ease;
-  box-sizing: border-box;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* overlap the input by the border width so there's no visible seam */
-  margin-left: -1.5px;
-  margin-top: -12px;
-  z-index: 2;
-}
-
-.search-btn:hover { background: #ffb751; box-shadow: 0 4px 18px rgba(255,183,81,0.28); }
-
-.search-btn:disabled { opacity: 0.6; cursor: not-allowed }
-
-/* Make suggestions span the full width of the input+button wrapper */
-.suggestions-list { left: 0; right: 0; width: auto }
 
 .region-filter {
   display: flex;
@@ -1891,41 +1369,6 @@ onMounted(() => {
   font-weight: bold;
   margin-bottom: 8px;
   color: orange;
-}
-
-.clickable-court-name {
-cursor: pointer;
-transition: color 0.2s ease, text-shadow 0.2s ease;
-}
-
-.clickable-court-name:hover {
-color: #ffad1d;
-text-shadow: 0 0 8px rgba(255, 173, 29, 0.4);
-text-decoration: underline;
-}
-
-.live-indicator {
-    display: inline-block;
-    background: linear-gradient(180deg, #a83a3a 0%, #c84b4b 100%);
-    color: rgba(255, 210, 210, 0.95);
-    padding: 6px 12px;
-    border-radius: 999px;
-    font-weight: 800;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    border: 1px solid rgba(0,0,0,0.4);
-    box-shadow: inset 0 2px 0 rgba(255,255,255,0.03), 0 6px 18px rgba(200,50,50,0.12);
-    animation: live-blink 2.6s ease-in-out infinite;
-    margin-left: 8px;
-    text-shadow: none;
-}
-
-@keyframes live-blink {
-    0% { opacity: 1; transform: translateZ(0) scale(1); }
-    45% { opacity: 0.5; transform: translateZ(0) scale(0.995); }
-    55% { opacity: 0.5; transform: translateZ(0) scale(0.995); }
-    100% { opacity: 1; transform: translateZ(0) scale(1); }
 }
 
 /* Court list and mini matches */
@@ -2086,16 +1529,16 @@ text-decoration: underline;
 }
 
 .search-btn {
-  background: #ffa733;
-  color: #181c23;
-  font-weight: 700;
-  font-size: 1rem;
-  padding: 12px 18px;
+  padding: 12px 20px;
+  background-color: #ff9500;
+  color: white;
   border: none;
   border-radius: 0 10px 10px 0;
+  /* rounded right corners */
   cursor: pointer;
-  box-shadow: 0 2px 14px rgba(255, 167, 51, 0.14);
-  transition: all 0.18s ease;
+  font-weight: 700;
+  font-size: 1rem;
+  transition: background-color 0.3s;
 }
 
 .search-btn:hover {

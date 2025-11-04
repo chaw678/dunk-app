@@ -1,5 +1,5 @@
 <template>
-  <div v-if="modelValue" class="confirm-overlay" @click.self="close">
+  <ModalPortal v-if="modelValue" @overlay="close">
     <div class="confirm-panel">
       <div class="confirm-icon" :class="destructive ? 'destructive' : ''" aria-hidden>
         <span v-if="!destructive" class="check">✓</span>
@@ -18,10 +18,11 @@
         </template>
       </div>
     </div>
-  </div>
+  </ModalPortal>
 </template>
 
 <script setup>
+import ModalPortal from './ModalPortal.vue'
 import { defineEmits, defineProps, computed } from 'vue'
 
 const props = defineProps({
