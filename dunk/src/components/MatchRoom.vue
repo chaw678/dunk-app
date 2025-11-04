@@ -347,9 +347,10 @@ const out = list.map(p => {
   const resolved = (users && users[uid]) || null
     // prefer profile values from usersMap (resolved) over any local fields on p
     // Prefer an explicit profilepicture field if present (new canonical key)
-    const avatar = (resolved && (resolved.profilepicture || resolved.avatar || resolved.photoURL || resolved.picture || resolved.photo || resolved.imageURL || resolved.thumbnail)) || p.avatar || null
+    let avatar = (resolved && (resolved.profilepicture || resolved.avatar || resolved.photoURL || resolved.picture || resolved.photo || resolved.imageURL || resolved.thumbnail)) || p.avatar || null
 
-    // If no avatar at all, generate a fallback seeded by profile name or local name
+    // If no avatar at all, generate a fallback seeded by profile name or local name.
+    // Keep `finalAvatar` as the canonical value we will return/use.
     let finalAvatar = avatar
     if (!finalAvatar) {
       const seedName = encodeURIComponent(((resolved && (resolved.name || resolved.displayName || resolved.username)) || p.name || uid || '').split(' ')[0])
@@ -371,17 +372,15 @@ const out = list.map(p => {
       }
     }
 
-    // Prefer canonical profile name stored under users/<uid>.name first
-    const name = (resolved && (resolved.name || resolved.displayName || resolved.username)) || p.name || uid || 'Player'
-    // If no explicit avatar found, derive a stable one via the centralized helper.
-    if (!avatar) {
-      // Pass resolved user object if available so avatarForUser can prefer photoURL/avatar or use uid/email/name for seeding
-      avatar = avatarForUser(resolved || p)
+    // If we still don't have a finalAvatar (very rare), derive one via the centralized helper
+    if (!finalAvatar) {
+      finalAvatar = avatarForUser(resolved || p)
     }
 
-    const name = p.name || (resolved && (resolved.name || resolved.displayName || resolved.username)) || uid || 'Player'
-      // prefer live wins from users node, fallback to per-match playersMap.NumberOfWins if available
-      let wins = 0
+    // Prefer canonical profile name stored under users/<uid>.name first
+    const name = (resolved && (resolved.name || resolved.displayName || resolved.username)) || p.name || uid || 'Player'
+    // prefer live wins from users node, fallback to per-match playersMap.NumberOfWins if available
+    let wins = 0
       if (resolved && (typeof resolved.wins !== 'undefined')) {
         wins = Number(resolved.wins || 0)
       } else {
