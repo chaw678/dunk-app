@@ -23,16 +23,7 @@
                 </div>
             </div>
         </div>
-        <!-- Confirm modal (themed) -->
-        <ConfirmModal
-            v-model="showConfirm"
-            :title="pendingConfirm ? pendingConfirm.title : ''"
-            :message="pendingConfirm ? pendingConfirm.message : ''"
-            :confirmLabel="pendingConfirm && pendingConfirm.destructive ? 'Delete' : 'OK'"
-            cancelLabel="Cancel"
-            :destructive="pendingConfirm && pendingConfirm.destructive"
-            @confirm="onConfirmModal"
-        />
+        <!-- Confirm modal (themed) - rendered via Teleport at the end so it overlays page content -->
         
         <div class="card large-card">
             <div v-if="!embedded" class="page-header matches-header">
@@ -151,11 +142,11 @@
       </div>
 
       <div class="avatars mb-3">
-        <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
-          <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
-            <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
-            <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
-          </template>
+                        <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
+                    <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
+                        <img v-if="p && (p.profilepicture || p.avatar)" :src="p.profilepicture || p.avatar" class="avatar-img" />
+                        <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
+                    </template>
           <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
         </div>
       </div>
@@ -230,7 +221,7 @@
                                 <div class="avatars mb-3">
                                     <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
                                         <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
-                                            <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
+                                            <img v-if="p && (p.profilepicture || p.avatar)" :src="p.profilepicture || p.avatar" class="avatar-img" />
                                             <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
                                         </template>
                                         <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
@@ -291,7 +282,7 @@
                                 <div class="avatars mb-3">
                                     <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
                                         <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
-                                            <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
+                                            <img v-if="p && (p.profilepicture || p.avatar)" :src="p.profilepicture || p.avatar" class="avatar-img" />
                                             <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
                                         </template>
                                         <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
@@ -329,6 +320,16 @@
         <AddMatchModal v-if="showAddMatchModal" :courtList="courts" :courtName="courtFilter || ''" @close="showAddMatchModal = false" @created="onMatchCreated" />
         <InviteModal v-if="showInviteModal" :match="inviteMatch" :users="usersCache.value" :me="currentUser" @close="showInviteModal = false" @sent="onInvitesSent" />
         <JoinedPlayersModal v-if="showPlayersModal" :players="activePlayers" :title="activeTitle" @close="closePlayersModal" />
+        <ConfirmModal
+            v-if="showConfirm"
+            v-model="showConfirm"
+            :title="pendingConfirm ? pendingConfirm.title : ''"
+            :message="pendingConfirm ? pendingConfirm.message : ''"
+            :confirmLabel="pendingConfirm && pendingConfirm.destructive ? 'Delete' : 'OK'"
+            cancelLabel="Cancel"
+            :destructive="pendingConfirm && pendingConfirm.destructive"
+            @confirm="onConfirmModal"
+        />
     </Teleport>
     </div>
 </template>
@@ -613,7 +614,9 @@ function openPlayersModal(match) {
             }
             // final fallback to uid
             if (!name) name = uid
-            const avatar = (usersCache.value && usersCache.value[uid] && (usersCache.value[uid].photoURL || usersCache.value[uid].avatar)) || seededAvatar(name)
+            const avatar = (usersCache.value && usersCache.value[uid] && (
+                usersCache.value[uid].profilepicture || usersCache.value[uid].avatar || usersCache.value[uid].photoURL || usersCache.value[uid].picture || usersCache.value[uid].photo || usersCache.value[uid].imageURL || usersCache.value[uid].thumbnail
+            )) || seededAvatar(name)
             out.push({ uid, name, avatar })
         }
     } else if (Array.isArray(match.players)) {
@@ -1786,7 +1789,9 @@ function displayedPlayers(match) {
                 const exists = out.find(p => p.uid === uid)
                 if (!exists) {
                     const displayName = (currentUserProfile.value && (currentUserProfile.value.name || currentUser.value.displayName)) || uid
-                    const avatar = (usersCache.value && usersCache.value[uid] && (usersCache.value[uid].photoURL || usersCache.value[uid].avatar)) || seededAvatar(displayName)
+                    const avatar = (usersCache.value && usersCache.value[uid] && (
+                        usersCache.value[uid].profilepicture || usersCache.value[uid].avatar || usersCache.value[uid].photoURL || usersCache.value[uid].picture || usersCache.value[uid].photo || usersCache.value[uid].imageURL || usersCache.value[uid].thumbnail
+                    )) || seededAvatar(displayName)
                     out.unshift({ uid, name: displayName, avatar })
                 }
             }

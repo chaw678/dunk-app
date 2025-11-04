@@ -344,25 +344,34 @@ async function enrichPlayers(list) {
 const out = list.map(p => {
     const uid = p.uid || p.id || p.key || ''
   const resolved = (users && users[uid]) || null
+    // prefer profile values from usersMap (resolved) over any local fields on p
+    // Prefer an explicit profilepicture field if present (new canonical key)
+    const avatar = (resolved && (resolved.profilepicture || resolved.avatar || resolved.photoURL || resolved.picture || resolved.photo || resolved.imageURL || resolved.thumbnail)) || p.avatar || null
 
-    // prefer explicit fields
-    let avatar = p.avatar || (resolved && (resolved.avatar || resolved.photoURL || resolved.photo)) || null
-
-    // if no avatar, use gender-seeded service if gender present, otherwise UI Avatars fallback
-    if (!avatar) {
-      const nameForSeed = encodeURIComponent(((p.name || (resolved && (resolved.name || resolved.displayName || resolved.username)) || uid) + '').split(' ')[0])
+    // If no avatar at all, generate a fallback seeded by profile name or local name
+    let finalAvatar = avatar
+    if (!finalAvatar) {
+      const seedName = encodeURIComponent(((resolved && (resolved.name || resolved.displayName || resolved.username)) || p.name || uid || '').split(' ')[0])
       if (resolved && resolved.gender) {
-        avatar = (String(resolved.gender).toLowerCase() === 'female')
-          ? `https://avatar.iran.liara.run/public/girl?username=${nameForSeed}`
-          : `https://avatar.iran.liara.run/public/boy?username=${nameForSeed}`
+        finalAvatar = (String(resolved.gender).toLowerCase() === 'female')
+          ? `https://avatar.iran.liara.run/public/girl?username=${seedName}`
+          : `https://avatar.iran.liara.run/public/boy?username=${seedName}`
       } else {
-        // ui-avatars gives a consistent image even without gender
-        const nameFull = encodeURIComponent((p.name || (resolved && (resolved.name || resolved.displayName)) || uid).trim())
-        avatar = `https://ui-avatars.com/api/?name=${nameFull}&background=1f262b&color=ffad1d&format=png&size=128`
+        const nameFull = encodeURIComponent(((resolved && (resolved.name || resolved.displayName)) || p.name || uid).trim())
+        finalAvatar = `https://ui-avatars.com/api/?name=${nameFull}&background=1f262b&color=ffad1d&format=png&size=128`
+      }
+
+      // persist generated avatar into users/<uid>/profilepicture when possible
+      if (resolved && uid) {
+        try {
+          // fire-and-forget; non-blocking
+          setChildData(`users/${uid}`, 'profilepicture', finalAvatar).catch(() => {})
+        } catch (e) { /* ignore */ }
       }
     }
 
-    const name = p.name || (resolved && (resolved.name || resolved.displayName || resolved.username)) || uid || 'Player'
+    // Prefer canonical profile name stored under users/<uid>.name first
+    const name = (resolved && (resolved.name || resolved.displayName || resolved.username)) || p.name || uid || 'Player'
       // prefer live wins from users node, fallback to per-match playersMap.NumberOfWins if available
       let wins = 0
       if (resolved && (typeof resolved.wins !== 'undefined')) {
@@ -371,7 +380,7 @@ const out = list.map(p => {
         const pm = (playersMap.value && (playersMap.value[uid])) ? playersMap.value[uid] : null
         if (pm && typeof pm.NumberOfWins !== 'undefined') wins = Number(pm.NumberOfWins || 0)
       }
-      return { uid, name, avatar, wins }
+    return { uid, name, avatar: finalAvatar, wins }
   })
   console.log('enrichPlayers -> resolved avatars:', out)
   return out
@@ -404,6 +413,15 @@ async function populateBenchFromMatch(md) {
     return
   }
   bench.value = await enrichPlayers(normalized)
+  try {
+    // Remove any players from bench who are already present in teamA or teamB
+    const assigned = new Set()
+    ;(teamA.value || []).forEach(p => { const uid = (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null); if (uid) assigned.add(uid) })
+    ;(teamB.value || []).forEach(p => { const uid = (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null); if (uid) assigned.add(uid) })
+    if (assigned.size) {
+      bench.value = (bench.value || []).filter(p => { const uid = (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null); return !assigned.has(uid) })
+    }
+  } catch (e) { console.warn('populateBenchFromMatch dedupe failed', e) }
   console.log('populateBenchFromMatch -> bench entries:', bench.value)
 }
 
@@ -676,6 +694,29 @@ onMounted(async () => {
     subscribeUsers()
     let data = null
     const pathQuery = route.query.path
+    // If navigation provided teams via history state (for example returning
+    // from RoundStarted), restore them so the UI shows the confirmed
+    // allocations immediately but do NOT lock them — the user should be able
+    // to re-randomize or re-assign after returning.
+    const historyState = (typeof window !== 'undefined' && window.history && window.history.state) ? window.history.state : null
+    let restoredTeams = false
+    // Only restore teams automatically if the navigation explicitly marks
+    // them as confirmed (coming back after a winner confirmation) or when a
+    // manual restore flag is present. This prevents End Round (which merely
+    // stops the timer) from causing an automatic restore.
+    if (historyState && historyState.teams && (historyState.confirmed === true || historyState.restore === true)) {
+      try {
+        const teams = historyState.teams || {}
+        const rawA = Array.isArray(teams.teamA) ? teams.teamA.map(u => (typeof u === 'string' ? { uid: u } : (u && u.uid ? { uid: u.uid } : u))) : []
+        const rawB = Array.isArray(teams.teamB) ? teams.teamB.map(u => (typeof u === 'string' ? { uid: u } : (u && u.uid ? { uid: u.uid } : u))) : []
+        teamA.value = await enrichPlayers(rawA)
+        teamB.value = await enrichPlayers(rawB)
+        // do NOT set teamsLocked here; leaving it false allows re-randomization
+        restoredTeams = true
+        // if matchPath provided, prefer it when loading matchData below
+        if (historyState.matchPath) route.query.path = historyState.matchPath
+      } catch (e) { console.warn('Failed to restore teams from history state', e) }
+    }
     if (pathQuery) {
       data = await getDataFromFirebase(pathQuery)
       if (data) { matchData.value = { ...(data || {}), __dbPath: String(pathQuery) }; return }
@@ -707,6 +748,13 @@ onMounted(async () => {
     }
     // ensure bench populates after matchData set
       await populateBenchFromMatch(matchData.value)
+      // If we restored teams from history state above, remove those players from the bench
+      try {
+        if (restoredTeams) {
+          const removed = new Set([...(teamA.value || []).map(p => p.uid), ...(teamB.value || []).map(p => p.uid)])
+          bench.value = (bench.value || []).filter(p => !removed.has(p.uid))
+        }
+      } catch (e) { console.warn('Failed to trim bench after restoring teams', e) }
       // subscribe to live wins updates for this match
       await loadWins()
   } catch (e) {
@@ -790,12 +838,28 @@ async function saveTeamsToDB() {
 
 /** Shuffle bench/randomise teams and assign */
 function randomizeTeams() {
-  const shuffled = [...bench.value, ...teamA.value, ...teamB.value].sort(() => Math.random() - 0.5)
+  // Build a deduplicated pool of players from bench + current teams keyed by uid
+  const poolMap = new Map()
+  const addToPool = (arr) => {
+    (arr || []).forEach(p => {
+      const uid = (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)
+      if (!uid) return
+      // keep the object form if available (prefer enriched objects)
+      if (!poolMap.has(uid)) poolMap.set(uid, p)
+    })
+  }
+  addToPool(bench.value)
+  addToPool(teamA.value)
+  addToPool(teamB.value)
+  const pool = Array.from(poolMap.values())
+  // shuffle
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp
+  }
   teamA.value = []
   teamB.value = []
-  shuffled.forEach((p, i) => {
-    (i % 2 === 0 ? teamA.value : teamB.value).push(p)
-  })
+  pool.forEach((p, i) => { (i % 2 === 0 ? teamA.value : teamB.value).push(p) })
   bench.value = []
 }
 // You can annotate: "randomizeTeams() splits all players randomly between Team A and Team B"

@@ -13,11 +13,11 @@
           <li v-for="(p, i) in players || []" :key="i" class="player-row border-bottom">
             <div class="player-avatar">
               <router-link v-if="p.uid" :to="`/profile/${p.uid}`" class="player-link">
-                <img v-if="p.avatar" :src="p.avatar" alt="avatar" class="big-avatar" />
+                <img v-if="p.profilepicture || p.avatar" :src="p.profilepicture || p.avatar" alt="avatar" class="big-avatar" />
                 <div v-else class="avatar-initial big-avatar">{{ initials(p.name) }}</div>
               </router-link>
               <template v-else>
-                <img v-if="p.avatar" :src="p.avatar" alt="avatar" class="big-avatar" />
+                <img v-if="p.profilepicture || p.avatar" :src="p.profilepicture || p.avatar" alt="avatar" class="big-avatar" />
                 <div v-else class="avatar-initial big-avatar">{{ initials(p.name) }}</div>
               </template>
             </div>
