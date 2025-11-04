@@ -24,7 +24,7 @@
         <p class="card-desc">Locate basketball courts and check their availability.</p>
 
         <div class="search-section">
-          <input type="text" v-model="searchQuery" placeholder="Search courts by keyword..." class="search-input" @keydown.enter.prevent="handleSearch" />
+          <input type="text" v-model="searchQuery" placeholder="Search courts by keyword..." class="search-input" />
           <ul v-if="suggestions && suggestions.length" class="suggestions-list">
             <li v-for="court in suggestions" :key="court.name" @click="selectSuggestion(court)" class="suggestion-item">
               {{ court.name }}
@@ -133,8 +133,6 @@ const mapContainer = ref(null)
 const markers = ref([])
 // non-reactive array that holds the actual google.maps.Marker instances
 let markerInstances = []
-// interval handle used by animateZoomTo to avoid concurrent animations
-let _zoomAnimIv = null
 const searchMarker = ref(null)
 const firebaseCourts = ref([])
 // change 5: unify court data base from firebase console and hardcoded courts:
@@ -159,102 +157,6 @@ const matchEventToShow = ref(null)
 const suggestions = ref([])
 
 const courts = ref([]);
-// When true, temporarily prevent suggestions from being repopulated
-const suppressSuggestions = ref(false)
-
-/**
- * Smoothly animate the map zoom from current zoom to targetZoom.
- * Steps by integer zoom levels (Google Maps typically uses integer zooms) and
- * spaces them across `duration` ms. If map or zoom API isn't available, falls
- * back to a direct setZoom call.
- */
-function animateZoomTo(targetZoom, duration = 400) {
-  if (!map.value || typeof map.value.getZoom !== 'function' || typeof map.value.setZoom !== 'function') {
-    try { if (map.value && typeof map.value.setZoom === 'function') map.value.setZoom(targetZoom) } catch (e) { }
-    return
-  }
-
-  // clear any existing animation
-  if (_zoomAnimIv) {
-    clearInterval(_zoomAnimIv)
-    _zoomAnimIv = null
-  }
-
-  const start = Number(map.value.getZoom()) || 0
-  const end = Number(targetZoom)
-  const diff = end - start
-  if (!diff) return
-
-  const steps = Math.max(1, Math.abs(Math.round(diff)))
-  const interval = Math.max(30, Math.floor(duration / steps))
-  let step = 0
-
-  _zoomAnimIv = setInterval(() => {
-    step += 1
-    const next = start + Math.sign(diff) * step
-    try {
-      map.value.setZoom(next)
-    } catch (e) {
-      // If setZoom fails, try direct assignment fallback and stop
-      try { map.value.setZoom(end) } catch (err) { }
-      clearInterval(_zoomAnimIv)
-      _zoomAnimIv = null
-      return
-    }
-    if (step >= steps) {
-      clearInterval(_zoomAnimIv)
-      _zoomAnimIv = null
-    }
-  }, interval)
-}
-
-/**
- * Set selectedRegions based on a court object. Normalizes region strings and
- * attempts to find a matching known region. If no match is found, leaves
- * selection as ['all'] to avoid hiding results.
- */
-function setRegionForCourt(court) {
-  try {
-    if (!court) return
-    const raw = ((court.region || '') + '').toString().toLowerCase().trim()
-    if (!raw) {
-      console.debug('[setRegionForCourt] court has no region:', court)
-      selectedRegions.value = ['all']
-      return
-    }
-
-    // Normalize common separators (spaces, underscores, hyphens)
-    const compact = raw.replace(/[ _\-]+/g, '')
-
-    // Try exact or contains matching against known regions
-    let match = null
-    for (const r of regions) {
-      if (r === 'all') continue
-      if (compact === r || raw.includes(r) || compact.includes(r)) {
-        match = r
-        break
-      }
-    }
-
-    if (!match) {
-      // As a last resort, try to find any region token inside the raw region
-      for (const r of regions) {
-        if (r === 'all') continue
-        if (raw.indexOf(r) !== -1) {
-          match = r
-          break
-        }
-      }
-    }
-
-    if (match) selectedRegions.value = [match]
-    else selectedRegions.value = ['all']
-
-    console.debug('[setRegionForCourt] resolved region', raw, '->', selectedRegions.value)
-  } catch (err) {
-    console.warn('[setRegionForCourt] failed to set region for court', err, court)
-  }
-}
 
 // onMounted(async () => {
 //   const response = await fetch('/courts.json');
@@ -325,11 +227,6 @@ const handlePopupClose = (event) => {
 watch(searchQuery, updateSuggestions)
 
 function updateSuggestions() {
-  if (suppressSuggestions.value) {
-    // keep suggestions hidden briefly after an explicit search action
-    suggestions.value = []
-    return
-  }
   const term = searchQuery.value.toLowerCase().trim()
   if (!term) {
     suggestions.value = []
@@ -354,22 +251,13 @@ function updateSuggestions() {
 function selectSuggestion(court) {
   searchQuery.value = court.name
   selectedCourt.value = court
-  // hide and suppress suggestions (avoid watcher immediately repopulating)
   suggestions.value = []
-  suppressSuggestions.value = true
-  setTimeout(() => { suppressSuggestions.value = false }, 300)
 
   // Zoom map and pan to selected court coordinates
   if (map.value && court.lat && court.lon) {
     const position = { lat: court.lat, lng: court.lon }
-    // smooth pan + animated zoom
-    try {
-      if (typeof map.value.panTo === 'function') map.value.panTo(position)
-      else map.value.setCenter(position)
-    } catch (e) {
-      try { map.value.setCenter(position) } catch (err) { /* ignore */ }
-    }
-    try { animateZoomTo(16, 450) } catch (e) { try { map.value.setZoom(16) } catch (err) { } }
+    map.value.setCenter(position)
+    map.value.setZoom(16)  // Adjust zoom level as needed
 
     // Optional: add a marker or highlight on selected court
     if (searchMarker.value) searchMarker.value.setMap(null)
@@ -379,19 +267,6 @@ function selectSuggestion(court) {
       title: court.name,
       icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' }
     })
-    // Expand and scroll to the matching court card
-    try {
-      const key = courtKey(court)
-      setTimeout(() => {
-        const idx = markerInstances.findIndex(m => m.getTitle() === (court.name || ''))
-        let el = null
-        if (idx !== -1) el = document.querySelector(`[data-court-index="${idx}"]`)
-        if (!el) el = document.querySelector(`[data-court-key="${key}"]`)
-        if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }, 180)
-    } catch (e) {
-      /* ignore scroll errors */
-    }
   }
 }
 
@@ -601,48 +476,6 @@ handleSearch()
 
 
 function handleSearch() {
-  // Clear any visible suggestions when a search is triggered (user pressed Search or Enter)
-  suggestions.value = []
-  // briefly suppress suggestions from being repopulated by the input watcher
-  suppressSuggestions.value = true
-  setTimeout(() => { suppressSuggestions.value = false }, 300)
-
-  // If the search query matches a known court name, jump to that court's region and center on it.
-  const term = (searchQuery.value || '').toString().toLowerCase().trim()
-  if (term) {
-    const found = allCourts.value.find(c => (c.name || '').toString().toLowerCase().includes(term) || (c.keywords || []).some(k => (k || '').toString().toLowerCase().includes(term)))
-    if (found) {
-      setRegionForCourt(found)
-      // set selected court so UI reflects the searched court
-      selectedCourt.value = found
-      // center + animated zoom to matched court if coords available
-      if (map.value && isFinite(Number(found.lat)) && isFinite(Number(found.lon))) {
-        const pos = { lat: Number(found.lat), lng: Number(found.lon) }
-        try {
-          if (typeof map.value.panTo === 'function') map.value.panTo(pos)
-          else map.value.setCenter(pos)
-        } catch (e) {
-          try { map.value.setCenter(pos) } catch (err) { /* ignore */ }
-        }
-        try { animateZoomTo(16, 450) } catch (e) { try { map.value.setZoom(16) } catch (err) { } }
-      }
-      // ensure a visible search marker and expand the court card
-      try {
-        const position = { lat: Number(found.lat), lng: Number(found.lon) }
-        if (searchMarker.value) searchMarker.value.setMap(null)
-        searchMarker.value = new google.maps.Marker({ position, map: map.value, title: found.name, icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' } })
-        const key = courtKey(found)
-        setTimeout(() => {
-          const idx = markerInstances.findIndex(m => m.getTitle() === (found.name || ''))
-          let el = null
-          if (idx !== -1) el = document.querySelector(`[data-court-index="${idx}"]`)
-          if (!el) el = document.querySelector(`[data-court-key="${key}"]`)
-          if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }, 180)
-      } catch (e) { /* ignore marker/scroll errors */ }
-    }
-  }
-
   // Trigger filter application which will update both visibleCourts and markers
   applyFilters()
 }
@@ -1156,29 +989,7 @@ function toggleRegion(region) {
   console.log('testing', region, selectedRegions.value)
   if (r === 'all') {
     selectedRegions.value = ['all'];
-    // Clear search and suggestions when user explicitly selects 'All'
-    try {
-      searchQuery.value = ''
-      suggestions.value = []
-      selectedCourt.value = null
-      if (searchMarker.value) {
-        try { searchMarker.value.setMap(null) } catch (e) { }
-        searchMarker.value = null
-      }
-    } catch (e) { /* ignore */ }
     applyFilters();
-
-    // Zoom back out to default overview center
-    try {
-      const defaultCenter = { lat: 1.3521, lng: 103.8198 }
-      if (map.value) {
-        try {
-          if (typeof map.value.panTo === 'function') map.value.panTo(defaultCenter)
-          else map.value.setCenter(defaultCenter)
-        } catch (e) { try { map.value.setCenter(defaultCenter) } catch (err) { } }
-        try { animateZoomTo(12, 450) } catch (e) { try { map.value.setZoom(12) } catch (err) { } }
-      }
-    } catch (err) { /* ignore */ }
     return;
   }
 
@@ -1193,32 +1004,7 @@ function toggleRegion(region) {
 
   if (next.length === 0) next = ['all'];
   selectedRegions.value = next;
-  // Clear any active search/suggestion state when user toggles regions
-  searchQuery.value = ''
-  suggestions.value = []
-  selectedCourt.value = null
-  if (searchMarker.value) {
-    try { searchMarker.value.setMap(null) } catch (e) { }
-    searchMarker.value = null
-  }
-
   applyFilters();
-
-  // Zoom back out to default view (Singapore center) so user sees all region markers
-  try {
-    const defaultCenter = { lat: 1.3521, lng: 103.8198 }
-    if (map.value) {
-      try {
-        if (typeof map.value.panTo === 'function') map.value.panTo(defaultCenter)
-        else map.value.setCenter(defaultCenter)
-      } catch (e) {
-        try { map.value.setCenter(defaultCenter) } catch (err) { }
-      }
-      try { animateZoomTo(12, 450) } catch (e) { try { map.value.setZoom(12) } catch (err) { } }
-    }
-  } catch (err) {
-    // ignore
-  }
 }
 
 // ensure changes to selectedRegions trigger filtering (catch template changes)
@@ -1273,14 +1059,8 @@ onMounted(() => {
     if (!place.geometry) return
 
     const location = place.geometry.location
-    // pan then animate zoom for smoother effect
-    try {
-      if (typeof map.value.panTo === 'function') map.value.panTo(location)
-      else map.value.setCenter(location)
-    } catch (e) {
-      try { map.value.setCenter(location) } catch (err) { /* ignore */ }
-    }
-    try { animateZoomTo(15, 400) } catch (e) { try { map.value.setZoom(15) } catch (err) { } }
+    map.value.setCenter(location)
+    map.value.setZoom(15)
 
     if (searchMarker.value) searchMarker.value.setMap(null)
     searchMarker.value = new google.maps.Marker({
@@ -1308,28 +1088,8 @@ onMounted(() => {
 
 
     selectedCourt.value = matchedCourt || null
-      // hide suggestions once a place is selected from autocomplete and suppress watcher
-      suggestions.value = []
-      suppressSuggestions.value = true
-      setTimeout(() => { suppressSuggestions.value = false }, 300)
-      if (matchedCourt) {
-        // ensure marker, expand and scroll into view
-        try {
-          const pos = { lat: Number(matchedCourt.lat), lng: Number(matchedCourt.lon) }
-          if (searchMarker.value) searchMarker.value.setMap(null)
-          searchMarker.value = new google.maps.Marker({ position: pos, map: map.value, title: matchedCourt.name, icon: { url: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png' } })
-          const key = courtKey(matchedCourt)
-          setTimeout(() => {
-            const idx = markerInstances.findIndex(m => m.getTitle() === (matchedCourt.name || ''))
-            let el = null
-            if (idx !== -1) el = document.querySelector(`[data-court-index="${idx}"]`)
-            if (!el) el = document.querySelector(`[data-court-key="${key}"]`)
-            if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          }, 180)
-        } catch (e) { /* ignore marker/scroll errors */ }
-        applyFilters()
-      }
-      searchQuery.value = place.formatted_address
+    if (matchedCourt) applyFilters()
+    searchQuery.value = place.formatted_address
   })
 })
 </script>

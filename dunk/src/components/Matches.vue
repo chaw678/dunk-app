@@ -1442,6 +1442,16 @@ async function endMatchConfirmed(match) {
             try { match.started = true } catch(_){ }
         }
     }
+    // After successfully ending the match, navigate to Forum and open the Create Post modal
+        try {
+            const courtName = (match && (match.court || match.location)) ? encodeURIComponent((match.court || match.location)) : ''
+            const matchId = match && match.id ? String(match.id) : ''
+            const matchTitle = (match && match.title) ? encodeURIComponent(match.title) : ''
+            // use query params `openCreate=1`, `tag=Matches`, and pass court/match info so forum can prefill and attach metadata
+            await router.push({ path: '/forum', query: { openCreate: '1', court: courtName, tag: 'Matches', matchId, matchTitle } })
+        } catch (e) {
+        // ignore navigation failures
+    }
 }
 
 function playMatch(match) {

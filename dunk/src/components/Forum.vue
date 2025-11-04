@@ -39,26 +39,34 @@
       </div>
     </div>
 
-    <!-- Upload modal -->
+    <!-- Upload modal (themed) -->
     <div v-if="showUploadModal" class="modal-backdrop">
-      <div class="delete-modal upload-modal">
-        <h5>Create a New Post</h5>
-        <div class="mb-2">
+      <div class="themed-modal upload-modal" role="dialog" aria-modal="true" aria-label="Create a new post">
+        <button class="modal-close" aria-label="Close" @click="cancelUploadModal">×</button>
+        <h3 class="modal-title">Create a New Post</h3>
+        <p class="modal-sub">Share something about the match you just played.</p>
+
+        <div class="form-group">
           <label class="form-label">Your Message</label>
-          <textarea v-model="uploadCaption" class="form-control" rows="6" placeholder="What's on your mind?"></textarea>
+          <textarea v-model="uploadCaption" class="modal-textarea" rows="6" placeholder="What's on your mind?"></textarea>
         </div>
-        <div class="row g-2 align-items-center">
-          <div class="col">
+
+        <div class="modal-row">
+          <div class="modal-col">
             <label class="form-label">Tag</label>
-            <select class="form-select" v-model="selectedTag">
+            <select class="modal-select" v-model="selectedTag">
               <option v-for="t in tags" :key="t" :value="t">{{ t }}</option>
             </select>
           </div>
-          <div class="col">
+          <div class="modal-col">
             <label class="form-label">Attach Media</label>
-            <input ref="uploadFileInput" type="file" class="form-control" @change="handleModalFileSelect" accept="image/*" />
+            <div class="file-row">
+              <input ref="uploadFileInput" type="file" class="modal-file" @change="handleModalFileSelect" accept="image/*" />
+              <span class="file-note">{{ selectedUploadPreviews.length ? selectedUploadPreviews.length + ' file(s) selected' : 'No file chosen' }}</span>
+            </div>
           </div>
         </div>
+
         <div class="preview-grid mt-2" v-if="selectedUploadPreviews.length">
           <div class="preview-item" v-for="(p, idx) in selectedUploadPreviews" :key="idx">
             <img v-if="isImage(p.file.name)" :src="p.url" class="preview-thumb" />
@@ -69,9 +77,10 @@
             </div>
           </div>
         </div>
-        <div class="d-flex justify-content-end gap-2 mt-3">
-          <button class="btn btn-secondary" @click="cancelUploadModal">Cancel</button>
-          <button class="btn btn-warning" :title="currentUserId ? 'Create Post' : 'Sign in to create posts'" @click="submitUpload">Create Post</button>
+
+        <div class="modal-actions">
+          <button class="btn btn-cancel" @click="cancelUploadModal">Cancel</button>
+          <button class="btn btn-create" :title="currentUserId ? 'Create Post' : 'Sign in to create posts'" @click="submitUpload">Create Post</button>
         </div>
       </div>
     </div>
@@ -121,6 +130,10 @@
               </div>
             </div>
             <p class="mb-2">{{ file.caption || file.title || '' }}</p>
+            <div v-if="file.matchId" class="mb-2 small">
+              <router-link :to="`/match/${file.matchId}`" class="text-warning">View related match{{ file.matchTitle ? `: ${file.matchTitle}` : '' }}</router-link>
+              <span class="text-muted ms-2">(may be removed by host)</span>
+            </div>
             <div class="post-media" v-if="file.url">
               <img v-if="isImage(file.name)" :src="file.url" class="post-image" @click.stop.prevent="openPostModal(file)" />
               <a v-else :href="file.url" target="_blank">Download</a>
@@ -408,7 +421,7 @@
 
 <script setup>
 import { ref, onMounted, nextTick, onUnmounted, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { Eye } from 'lucide-vue-next'
 import uploadFile from '../upload'
 import { getDataFromFirebase, pushDataToFirebase, deleteDataFromFirebase, overwriteDataToFirebase, storage, getUserName, onDataChange } from '../firebase/firebase'
@@ -439,6 +452,9 @@ const tags = ref(['General','Advice','Matches','Highlights'])
 const selectedTag = ref('General')
 const selectedFilter = ref('All')
 const router = useRouter()
+const route = useRoute()
+const prefillMatchId = ref(null)
+const prefillMatchTitle = ref(null)
 
 // live users map so display names and avatars update immediately when a profile changes
 const usersMap = ref({})
@@ -562,6 +578,26 @@ onMounted(() => {
   })
   // load forum posts
   loadUploads()
+  // If navigated with ?openCreate=1, open the upload modal and optionally prefill caption
+  try {
+    const q = route && route.query ? route.query : {}
+    if (q && (q.openCreate === '1' || q.openCreate === 'true')) {
+      // prefill caption with court name if provided
+      const court = q.court ? decodeURIComponent(q.court) : ''
+      if (court) uploadCaption.value = `Just finished a match at ${court}.`
+      // preselect tag if provided
+      if (q.tag) selectedTag.value = q.tag
+      // store match metadata if provided so submitUpload can attach it
+      if (q.matchId) prefillMatchId.value = q.matchId
+      if (q.matchTitle) prefillMatchTitle.value = q.matchTitle ? decodeURIComponent(q.matchTitle) : ''
+      // open modal after a tick so DOM is ready
+      setTimeout(() => { showUploadModal.value = true }, 40)
+      // remove the query param so reloading doesn't reopen it repeatedly
+      try { router.replace({ path: route.path, query: {} }) } catch (e) {}
+    }
+  } catch (e) {
+    // ignore
+  }
 })
 
 onUnmounted(() => {
@@ -1101,6 +1137,9 @@ async function submitUpload() {
           url,
           storagePath,
           tag: selectedTag.value || 'General',
+          // attach match metadata when present (so post keeps a reference even if match is later deleted)
+          matchId: prefillMatchId.value || null,
+          matchTitle: prefillMatchTitle.value || null,
           // creator metadata
           createdByUid: currentUserId.value || null,
           createdByName: currentUserName.value || null,
@@ -1120,6 +1159,8 @@ async function submitUpload() {
         url: null,
         storagePath: null,
         tag: selectedTag.value || 'General',
+        matchId: prefillMatchId.value || null,
+        matchTitle: prefillMatchTitle.value || null,
         createdByUid: currentUserId.value || null,
         createdByName: currentUserName.value || null,
         likedBy: {},
@@ -1706,6 +1747,71 @@ input.comment-edit-input:-webkit-autofill:focus {
 
 .upload-modal {
   max-width: 680px;
+}
+
+/* Themed upload modal styles (match screenshot) */
+.themed-modal {
+  background: #071021;
+  padding: 28px 32px;
+  border-radius: 12px;
+  color: #fff;
+  width: 92%;
+  max-width: 720px;
+  box-shadow: 0 12px 40px rgba(2,6,23,0.7);
+  position: relative;
+}
+.themed-modal .modal-close {
+  position: absolute;
+  right: 14px;
+  top: 10px;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.7);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.themed-modal .modal-title { font-size: 22px; margin: 6px 0 6px; font-weight:700 }
+.themed-modal .modal-sub { color: rgba(255,255,255,0.65); margin-bottom: 14px }
+.themed-modal .modal-textarea {
+  width: 100%;
+  min-height: 140px;
+  background: transparent;
+  border-radius: 10px;
+  padding: 14px 16px;
+  color: #fff;
+  border: 3px solid rgba(255,173,29,0.12);
+  resize: vertical;
+  font-size: 15px;
+}
+.themed-modal .modal-textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(255,173,29,0.07);
+  border-color: rgba(255,173,29,0.9);
+}
+.themed-modal .modal-row { display:flex; gap:16px; margin-top:12px }
+.themed-modal .modal-col { flex:1 }
+.themed-modal .modal-select, .themed-modal .modal-file {
+  width: 100%;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #fff;
+}
+.themed-modal .file-row { display:flex; align-items:center; gap:12px }
+.themed-modal .file-note { color: rgba(255,255,255,0.6); font-size:13px }
+.themed-modal .preview-grid { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px }
+.themed-modal .preview-item { display:flex; gap:8px; align-items:center; background: rgba(255,255,255,0.02); padding:8px; border-radius:8px }
+.themed-modal .preview-thumb { width:72px; height:54px; object-fit:cover; border-radius:6px }
+.themed-modal .preview-meta .small { color: rgba(255,255,255,0.85) }
+.themed-modal .modal-actions { display:flex; justify-content:flex-end; gap:12px; margin-top:18px }
+.themed-modal .btn-cancel { background: rgba(0,0,0,0.35); color: #fff; border: 1px solid rgba(255,255,255,0.04); padding:10px 16px; border-radius:10px }
+.themed-modal .btn-create { background: #ff9a1f; color: #111; padding:10px 18px; border-radius:10px; border:none; font-weight:700 }
+
+@media (max-width: 640px) {
+  .themed-modal { padding: 18px; width: 95%; }
+  .themed-modal .modal-row { flex-direction:column }
 }
 
 /* Floating pencil button */
