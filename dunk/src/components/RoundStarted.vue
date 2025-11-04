@@ -35,7 +35,7 @@
           </div>
         </div>
 
-        <div class="timer-controls">
+  <div class="timer-controls">
           <button
             class="btn-start"
             v-if="!roundActive && !roundFinished"
@@ -48,7 +48,7 @@
           <button class="btn-reset" v-if="roundActive && timerPaused" @click="resumeTimer">Resume</button>
           <button class="btn-reset" v-if="roundActive && timerPaused" @click.prevent.stop="restartRound">Restart</button>
           <button class="btn-reset" v-if="!roundActive && timerSet && !roundFinished" @click="resetTimer">Reset</button>
-          <button class="btn-end" v-if="roundActive" @click.prevent.stop="endRound(true)">End Round</button>
+          <button class="btn-end" v-if="roundActive" @click.prevent.stop="requestEndRound">End Round</button>
         </div>
       </div>
     </div>
@@ -116,13 +116,28 @@
       </div>
     </section>
   </div>
+  <!-- Teleport ConfirmModal for End Round -->
+  <Teleport to="body">
+    <ConfirmModal
+      v-if="showEndConfirm"
+      v-model="showEndConfirm"
+      :title="endConfirm.title"
+      :message="endConfirm.message"
+      confirmLabel="YES"
+      cancelLabel="Cancel"
+      :primaryFirst="true"
+      :destructive="false"
+      @confirm="onEndConfirm"
+    />
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, Teleport } from 'vue'
 import { avatarForUser } from '../utils/avatar.js'
 import { useRoute, useRouter } from 'vue-router'
 import { getDataFromFirebase, setChildData, deleteChildData, onDataChange, incrementField, getUserName } from '../firebase/firebase'
+import ConfirmModal from './ConfirmModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -158,6 +173,30 @@ const timerSet = ref(false)
 const timerInterval = ref(null)
 const timerPaused = ref(false)
 const roundActive = ref(false)
+
+// modal state for End Round confirmation (use the same ConfirmModal as Matches.vue)
+const showEndConfirm = ref(false)
+const endConfirm = ref({ title: '', message: 'Are you sure you want to end this round?' })
+
+function requestEndRound() {
+  // set a contextual title that includes the current round number shown in the header
+  try {
+    endConfirm.value.title = `End Round #${displayTitle.value} now?`
+  } catch (e) {
+    endConfirm.value.title = 'End Round now?'
+  }
+  // Pause the timer immediately so the UI freezes at the exact minute/second
+  try {
+    if (roundActive.value && !timerPaused.value) pauseTimer()
+  } catch (e) { /* ignore pause errors */ }
+  showEndConfirm.value = true
+}
+
+function onEndConfirm() {
+  // user confirmed via modal — proceed to end round without another prompt
+  showEndConfirm.value = false
+  endRound(false)
+}
 
 const startEnabled = computed(() => timerSet.value && teamA.value.length && teamB.value.length)
 const startShouldPulse = computed(() => startEnabled.value && !roundActive.value)
@@ -935,6 +974,12 @@ onBeforeUnmount(() => {
   }
   if (usersUnsub) { try { usersUnsub() } catch (e) {} ; usersUnsub = null }
 })
+
+// Teleport ConfirmModal for End Round
+// Rendered via Teleport so it overlays page content similar to Matches.vue
+// Note: ConfirmModal emits 'confirm' and supports v-model for visibility
+// We bind showEndConfirm and handle confirm with onEndConfirm
+// Place the teleport markup at the end of the template via an inserted render
 </script>
 
 <style scoped>

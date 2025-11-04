@@ -62,7 +62,7 @@
       >
 
         <template #item="{ element }">
-            <div class="player-avatar">
+            <div class="player-avatar" @click="openProfileModal(element.uid)">
               <div class="player-left">
                 <div class="avatar-block">
                   <template v-if="element?.avatar">
@@ -101,7 +101,7 @@
         <h2>Team A</h2>
         <draggable v-model="teamA" :group="'players'" :disabled="teamsLocked" item-key="uid" class="team-drop-list">
             <template #item="{ element }">
-            <div class="player-avatar">
+            <div class="player-avatar" @click="openProfileModal(element.uid)">
               <div class="player-left">
                 <div class="avatar-block">
                   <template v-if="element?.avatar">
@@ -127,7 +127,7 @@
         <h2>Team B</h2>
         <draggable v-model="teamB" :group="'players'" :disabled="teamsLocked" item-key="uid" class="team-drop-list">
             <template #item="{ element }">
-            <div class="player-avatar">
+            <div class="player-avatar" @click="openProfileModal(element.uid)">
               <div class="player-left">
                 <div class="avatar-block">
                   <template v-if="element?.avatar">
@@ -209,7 +209,7 @@
               <div class="team-title">A</div>
               <div class="team-members">
                 <template v-for="uid in (r.teamA || [])" :key="uid">
-                  <div class="member-pill">
+                  <div class="member-pill" @click="openProfileModal(uid)">
                     <div class="member-avatar-small"><img :src="avatarForUid(uid)" :alt="displayNameFor(uid) + ' avatar'"/></div>
                     <div class="member-name">{{ displayNameFor(uid) }}</div>
                     <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
@@ -223,7 +223,7 @@
               <div class="team-title">B</div>
               <div class="team-members">
                 <template v-for="uid in (r.teamB || [])" :key="uid">
-                  <div class="member-pill">
+                  <div class="member-pill" @click="openProfileModal(uid)">
                     <div class="member-avatar-small"><img :src="avatarForUid(uid)" :alt="displayNameFor(uid) + ' avatar'"/></div>
                     <div class="member-name">{{ displayNameFor(uid) }}</div>
                     <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
@@ -247,6 +247,7 @@
 
   <!-- Stats Modal -->
   <StatisticsModal v-if="showStats" :stats="computedStats" @close="showStats=false" />
+  <ProfileModal v-if="showProfileModal" :uid="profileModalUid" @close="closeProfileModal" />
   </div>
   
 </template>
@@ -260,6 +261,7 @@ import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
  import { useRoute, useRouter } from 'vue-router'
 import { getDataFromFirebase, setChildData, onDataChange } from '../firebase/firebase'
 import { avatarForUser } from '../utils/avatar.js'
+import ProfileModal from './ProfileModal.vue'
 // RoundsHistory inlined below; no external import
 // import your StatisticsModal if you want fancy end-of-match stats
 
@@ -267,14 +269,17 @@ const route = useRoute()
 const router = useRouter()
 const matchId = computed(() => route.params.id)
 
-// /** Initial player data */
-// const allPlayers = [
-//   // Example: { uid: 'p1', name: 'Wei_Ken', avatar: '/avatars/wei_ken.jpg' }
-//   // Populate from your match info/Firebase
-// ]
+// modal state for profile
+const showProfileModal = ref(false)
+const profileModalUid = ref(null)
+function openProfileModal(uid) {
+  if (!uid) return
+  profileModalUid.value = uid
+  showProfileModal.value = true
+}
+function closeProfileModal() { showProfileModal.value = false; profileModalUid.value = null }
 
-
-
+/** Initial player data */
 const allPlayers = []
 const matchData = ref({})
 const bench = ref([]) 
@@ -332,65 +337,20 @@ function subscribeUsers() {
 async function enrichPlayers(list) {
   if (!list || !list.length) return []
   const users = usersMap.value || {}
-//   return list.map(p => {
-//     const uid = p.uid || p.id || p.key || ''
-//     const resolved = (users && users[uid]) || null
-//     return {
-//       uid: uid || (p.name ? `${p.name}` : ''),
-//       name: p.name || (resolved && (resolved.name || resolved.displayName || resolved.username)) || p.uid || 'Player',
-//       avatar: p.avatar || (resolved && (resolved.avatar || resolved.photoURL)) || null
-//     }
-//   })
-
-const out = list.map(p => {
-    const uid = p.uid || p.id || p.key || ''
-  const resolved = (users && users[uid]) || null
-    // prefer profile values from usersMap (resolved) over any local fields on p
-    // Prefer an explicit profilepicture field if present (new canonical key)
-    let avatar = (resolved && (resolved.profilepicture || resolved.avatar || resolved.photoURL || resolved.picture || resolved.photo || resolved.imageURL || resolved.thumbnail)) || p.avatar || null
-
-    // If no avatar at all, generate a fallback seeded by profile name or local name.
-    // Keep `finalAvatar` as the canonical value we will return/use.
-    let finalAvatar = avatar
-    if (!finalAvatar) {
-      const seedName = encodeURIComponent(((resolved && (resolved.name || resolved.displayName || resolved.username)) || p.name || uid || '').split(' ')[0])
-      if (resolved && resolved.gender) {
-        finalAvatar = (String(resolved.gender).toLowerCase() === 'female')
-          ? `https://avatar.iran.liara.run/public/girl?username=${seedName}`
-          : `https://avatar.iran.liara.run/public/boy?username=${seedName}`
-      } else {
-        const nameFull = encodeURIComponent(((resolved && (resolved.name || resolved.displayName)) || p.name || uid).trim())
-        finalAvatar = `https://ui-avatars.com/api/?name=${nameFull}&background=1f262b&color=ffad1d&format=png&size=128`
-      }
-
-      // persist generated avatar into users/<uid>/profilepicture when possible
-      if (resolved && uid) {
-        try {
-          // fire-and-forget; non-blocking
-          setChildData(`users/${uid}`, 'profilepicture', finalAvatar).catch(() => {})
-        } catch (e) { /* ignore */ }
-      }
-    }
-
-    // If we still don't have a finalAvatar (very rare), derive one via the centralized helper
-    if (!finalAvatar) {
-      finalAvatar = avatarForUser(resolved || p)
-    }
-
-    // Prefer canonical profile name stored under users/<uid>.name first
-    const name = (resolved && (resolved.name || resolved.displayName || resolved.username)) || p.name || uid || 'Player'
-    // prefer live wins from users node, fallback to per-match playersMap.NumberOfWins if available
+  return list.map(p => {
+    const uid = (p && (p.uid || p.id || p.key)) || ''
+    const resolved = (users && users[uid]) || null
+    let avatar = (p && p.avatar) || (resolved && (resolved.profilepicture || resolved.avatar || resolved.photoURL)) || null
+    if (!avatar) avatar = avatarForUser(resolved || p || { uid })
+    const name = (p && p.name) || (resolved && (resolved.name || resolved.displayName || resolved.username)) || uid || 'Player'
     let wins = 0
-      if (resolved && (typeof resolved.wins !== 'undefined')) {
-        wins = Number(resolved.wins || 0)
-      } else {
-        const pm = (playersMap.value && (playersMap.value[uid])) ? playersMap.value[uid] : null
-        if (pm && typeof pm.NumberOfWins !== 'undefined') wins = Number(pm.NumberOfWins || 0)
-      }
-    return { uid, name, avatar: finalAvatar, wins }
+    if (resolved && typeof resolved.wins !== 'undefined') wins = Number(resolved.wins || 0)
+    else {
+      const pm = playersMap.value && playersMap.value[uid]
+      if (pm && typeof pm.NumberOfWins !== 'undefined') wins = Number(pm.NumberOfWins || 0)
+    }
+    return { uid, name, avatar, wins }
   })
-  console.log('enrichPlayers -> resolved avatars:', out)
-  return out
 }
 
 async function populateBenchFromMatch(md) {
@@ -1059,7 +1019,7 @@ button[disabled] { cursor: not-allowed; opacity: 0.6; }
 .timer-display-large { display:flex; flex-direction:column; align-items:center; gap:8px; }
 .timer-actions-large { display:flex; gap:8px; }
 
-/* .timer-state { display:flex; justify-content:center; margin: 10px 0 18px; }
+.timer-state { display:flex; justify-content:center; margin: 10px 0 18px; }
 .state-row {
   display:flex;
   gap:18px;
@@ -1068,7 +1028,7 @@ button[disabled] { cursor: not-allowed; opacity: 0.6; }
   border-radius:10px;
   border:1px solid rgba(255,173,29,0.06);
   align-items:center;
-} */
+}
 .state-item { color:#f3e6c2; font-weight:700; font-size:0.95rem; padding:4px 6px; }
 .state-item strong { color:#ffefcf; margin-right:6px; }
 
@@ -1114,7 +1074,7 @@ header { display: flex; align-items: center; justify-content: space-between; }
 .bench-section, .team-card { background: #23262e; border-radius: 18px; padding: 20px 26px; margin-bottom: 22px; }
 .bench-list, .team-drop-list { display: flex; gap: 28px; min-height: 100px; flex-wrap: wrap; align-items: flex-start; }
   /* player tile row: avatar + name on left, wins on right */
-  .player-avatar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 10px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02)); border-radius:10px; border:1px solid rgba(255,255,255,0.02); position:relative; white-space:nowrap }
+  .player-avatar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 10px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02)); border-radius:10px; border:1px solid rgba(255,255,255,0.02); position:relative; white-space:nowrap; cursor: pointer; }
   .player-left { display:flex; align-items:center; gap:12px; min-width:0; overflow:hidden }
   /* Full-width tiles for team lists */
   .team-drop-list { display:flex; flex-direction:column; gap:12px; align-items:stretch }
@@ -1145,6 +1105,8 @@ header { display: flex; align-items: center; justify-content: space-between; }
 .back-btn, .end-match-btn { border:none; background:#B23B3B; color: #fff; border-radius: 8px; padding:9px 18px; font-weight:700; }
 .bench-section p { font-size: 0.96rem; color: #ccc; margin-bottom:16px; }
 .teams-grid { display: flex; gap: 34px; align-items: flex-start; justify-content: center; }
+
+.player-pill { cursor: pointer; }
 
 /* Wins chart (copied small subset from RoundStarted.vue) */
 .wins-chart { max-width:700px; margin: 18px auto; }
@@ -1185,7 +1147,7 @@ header { display: flex; align-items: center; justify-content: space-between; }
 .team-block { flex:1; background: rgba(255,255,255,0.02); padding:8px; border-radius:10px }
 .team-title { font-weight:900; color:#fff4d1; margin-bottom:8px }
 .team-members { display:flex; gap:8px; flex-wrap:wrap }
-.member-pill { display:flex; gap:8px; align-items:center; background: linear-gradient(180deg, #0f1114, #141516); padding:6px 8px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); }
+.member-pill { display:flex; gap:8px; align-items:center; background: linear-gradient(180deg, #0f1114, #141516); padding:6px 8px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); cursor: pointer; }
 .member-avatar-small { width:30px; height:30px; border-radius:50%; background:#ffad1d; color:#0b0b0b; display:flex; align-items:center; justify-content:center; font-weight:900 }
   .member-avatar-small img { width:100%; height:100%; object-fit:cover; display:block }
   .member-name { color:#fff; font-weight:800; font-size:0.82rem }

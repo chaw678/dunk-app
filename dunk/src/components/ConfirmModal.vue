@@ -8,8 +8,14 @@
       <h2 class="confirm-title">{{ title }}</h2>
       <p class="confirm-sub" v-if="message">{{ message }}</p>
       <div class="confirm-actions">
-        <button class="btn-cancel" @click="close">{{ cancelLabel }}</button>
-        <button class="btn-confirm" :class="destructive ? 'destructive' : ''" @click="confirmAction">{{ confirmLabel }}</button>
+        <template v-if="primaryFirst">
+          <button class="btn-confirm" :class="destructive ? 'destructive' : ''" @click="confirmAction">{{ confirmLabel }}</button>
+          <button class="btn-cancel" @click="close">{{ cancelLabel }}</button>
+        </template>
+        <template v-else>
+          <button class="btn-cancel" @click="close">{{ cancelLabel }}</button>
+          <button class="btn-confirm" :class="destructive ? 'destructive' : ''" @click="confirmAction">{{ confirmLabel }}</button>
+        </template>
       </div>
     </div>
   </ModalPortal>
@@ -26,6 +32,9 @@ const props = defineProps({
   confirmLabel: { type: String, default: 'OK' },
   cancelLabel: { type: String, default: 'Cancel' },
   destructive: { type: Boolean, default: false }
+  ,
+  // When true, render the primary (confirm) button before the cancel button
+  primaryFirst: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:modelValue', 'confirm'])
