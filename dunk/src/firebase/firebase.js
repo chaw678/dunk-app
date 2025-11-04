@@ -18,6 +18,7 @@ const app = initializeApp(firebaseConfig)
 const auth = getAuth(app)
 const storage = getStorage(app)
 import { getDatabase, ref, set, get, child, push, remove, update, onValue, runTransaction } from "firebase/database";
+import { avatarForUser } from '../utils/avatar.js'
 import { Database } from 'lucide-vue-next'
 
 const db = getDatabase(app);
@@ -75,10 +76,10 @@ export async function getUserName(uid) {
         if (!snap || !snap.exists()) return null
         const u = snap.val()
         // prefer username, then name, then displayName, then email local-part
-        if (u.username) return u.username
-        if (u.name) return u.name
-        if (u.displayName) return u.displayName
-        if (u.email) return u.email.split('@')[0]
+    if (u.username) return u.username
+    if (u.name) return u.name
+    if (u.displayName) return u.displayName
+    if (u.email && typeof u.email === 'string') return u.email.split('@')[0]
         return null
     } catch (err) {
         console.error('getUserName error', err)
@@ -182,7 +183,44 @@ export { app, auth, storage }
 export function onDataChange(path, cb) {
     const refPath = ref(db, path)
     const off = onValue(refPath, (snap) => {
-        cb(snap.exists() ? snap.val() : null)
+        try {
+            let val = snap.exists() ? snap.val() : null
+            // If subscribing to the users node, augment each user object with a stable avatar URL
+            // so consumers receive a consistent avatar field (photoURL/avatar preferred).
+            if (val && typeof path === 'string' && (path === 'users' || path === 'users/' || path.startsWith('users/'))) {
+                try {
+                    // If subscribing to the entire `users` map, val will be an object keyed by uid.
+                    if (path === 'users' || path === 'users/') {
+                        const out = {}
+                        for (const [k, u] of Object.entries(val)) {
+                            try {
+                                const userObj = Object.assign({ uid: k }, (u || {}))
+                                const resolvedAvatar = avatarForUser(userObj)
+                                out[k] = Object.assign({}, u, { avatar: (u && (u.avatar || u.photoURL)) ? (u.avatar || u.photoURL) : resolvedAvatar })
+                            } catch (inner) {
+                                out[k] = u
+                            }
+                        }
+                        val = out
+                    } else {
+                        // Subscribing to a single user path: 'users/<uid>' — val is one user object.
+                        try {
+                            const userObj = Object.assign({}, val)
+                            const resolvedAvatar = avatarForUser(userObj)
+                            val = Object.assign({}, val, { avatar: (val && (val.avatar || val.photoURL)) ? (val.avatar || val.photoURL) : resolvedAvatar })
+                        } catch (inner) {
+                            // leave val as-is on error
+                        }
+                    }
+                } catch (innerErr) {
+                    console.warn('Failed to augment users snapshot with avatars', innerErr)
+                }
+            }
+            cb(val)
+        } catch (err) {
+            console.error('onDataChange processing error', err)
+            cb(snap.exists() ? snap.val() : null)
+        }
     }, (err) => {
         console.error('onDataChange error', err)
     })

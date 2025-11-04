@@ -1220,8 +1220,8 @@ function openCreateMatchForCourt(court) {
     showAddMatchModal.value = true
   } catch (e) {
     // fallback
-    selectedCourt = court
-    showAddMatchModal = true
+    try { selectedCourt.value = court } catch(_) { /* ignore */ }
+    try { showAddMatchModal.value = true } catch(_) { /* ignore */ }
   }
 }
 

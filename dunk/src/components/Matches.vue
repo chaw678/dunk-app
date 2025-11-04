@@ -350,6 +350,7 @@ import JoinedPlayersModal from './JoinedPlayersModal.vue'
 import InviteModal from './InviteModal.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import DunkLogo from './DunkLogo.vue'
+import { seededAvatar, avatarForUser } from '../utils/avatar.js'
 
 const showPopup = ref(false)
 const isSigningIn = ref(false)
@@ -376,10 +377,7 @@ function subscribeUsersRealtime() {
     }
 }
 
-function seededAvatar(name) {
-    const username = name || 'anon'
-    return `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(username)}`
-}
+// Use centralized avatar helper from ../utils/avatar.js
 
 async function loadUsers() {
     try {

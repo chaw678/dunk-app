@@ -259,6 +259,7 @@ import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
  import draggable from 'vuedraggable'
  import { useRoute, useRouter } from 'vue-router'
 import { getDataFromFirebase, setChildData, onDataChange } from '../firebase/firebase'
+import { avatarForUser } from '../utils/avatar.js'
 // RoundsHistory inlined below; no external import
 // import your StatisticsModal if you want fancy end-of-match stats
 
@@ -346,9 +347,10 @@ const out = list.map(p => {
   const resolved = (users && users[uid]) || null
     // prefer profile values from usersMap (resolved) over any local fields on p
     // Prefer an explicit profilepicture field if present (new canonical key)
-    const avatar = (resolved && (resolved.profilepicture || resolved.avatar || resolved.photoURL || resolved.picture || resolved.photo || resolved.imageURL || resolved.thumbnail)) || p.avatar || null
+    let avatar = (resolved && (resolved.profilepicture || resolved.avatar || resolved.photoURL || resolved.picture || resolved.photo || resolved.imageURL || resolved.thumbnail)) || p.avatar || null
 
-    // If no avatar at all, generate a fallback seeded by profile name or local name
+    // If no avatar at all, generate a fallback seeded by profile name or local name.
+    // Keep `finalAvatar` as the canonical value we will return/use.
     let finalAvatar = avatar
     if (!finalAvatar) {
       const seedName = encodeURIComponent(((resolved && (resolved.name || resolved.displayName || resolved.username)) || p.name || uid || '').split(' ')[0])
@@ -370,10 +372,15 @@ const out = list.map(p => {
       }
     }
 
+    // If we still don't have a finalAvatar (very rare), derive one via the centralized helper
+    if (!finalAvatar) {
+      finalAvatar = avatarForUser(resolved || p)
+    }
+
     // Prefer canonical profile name stored under users/<uid>.name first
     const name = (resolved && (resolved.name || resolved.displayName || resolved.username)) || p.name || uid || 'Player'
-      // prefer live wins from users node, fallback to per-match playersMap.NumberOfWins if available
-      let wins = 0
+    // prefer live wins from users node, fallback to per-match playersMap.NumberOfWins if available
+    let wins = 0
       if (resolved && (typeof resolved.wins !== 'undefined')) {
         wins = Number(resolved.wins || 0)
       } else {

@@ -11,8 +11,8 @@
 
       <!-- Avatar, name, email -->
       <div class="d-flex flex-column align-items-center mb-3">
-        <div style="width:100px;height:100px;border-radius:50%;border:5px solid #FFAD1D;overflow:hidden;display:flex;align-items:center;justify-content:center;">
-          <img v-if="!imgErrored" :src="photoUrl" @error="onImgError" style="width:100%;height:100%;object-fit:cover;" alt="Profile"/>
+            <div style="width:100px;height:100px;border-radius:50%;border:5px solid #FFAD1D;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+              <img v-if="!imgErrored" :src="resolvedAvatarSrc" @error="onImgError" style="width:100%;height:100%;object-fit:cover;" alt="Profile"/>
           <div v-else style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1f262b;color:#fff;font-weight:700;border-radius:50%;">
             {{ displayInitials }}
           </div>
@@ -24,6 +24,14 @@
           {{ profile.email }}
         </div>
 
+        <!-- DEBUG: show resolved avatar sources to help diagnose missing image -->
+        <div class="mt-2" style="color:#9CA3AF;font-size:0.9rem;word-break:break-all;">
+          <div>photoUrl: <small>{{ photoUrl }}</small></div>
+          <div>profile.avatar: <small>{{ profile.avatar }}</small></div>
+          <div>profile.photoURL: <small>{{ profile.photoURL }}</small></div>
+          <div>profile.uid: <small>{{ profile.uid }}</small></div>
+        </div>
+
         <div class="mt-2" v-if="!(currentUser && currentUser.uid && currentUser.uid === uid)">
           <button
             v-if="currentUser && currentUser.uid"
@@ -33,6 +41,10 @@
             {{ (profile.followers && currentUser && currentUser.uid && profile.followers[currentUser.uid]) ? 'Unfollow' : 'Follow' }}
           </button>
           <button v-else class="btn btn-outline-primary me-2" disabled>Follow</button>
+        </div>
+        <div class="mt-2" v-else>
+          <!-- Owner actions: allow randomizing the persisted seeded avatar -->
+          <button class="btn btn-outline-warning me-2" @click="randomizeAvatar">Randomize avatar</button>
         </div>
       </div>
       <!-- Following & Followers (placed below avatar, above stats) -->
@@ -186,7 +198,7 @@
                 @keyup.enter="openPublicProfile(f.uid)"
               >
                 <img
-                  :src="f.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f.email.split('@')[0])}`"
+                  :src="avatarForUser(f)"
                   class="avatar"
                 />
                 <div class="info">
@@ -225,7 +237,7 @@
                 @keyup.enter="openPublicProfile(f.uid)"
               >
                 <img
-                  :src="f.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f.email.split('@')[0])}`"
+                  :src="avatarForUser(f)"
                   class="avatar"
                 />
                 <div class="info">
@@ -259,8 +271,9 @@
 
 <script setup>
 import { ref, onMounted, onBeforeMount, computed, watch, onBeforeUnmount } from 'vue'
+import { avatarForUser, seededAvatar } from '../utils/avatar.js'
 import { useRoute, useRouter } from 'vue-router'
-import { getDataFromFirebase, setChildData, deleteChildData } from '../firebase/firebase'
+import { getDataFromFirebase, setChildData, deleteChildData, onDataChange } from '../firebase/firebase'
 import { onUserStateChanged } from '../firebase/auth'
 import { MoveLeft, Trophy, Star, Users, Cake, ChartColumn } from 'lucide-vue-next'
 
@@ -297,7 +310,11 @@ async function fetchProfile(targetUid) {
   try {
     const users = await getDataFromFirebase('users')
     if (users && users[targetUid]) {
-      profile.value = { ...profile.value, ...users[targetUid] }
+      const u = users[targetUid]
+      const userObj = Object.assign({ uid: targetUid }, (u || {}))
+      const resolvedAvatar = avatarForUser(userObj)
+      const avatarField = (u && (u.avatar || u.photoURL)) ? (u.avatar || u.photoURL) : resolvedAvatar
+      profile.value = { ...profile.value, ...u, avatar: avatarField }
     }
   } catch (e) {
     console.warn('Failed to load profile', e)
@@ -307,6 +324,8 @@ async function fetchProfile(targetUid) {
 // basic state
 const currentUser = ref(null)
 const imgErrored = ref(false)
+const _persistedAvatarWritten = ref(false)
+const _imgAttempt = ref(0) // try a secondary fallback once before showing initials
 
 // modal / follower state
 const usersMap = ref({})
@@ -319,13 +338,28 @@ const searchQuery = ref('')
 const filteredFollowers = ref([])
 const filteredFollowing = ref([])
 const profilePollRef = ref(null)
+let profileUserUnsub = null
 
 function goBack() { router.back() }
 
 async function loadUsersMap() {
   try {
     const users = await getDataFromFirebase('users')
-    usersMap.value = users || {}
+    if (users && typeof users === 'object') {
+      const out = {}
+      for (const [k, u] of Object.entries(users)) {
+        try {
+          const userObj = Object.assign({ uid: k }, (u || {}))
+          const resolvedAvatar = avatarForUser(userObj)
+          out[k] = Object.assign({}, u, { avatar: (u && (u.avatar || u.photoURL)) ? (u.avatar || u.photoURL) : resolvedAvatar })
+        } catch (inner) {
+          out[k] = u
+        }
+      }
+      usersMap.value = out
+    } else {
+      usersMap.value = {}
+    }
   } catch (e) {
     usersMap.value = {}
   }
@@ -420,8 +454,23 @@ watch([followersList, followingList], () => {
 onMounted(async () => {
   if (!uid.value) return
   try {
-    const users = await getDataFromFirebase('users')
-    if (users && users[uid.value]) profile.value = { ...profile.value, ...users[uid.value] }
+    // Subscribe to the single user's realtime node so we receive the same augmented
+    // user object (including normalized avatar) that other pages receive via onDataChange.
+    // This ensures the Profile page shows the exact same avatar URL.
+    try {
+      profileUserUnsub = onDataChange(`users/${uid.value}`, (val) => {
+        if (val) {
+          profile.value = { ...(profile.value || {}), ...val }
+          // also ensure usersMap has the same normalized record for modal lists
+          usersMap.value = Object.assign({}, usersMap.value || {}, { [uid.value]: val })
+        }
+      })
+    } catch (e) {
+      // fallback to one-off fetch if realtime subscription fails
+      const users = await getDataFromFirebase('users')
+      if (users && users[uid.value]) profile.value = { ...profile.value, ...users[uid.value] }
+    }
+    // still load full users map for follower/following modal
     await loadUsersMap()
 
     if (profilePollRef.value) clearInterval(profilePollRef.value)
@@ -431,6 +480,46 @@ onMounted(async () => {
   }
 
   onUserStateChanged((u) => { currentUser.value = u })
+})
+
+// Ensure stored/generated avatars use the same seeding strategy (uid-based) so all pages show the same image.
+async function normalizeStoredAvatarOnProfile() {
+  try {
+    const p = profile.value || {}
+    if (!p || !p.uid) return
+    const current = (currentUser && currentUser.value && currentUser.value.uid) ? currentUser.value.uid : null
+    // Only act if stored avatar looks like an auto-generated avatar URL (avoid overwriting custom uploads)
+    const stored = (p.avatar || p.photoURL || '')
+    const isAuto = String(stored).includes('avatar.iran.liara.run') || String(stored).includes('ui-avatars.com')
+    if (!isAuto) return
+    const desired = avatarForUser({ uid: p.uid, gender: p.gender })
+    if (!desired) return
+    if (String(stored).replace(/\/$/, '') === String(desired).replace(/\/$/, '')) return
+    // If viewer is profile owner, persist the uid-seeded avatar so everyone sees same URL
+    if (current && String(current) === String(uid.value)) {
+      try {
+        await setChildData(`users/${uid.value}`, 'avatar', desired)
+        profile.value = { ...(profile.value || {}), avatar: desired }
+        console.log('Normalized stored avatar to uid-seeded URL for', uid.value)
+      } catch (e) {
+        console.warn('Failed to write normalized avatar', e)
+      }
+    } else {
+      // if not owner, update local view so profile displays the same image as others (no DB write)
+      profile.value = { ...(profile.value || {}), avatar: desired }
+    }
+  } catch (e) {
+    console.warn('normalizeStoredAvatarOnProfile error', e)
+  }
+}
+
+// run normalization whenever profile updates
+watch(profile, () => { normalizeStoredAvatarOnProfile() }, { immediate: true, deep: true })
+
+// cleanup for onDataChange subscription if created above: ensure we unsubscribe when leaving
+onBeforeUnmount(() => {
+  if (profilePollRef.value) { clearInterval(profilePollRef.value); profilePollRef.value = null }
+  try { if (profileUserUnsub) { try { profileUserUnsub(); } catch(e) {} ; profileUserUnsub = null } } catch(e){}
 })
 
 // cleanup
@@ -444,13 +533,85 @@ const displayInitials = computed(() => {
   const name = p.name || p.username || ''
   return name.split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase() || 'U'
 })
-const photoUrl = computed(() => {
-  const p = profile.value || {}
-  if (p.photoURL) return p.photoURL
-  const name = p.name || p.username || p.email || uid || 'anon'
-  return `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(name)}`
+// Defensive resolution for avatar src - always produce a string URL to feed into <img>
+const resolvedAvatarSrc = computed(() => {
+  try {
+    const p = profile.value || {}
+    // prefer explicit non-auto photoURL
+    const explicit = (p.photoURL && typeof p.photoURL === 'string') ? p.photoURL : (p.avatar && typeof p.avatar === 'string' ? p.avatar : null)
+    if (explicit) {
+      // if explicit looks like an auto avatar, prefer uid-based seeded URL instead
+      const s = String(explicit)
+      const isAuto = s.includes('avatar.iran.liara.run') || s.includes('ui-avatars.com')
+      if (!isAuto) return s
+    }
+    // fallback to computed photoUrl (which itself prefers uid-seeded) or avatarForUser
+    const candidate = (typeof photoUrl === 'function' ? photoUrl() : photoUrl.value) || avatarForUser(profile.value || { uid: uid.value })
+    return (typeof candidate === 'string') ? candidate : String(candidate || '')
+  } catch (e) {
+    return avatarForUser(profile.value || { uid: uid.value })
+  }
 })
-function onImgError() { imgErrored.value = true }
+const photoUrl = computed(() => {
+  // Prefer an explicit uploaded photoURL that is not an auto-generated avatar.
+  // Otherwise always use a uid-seeded avatar so Profile matches other pages.
+  try {
+    const p = profile.value || {}
+    const explicit = p.photoURL || p.avatar || null
+    if (explicit && typeof explicit === 'string') {
+      const s = explicit
+      const isAuto = s.includes('avatar.iran.liara.run') || s.includes('ui-avatars.com')
+      if (!isAuto) return s
+      // if it's an auto-generated URL, fall through to uid-seeded variant
+    }
+  } catch (e) { /* ignore */ }
+  // always compute using uid so the seeded string (QCoc...) matches other pages
+  return avatarForUser({ uid: uid.value, gender: (profile.value && profile.value.gender) || undefined })
+})
+function onImgError(e) {
+  try {
+    // If the first attempt failed, try a secondary fallback using the normalized helper
+    if (_imgAttempt.value === 0 && e && e.target) {
+      _imgAttempt.value = 1
+      const fallback = avatarForUser(profile.value || {})
+      if (fallback && typeof fallback === 'string' && !String(e.target.src).includes(fallback)) {
+        e.target.src = fallback
+        return
+      }
+    }
+  } catch (err) {
+    // ignore and fallthrough to marking errored
+  }
+  imgErrored.value = true
+}
+
+// Persist a generated seeded avatar for the profile owner so other pages see the same URL.
+// We only write when the profile has no explicit photoURL or avatar and the signed-in
+// user is viewing their own profile. Use a small guard to avoid repeated writes.
+watch(photoUrl, async (newUrl) => {
+  try {
+    if (!newUrl) return
+    if (_persistedAvatarWritten.value) return
+    if (!currentUser.value || !currentUser.value.uid) return
+    if (String(currentUser.value.uid) !== String(uid.value)) return
+    const p = profile.value || {}
+    // don't overwrite an explicit photoURL or existing avatar
+    if (p.photoURL || p.avatar) {
+      _persistedAvatarWritten.value = true
+      return
+    }
+    // persist under users/<uid>/avatar
+    await setChildData(`users/${uid.value}`, 'avatar', newUrl)
+    // update local profile immediately so the profile page shows the same avatar as other pages
+    try {
+      profile.value = { ...(profile.value || {}), avatar: newUrl, photoURL: profile.value.photoURL || newUrl }
+    } catch (e) { /* ignore */ }
+    _persistedAvatarWritten.value = true
+    console.log('Persisted generated avatar for user', uid.value)
+  } catch (e) {
+    console.warn('Failed to persist generated avatar', e)
+  }
+}, { immediate: true })
 
 // stats and chart helpers (use flat camelCase win fields only)
 const statsFromProfile = computed(() => {
@@ -612,6 +773,37 @@ async function toggleFollow() {
   } catch (e) {
     console.error('Failed to toggle follow', e)
     alert('Failed to update follow — try again')
+  }
+}
+
+// Randomize the user's avatar by generating a new seeded avatar URL and persisting it
+// to users/<uid>/avatar so it is consistent across pages and logins.
+async function randomizeAvatar() {
+  try {
+    if (!currentUser.value || !currentUser.value.uid) {
+      alert('Please sign in to change your avatar.')
+      return
+    }
+    if (String(currentUser.value.uid) !== String(uid.value)) {
+      alert('You can only randomize your own profile picture.')
+      return
+    }
+    // generate a short random suffix to change the seeded avatar
+    const suffix = Math.random().toString(36).slice(2, 9)
+    const seed = `${uid.value}-${suffix}`
+    const gender = (profile.value && profile.value.gender) || undefined
+    const newUrl = seededAvatar(seed, gender)
+    await setChildData(`users/${uid.value}`, 'avatar', newUrl)
+    // update local state immediately
+    profile.value = { ...(profile.value || {}), avatar: newUrl, photoURL: profile.value.photoURL || newUrl }
+    _persistedAvatarWritten.value = true
+    // give quick feedback
+    try { window.dispatchEvent(new CustomEvent('user-avatar-changed', { detail: { uid: uid.value, avatar: newUrl } })) } catch(e){}
+  // Reload so the new avatar propagates everywhere immediately
+  try { window.location.reload() } catch (e) { /* ignore */ }
+  } catch (e) {
+    console.error('randomizeAvatar failed', e)
+    alert('Failed to randomize avatar — try again.')
   }
 }
 
