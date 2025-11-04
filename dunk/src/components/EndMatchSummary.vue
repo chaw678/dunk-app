@@ -6,6 +6,9 @@
         <div class="modal-match-title">{{ matchTitle }}</div>
 
         <header class="summary-header">
+          <!-- LIVE / Match Ended indicator -->
+          <span v-if="isMatchLive" class="match-status-badge live-badge">LIVE</span>
+          <span v-else-if="isMatchEnded" class="match-status-badge ended-badge">Match Ended</span>
           <button class="close-btn" @click="close">✕</button>
         </header>
 
@@ -156,6 +159,7 @@ let usersUnsub = null
 let playersMapUnsub = null
 let winsByEachUnsub = null
 let roundsUnsub = null
+let matchUnsub = null
 let _prevBodyOverflow = null
 
 async function loadInitial() {
@@ -165,6 +169,8 @@ async function loadInitial() {
       const remote = await getDataFromFirebase(dbPath)
       if (remote) match.value = { ...(match.value || {}), ...(remote || {}), __dbPath: dbPath }
 
+      // Subscribe to match data changes (for live status updates)
+      try { matchUnsub = onDataChange(dbPath, (v) => { if (v) match.value = { ...(match.value || {}), ...(v || {}), __dbPath: dbPath } }) } catch (e) { console.warn('match subscribe failed', e) }
       try { playersMapUnsub = onDataChange(`${dbPath}/playersMap`, (v) => { playersMap.value = v || {} }) } catch (e) { console.warn('pm subscribe failed', e) }
       try { winsByEachUnsub = onDataChange(`${dbPath}/WinsByEachPlayer`, (v) => { winsByEachPlayer.value = v || {} }) } catch (e) {}
       try { roundsUnsub = onDataChange(`${dbPath}/roundsplayed`, (val) => { const arr = val ? Object.entries(val).map(([k,v])=>({ ts:k, ...v })) : []; arr.sort((a,b)=>Number(b.ts)-Number(a.ts)); rounds.value = arr }) } catch (e) {}
@@ -186,6 +192,7 @@ onBeforeUnmount(() => {
   try { if (playersMapUnsub) playersMapUnsub() } catch(_){ }
   try { if (winsByEachUnsub) winsByEachUnsub() } catch(_){ }
   try { if (roundsUnsub) roundsUnsub() } catch(_){ }
+  try { if (matchUnsub) matchUnsub() } catch(_){ }
   try { if (document && document.body) document.body.style.overflow = (_prevBodyOverflow !== null ? _prevBodyOverflow : '') } catch (e) {}
 })
 
@@ -272,6 +279,22 @@ const courtDisplay = computed(() => { try { return match.value && (match.value.c
 const matchTypeDisplay = computed(() => { try { return match.value && match.value.type ? String(match.value.type) : 'Open' } catch (e) { return 'Open' } })
 const genderDisplay = computed(() => { try { return match.value && match.value.gender ? String(match.value.gender) : 'All' } catch (e) { return 'All' } })
 
+// Match status indicators
+const isMatchLive = computed(() => {
+  try {
+    return (match.value.started || match.value._started) && !match.value.endedAt && !match.value.endedAtISO
+  } catch (e) {
+    return false
+  }
+})
+const isMatchEnded = computed(() => {
+  try {
+    return !!(match.value.endedAt || match.value.endedAtISO)
+  } catch (e) {
+    return false
+  }
+})
+
 </script>
 
 <style scoped>
@@ -284,6 +307,41 @@ const genderDisplay = computed(() => { try { return match.value && match.value.g
 .summary-header h2 { color:#ffad1d; margin:0; font-size:1.6rem; letter-spacing:0.6px }
 .summary-meta { color:#d3c7a3; font-weight:700; font-size:0.9rem; margin-top:4px }
 .close-btn { position: absolute; right: 12px; top: 12px; background: transparent; border: none; color: #fff; font-size: 20px; cursor: pointer }
+
+/* Match status badges (LIVE / Match Ended) */
+.match-status-badge {
+  position: absolute;
+  left: 20px;
+  top: 21px;
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid rgba(0,0,0,0.4);
+}
+
+.live-badge {
+  background: linear-gradient(180deg, #a83a3a 0%, #c84b4b 100%);
+  color: rgba(255, 210, 210, 0.95);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,0.03), 0 6px 18px rgba(200,50,50,0.12);
+  animation: live-blink 2.6s ease-in-out infinite;
+}
+
+.ended-badge {
+  background: linear-gradient(180deg, #3a5a8a 0%, #4b6bc8 100%);
+  color: rgba(210, 230, 255, 0.95);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,0.03), 0 6px 18px rgba(50,100,200,0.12);
+}
+
+@keyframes live-blink {
+  0% { opacity: 1; transform: translateZ(0) scale(1); }
+  45% { opacity: 0.5; transform: translateZ(0) scale(0.995); }
+  55% { opacity: 0.5; transform: translateZ(0) scale(0.995); }
+  100% { opacity: 1; transform: translateZ(0) scale(1); }
+}
 
 .details-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap:12px; margin-bottom:14px }
 .detail-item { display:flex; gap:10px; align-items:center }
