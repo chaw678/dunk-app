@@ -131,7 +131,7 @@
             </div>
             <p class="mb-2">{{ file.caption || file.title || '' }}</p>
             <div v-if="file.matchId" class="mb-2 small">
-              <router-link :to="`/match/${file.matchId}`" class="text-warning">View related match{{ file.matchTitle ? `: ${file.matchTitle}` : '' }}</router-link>
+              <a href="#" @click.prevent="openMatchSummary(file.matchId, file.matchTitle)" class="text-warning">View related match{{ file.matchTitle ? `: ${file.matchTitle}` : '' }}</a>
               <span class="text-muted ms-2">(may be removed by host)</span>
             </div>
             <div class="post-media" v-if="file.url">
@@ -419,6 +419,15 @@
       </div>
     </div>
   </div>
+
+  <!-- Match Summary Modal -->
+  <EndMatchSummary 
+    v-if="showMatchSummary" 
+    :dbPath="summaryMatchPath" 
+    compact 
+    :hideActions="true"
+    @close="closeMatchSummary"
+  />
 </template>
 
 <script setup>
@@ -428,6 +437,7 @@ import { Eye } from 'lucide-vue-next'
 import uploadFile from '../upload'
 import { getDataFromFirebase, pushDataToFirebase, deleteDataFromFirebase, overwriteDataToFirebase, storage, getUserName, onDataChange } from '../firebase/firebase'
 import { ref as storageRef, deleteObject } from 'firebase/storage'
+import EndMatchSummary from './EndMatchSummary.vue'
 import { onAuthStateChanged } from 'firebase/auth'
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
 import { onUserStateChanged } from '../firebase/auth' // Adjust path as needed
@@ -457,6 +467,10 @@ const router = useRouter()
 const route = useRoute()
 const prefillMatchId = ref(null)
 const prefillMatchTitle = ref(null)
+
+// Match summary modal state
+const showMatchSummary = ref(false)
+const summaryMatchPath = ref(null)
 
 // live users map so display names and avatars update immediately when a profile changes
 const usersMap = ref({})
@@ -1223,6 +1237,18 @@ function cancelUploadModal() {
   selectedUploadPreviews.value = []
   selectedUploadFiles.value = []
   showUploadModal.value = false
+}
+
+function openMatchSummary(matchId, matchTitle) {
+  if (!matchId) return
+  // matchId is already in the format "matches/xxx"
+  summaryMatchPath.value = matchId
+  showMatchSummary.value = true
+}
+
+function closeMatchSummary() {
+  showMatchSummary.value = false
+  summaryMatchPath.value = null
 }
 
 function markDeleting(id) {

@@ -18,7 +18,7 @@
 
             <div class="candidates-list">
               <ul class="list-unstyled mb-0">
-                <li v-for="u in filteredCandidates" :key="u.uid" :class="['invite-row card-item', { selected: selectedMap[u.uid] }]" @click="toggleSelect(u.uid)">
+                <li v-for="u in filteredCandidates" :key="u.uid" :class="['invite-row card-item', { selected: selectedMap[u.uid], 'already-invited': alreadyInvitedUsers.has(u.uid) }]" @click="!alreadyInvitedUsers.has(u.uid) && toggleSelect(u.uid)">
                   <div class="small-avatar">
                     <img :src="avatarUrl(u)" alt="avatar" v-if="avatarUrl(u)" />
                     <div v-else class="avatar-initial">{{ initials(u.name || u.username || u.uid) }}</div>
@@ -28,8 +28,15 @@
                     <div class="small text-muted" v-if="profileSubtitle(u)">{{ profileSubtitle(u) }}</div>
                   </div>
                   <div class="ms-3">
-                    <button class="btn-invite-row" :class="{ invited: selectedMap[u.uid] }" @click.stop="toggleSelect(u.uid)">
-                      <span v-if="selectedMap[u.uid]">Invited</span>
+                    <button 
+                      class="btn-invite-row" 
+                      :class="{ 
+                        invited: selectedMap[u.uid] || alreadyInvitedUsers.has(u.uid)
+                      }" 
+                      :disabled="alreadyInvitedUsers.has(u.uid)"
+                      @click.stop="!alreadyInvitedUsers.has(u.uid) && toggleSelect(u.uid)"
+                    >
+                      <span v-if="alreadyInvitedUsers.has(u.uid) || selectedMap[u.uid]">Invited</span>
                       <span v-else>Invite</span>
                     </button>
                   </div>
@@ -67,8 +74,37 @@ const selectAll = ref(false)
 const sending = ref(false)
 const selectedMap = ref({})
 
+// Track users who have already been invited to this match
+const alreadyInvitedUsers = ref(new Set())
+
 // Build candidates list: merge following + followers for current user
 const candidates = ref([])
+
+async function loadAlreadyInvited() {
+  alreadyInvitedUsers.value = new Set()
+  if (!props.match || !props.match.id || !props.me) return
+  
+  try {
+    // Check all users' invitations to see if this match was already sent to them
+    const matchId = props.match.id
+    const following = (await getDataFromFirebase(`users/${props.me.uid}/following`)) || {}
+    const followers = (await getDataFromFirebase(`users/${props.me.uid}/followers`)) || {}
+    const uids = Array.from(new Set([ ...Object.keys(following), ...Object.keys(followers) ]))
+    
+    for (const uid of uids) {
+      try {
+        const userInvitations = await getDataFromFirebase(`users/${uid}/invitations`)
+        if (userInvitations && userInvitations[matchId]) {
+          alreadyInvitedUsers.value.add(uid)
+        }
+      } catch (err) {
+        // Skip if we can't check this user
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load already invited users', err)
+  }
+}
 
 async function loadCandidates() {
   candidates.value = []
@@ -103,7 +139,10 @@ onUserStateChanged((u) => {
   // if me in props changes, caller should re-open the modal; still we can reload
 })
 
-watch(() => props.me, () => { loadCandidates() }, { immediate: true })
+watch(() => props.me, () => { 
+  loadCandidates()
+  loadAlreadyInvited()
+}, { immediate: true })
 
 const filteredCandidates = computed(() => {
   const term = (filter.value || '').toLowerCase().trim()
@@ -283,10 +322,14 @@ async function sendInvites() {
     for (const uid of list) {
       try {
         await setChildData(`users/${uid}/invitations`, matchId, summary)
+        // Add to already invited set
+        alreadyInvitedUsers.value.add(uid)
       } catch (err) {
         console.warn('Invite failed for', uid, err)
       }
     }
+    // Clear selection after sending
+    selectedMap.value = {}
     emit('sent', list)
     close()
   } catch (err) {
@@ -405,8 +448,22 @@ input.form-control-sm:focus { outline: none; box-shadow: inset 0 1px 0 rgba(255,
 .invite-row .flex-fill { min-width: 0; /* allow the text column to shrink and truncate properly */ }
 .invite-row:hover { transform: translateY(-1px); }
 
-.btn-invite-row { min-width: 96px; padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.04); color: #ffb76a; border: none; font-weight:700 }
-.btn-invite-row.invited { background: #ff9a3c; color: #111 }
+.btn-invite-row { min-width: 96px; padding: 8px 12px; border-radius: 10px; background: #ff9a3c; color: #111; border: none; font-weight:700; transition: all 0.2s ease; cursor: pointer; }
+.btn-invite-row.invited { background: rgba(255,255,255,0.04); color: #ffb76a; }
+.btn-invite-row.invited:disabled {
+  background: rgba(255,255,255,0.04);
+  color: #ffb76a;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.invite-row.already-invited {
+  cursor: not-allowed;
+}
+
+.invite-row.already-invited:hover {
+  transform: none;
+}
 
 /* hide legacy select icon CSS (we use per-row button now) */
 .select-icon-wrapper, .select-icon { display: none }

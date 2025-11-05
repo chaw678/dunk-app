@@ -129,7 +129,14 @@
       :destructive="false"
       @confirm="onEndConfirm"
     />
-    <EndMatchSummary v-if="showEndSummary" :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" :matchData="matchData" @close="onEndSummaryClose" />
+    <EndMatchSummary 
+      v-if="showEndSummary" 
+      :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" 
+      :matchData="matchData" 
+      @close="onEndSummaryClose"
+      @post-to-forum="onPostMatchToForum"
+      @cancel-navigate="onCancelSummary"
+    />
   </Teleport>
 </template>
 
@@ -814,15 +821,6 @@ function displayAvatarFor(element) {
 }
 
 function goBack() {
-
-function onEndSummaryClose() {
-  showEndSummary.value = false
-  try {
-    router.push('/matches')
-  } catch (e) {
-    try { router.back() } catch (_) { /* ignore */ }
-  }
-}
   // Preserve current allocations in history state so MatchRoom can restore
   // them immediately when the user navigates back, but do NOT force-lock
   // them there — allow re-randomization.
@@ -839,6 +837,47 @@ function onEndSummaryClose() {
   state.restore = true
   if (matchData.value && matchData.value.__dbPath) state.matchPath = matchData.value.__dbPath
   router.push({ name: 'MatchRoom', params: { id: matchId.value }, query, state })
+}
+
+function onEndSummaryClose() {
+  showEndSummary.value = false
+  try {
+    router.push('/matches')
+  } catch (e) {
+    try { router.back() } catch (_) { /* ignore */ }
+  }
+}
+
+function onPostMatchToForum() {
+  // Navigate to forum with prefilled data
+  const courtName = matchData.value?.court || matchData.value?.venue || matchData.value?.location || 'Unknown Court'
+  const matchTitle = matchData.value?.title || matchData.value?.name || 'Match'
+  const matchPath = matchData.value?.__dbPath || (matchId.value ? `matches/${matchId.value}` : '')
+  
+  try {
+    router.push({
+      path: '/forum',
+      query: {
+        openCreate: '1',
+        court: encodeURIComponent(courtName),
+        tag: 'Matches',
+        matchId: matchPath,
+        matchTitle: encodeURIComponent(matchTitle)
+      }
+    })
+  } catch (e) {
+    console.error('Failed to navigate to forum:', e)
+  }
+}
+
+function onCancelSummary() {
+  showEndSummary.value = false
+  // Navigate to Past Matches section
+  try {
+    router.push({ path: '/matches', query: { section: 'past' } })
+  } catch (e) {
+    try { router.push('/matches') } catch (err) { /* ignore */ }
+  }
 }
 
 async function resolveMatchDbPath() {

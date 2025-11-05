@@ -249,8 +249,21 @@
   </section>
 
   <!-- Stats Modal -->
-  <EndMatchSummary v-if="showStats" :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" :matchData="matchData" @close="showStats=false" />
-  <EndMatchSummary v-if="showSummary" :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" :matchData="matchData" compact @close="showSummary=false" />
+  <EndMatchSummary 
+    v-if="showStats" 
+    :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" 
+    :matchData="matchData" 
+    @close="onEndSummaryClose"
+    @post-to-forum="onPostMatchToForum"
+    @cancel-navigate="onCancelSummary"
+  />
+  <EndMatchSummary 
+    v-if="showSummary" 
+    :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" 
+    :matchData="matchData" 
+    compact 
+    @close="showSummary=false"
+  />
   <ProfileModal v-if="showProfileModal" :uid="profileModalUid" :initialProfile="profileModalInitial" @close="closeProfileModal" />
   </div>
   
@@ -953,7 +966,6 @@ function selectWinner(team) {
 async function onEndMatch() {
   // optionally confirm ending match
   if (!confirm('End the match now?')) return
-  showStats.value = true
   // persist match end state and ensure roundActive is false
   try {
     const dbPath = await resolveMatchDbPath()
@@ -973,10 +985,46 @@ async function onEndMatch() {
       try { await setChildData(dbPath, 'endAtISO', nowIso) } catch (e) {}
       // keep local model in sync so UI updates immediately
       try { matchData.value = { ...(matchData.value || {}), started: false, endedAt: nowIso, endAtISO: nowIso } } catch (e) {}
-      // navigate back to Matches so the card shows under Past Matches
-      try { await router.push('/matches') } catch (e) { /* ignore navigation failures */ }
+      // Show the end match summary modal
+      showStats.value = true
     }
   } catch (e) { /* ignore persistence errors */ }
+}
+
+function onEndSummaryClose() {
+  showStats.value = false
+}
+
+function onPostMatchToForum() {
+  // Navigate to forum with prefilled data
+  const courtName = matchData.value?.court || matchData.value?.venue || matchData.value?.location || 'Unknown Court'
+  const matchTitle = matchData.value?.title || matchData.value?.name || 'Match'
+  const matchPath = matchData.value?.__dbPath || (matchId.value ? `matches/${matchId.value}` : '')
+  
+  try {
+    router.push({
+      path: '/forum',
+      query: {
+        openCreate: '1',
+        court: encodeURIComponent(courtName),
+        tag: 'Matches',
+        matchId: matchPath,
+        matchTitle: encodeURIComponent(matchTitle)
+      }
+    })
+  } catch (e) {
+    console.error('Failed to navigate to forum:', e)
+  }
+}
+
+function onCancelSummary() {
+  showStats.value = false
+  // Navigate to Past Matches section
+  try {
+    router.push({ path: '/matches', query: { section: 'past' } })
+  } catch (e) {
+    try { router.push('/matches') } catch (err) { /* ignore */ }
+  }
 }
 
 async function goBack() {

@@ -53,7 +53,7 @@
         </section>
 
         <section class="round-summary">
-          <h3>Rounds completed: {{ rounds.length }}</h3>
+          <h3>Rounds played: {{ rounds.length }}</h3>
         </section>
 
         <!-- Scrollable area: player rankings and rounds history will scroll while the header/details/round-summary remain fixed -->
@@ -130,6 +130,16 @@
               </li>
             </ul>
           </section>
+
+          <!-- Action Buttons (only show when match has ended and actions are not hidden) -->
+          <div v-if="isMatchEnded && !hideActions" class="summary-actions">
+            <button class="btn-post-forum" @click="onPostToForum">
+              Post Match on Forum
+            </button>
+            <button class="btn-cancel-summary" @click="onCancelAndNavigate">
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -144,8 +154,13 @@ import { getDataFromFirebase, onDataChange } from '../firebase/firebase'
 import { avatarForUser } from '../utils/avatar.js'
 import ProfileModal from './ProfileModal.vue'
 
-const props = defineProps({ dbPath: { type: String, required: false }, matchData: { type: Object, required: false }, compact: { type: Boolean, required: false, default: false } })
-const emit = defineEmits(['close', 'open-profile'])
+const props = defineProps({ 
+  dbPath: { type: String, required: false }, 
+  matchData: { type: Object, required: false }, 
+  compact: { type: Boolean, required: false, default: false },
+  hideActions: { type: Boolean, required: false, default: false }
+})
+const emit = defineEmits(['close', 'open-profile', 'post-to-forum', 'cancel-navigate'])
 
 const match = ref(props.matchData || {})
 const usersMap = ref({})
@@ -328,6 +343,15 @@ const isMatchEnded = computed(() => {
   }
 })
 
+// Action handlers for forum posting and navigation
+function onPostToForum() {
+  emit('post-to-forum')
+}
+
+function onCancelAndNavigate() {
+  emit('cancel-navigate')
+}
+
 </script>
 
 <style scoped>
@@ -434,6 +458,60 @@ const isMatchEnded = computed(() => {
 .summary-scroll::-webkit-scrollbar { width:10px }
 .summary-scroll::-webkit-scrollbar-track { background: transparent }
 .summary-scroll::-webkit-scrollbar-thumb { background: linear-gradient(180deg,#2b2f33,#1f2326); border-radius:10px }
+
+/* Action Buttons */
+.summary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0 8px 0;
+  margin-top: auto;
+}
+
+.btn-post-forum {
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #ff9a3c, #ffb76a);
+  color: #111;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.btn-post-forum:hover {
+  background: linear-gradient(135deg, #ffad1d, #ff9a3c);
+  transform: translateY(-1px);
+}
+
+.btn-post-forum:active {
+  transform: translateY(0);
+}
+
+.btn-cancel-summary {
+  padding: 12px 24px;
+  background: rgba(255,255,255,0.06);
+  color: #ccc;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.btn-cancel-summary:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  border-color: rgba(255,255,255,0.15);
+}
+
+.btn-cancel-summary:active {
+  background: rgba(255,255,255,0.04);
+}
 
 /* Animations */
 @keyframes modalPop { from { transform: translateY(8px) scale(0.98); opacity:0 } to { transform: translateY(0) scale(1); opacity:1 } }
