@@ -24,13 +24,7 @@
           {{ profile.email }}
         </div>
 
-        <!-- DEBUG: show resolved avatar sources to help diagnose missing image -->
-        <div class="mt-2" style="color:#9CA3AF;font-size:0.9rem;word-break:break-all;">
-          <div>photoUrl: <small>{{ photoUrl }}</small></div>
-          <div>profile.avatar: <small>{{ profile.avatar }}</small></div>
-          <div>profile.photoURL: <small>{{ profile.photoURL }}</small></div>
-          <div>profile.uid: <small>{{ profile.uid }}</small></div>
-        </div>
+
 
         <div class="mt-2" v-if="!(currentUser && currentUser.uid && currentUser.uid === uid)">
           <button

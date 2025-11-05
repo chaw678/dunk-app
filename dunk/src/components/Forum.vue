@@ -131,7 +131,7 @@
             </div>
             <p class="mb-2">{{ file.caption || file.title || '' }}</p>
             <div v-if="file.matchId" class="mb-2 small">
-              <router-link :to="`/match/${file.matchId}`" class="text-warning">View related match{{ file.matchTitle ? `: ${file.matchTitle}` : '' }}</router-link>
+              <a href="#" @click.prevent="viewMatch(file)" class="text-warning">View match summary{{ file.matchTitle ? `: ${file.matchTitle}` : '' }}</a>
               <span class="text-muted ms-2">(may be removed by host)</span>
             </div>
             <div class="post-media" v-if="file.url">
@@ -419,6 +419,14 @@
       </div>
     </div>
   </div>
+  
+  <!-- Match Summary Modal -->
+  <EndMatchSummary 
+    v-if="showMatchSummary" 
+    :dbPath="summaryMatchPath" 
+    compact 
+    @close="showMatchSummary = false" 
+  />
 </template>
 
 <script setup>
@@ -431,6 +439,7 @@ import { ref as storageRef, deleteObject } from 'firebase/storage'
 import { onAuthStateChanged } from 'firebase/auth'
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
 import { onUserStateChanged } from '../firebase/auth' // Adjust path as needed
+import EndMatchSummary from './EndMatchSummary.vue'
 
 const showPopup = ref(false)
 const isSigningIn = ref(false)
@@ -457,6 +466,11 @@ const router = useRouter()
 const route = useRoute()
 const prefillMatchId = ref(null)
 const prefillMatchTitle = ref(null)
+const prefillMatchPath = ref(null)
+
+// Match summary modal state
+const showMatchSummary = ref(false)
+const summaryMatchPath = ref(null)
 
 // live users map so display names and avatars update immediately when a profile changes
 const usersMap = ref({})
@@ -592,6 +606,7 @@ onMounted(() => {
       // store match metadata if provided so submitUpload can attach it
       if (q.matchId) prefillMatchId.value = q.matchId
       if (q.matchTitle) prefillMatchTitle.value = q.matchTitle ? decodeURIComponent(q.matchTitle) : ''
+      if (q.matchPath) prefillMatchPath.value = q.matchPath ? decodeURIComponent(q.matchPath) : ''
       // open modal after a tick so DOM is ready
       setTimeout(() => { showUploadModal.value = true }, 40)
       // remove the query param so reloading doesn't reopen it repeatedly
@@ -1170,6 +1185,7 @@ async function submitUpload() {
           // attach match metadata when present (so post keeps a reference even if match is later deleted)
           matchId: prefillMatchId.value || null,
           matchTitle: prefillMatchTitle.value || null,
+          matchPath: prefillMatchPath.value || null,
           // creator metadata
           createdByUid: currentUserId.value || null,
           createdByName: currentUserName.value || null,
@@ -1191,6 +1207,7 @@ async function submitUpload() {
         tag: selectedTag.value || 'General',
         matchId: prefillMatchId.value || null,
         matchTitle: prefillMatchTitle.value || null,
+        matchPath: prefillMatchPath.value || null,
         createdByUid: currentUserId.value || null,
         createdByName: currentUserName.value || null,
         likedBy: {},
@@ -1236,6 +1253,62 @@ function unmarkDeleting(id) {
 
 function isDeleting(id) {
   return deletingIds.value.includes(id)
+}
+
+// View match - shows summary for past matches, navigates to match room for active matches
+async function viewMatch(post) {
+  if (!post) return
+  
+  // If no matchPath, fall back to old behavior with matchId
+  if (!post.matchPath) {
+    if (post.matchId) {
+      try {
+        router.push(`/match/${post.matchId}`)
+      } catch (e) {
+        console.error('Failed to navigate to match:', e)
+      }
+    }
+    return
+  }
+  
+  try {
+    // Check if match is past by fetching match data
+    const matchData = await getDataFromFirebase(post.matchPath)
+    if (!matchData) {
+      alert('Match not found - it may have been deleted by the host')
+      return
+    }
+    
+    // Check if match has ended
+    const isPast = matchData.matchEnded || matchData.endedAt || matchData.endedAtISO
+    
+    if (isPast) {
+      // Show match summary modal for past matches
+      summaryMatchPath.value = post.matchPath
+      showMatchSummary.value = true
+    } else {
+      // Navigate to match room for active matches
+      if (post.matchId) {
+        try {
+          router.push(`/match/${post.matchId}`)
+        } catch (e) {
+          console.error('Failed to navigate to match room:', e)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load match:', error)
+    // Fallback: try to navigate to match room if we have matchId
+    if (post.matchId) {
+      try {
+        router.push(`/match/${post.matchId}`)
+      } catch (e) {
+        alert('Failed to load match details')
+      }
+    } else {
+      alert('Failed to load match details')
+    }
+  }
 }
 
 const showDeleteModal = ref(false)
