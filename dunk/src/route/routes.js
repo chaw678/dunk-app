@@ -3,6 +3,7 @@ import MainMenu from '../components/MainMenu.vue'
 import Home from '../components/Home.vue'
 import HomePage from '../components/HomePage.vue'
 import MatchRoom from '../components/MatchRoom.vue'
+import PlayerRoom from '../components/PlayerRoom.vue'
 import Upload from '../components/FileUpload.vue'
 import CourtFinder from '../components/CourtFinder.vue'
 import LoginPage from '../components/LoginPage.vue'
@@ -18,7 +19,15 @@ const routes = [
     { path: '/', component: MainMenu },
     { path: '/home', component: Home },
     { path: '/homepage', component: HomePage },
-    { path: '/match/:id', component: MatchRoom, name: 'MatchRoom' },
+    {
+      path: '/match/:id',
+      component: MatchRoom,
+      name: 'MatchRoom',
+      children: [
+        // Default child is empty (MatchRoom itself renders primary UI). PlayerRoom is a nested child used for player-only view.
+        { path: 'player', name: 'PlayerRoom', component: PlayerRoom }
+      ]
+    },
     { path: '/match/:id/round', component: () => import('../components/RoundStarted.vue'), name: 'RoundStarted' },
     { path: '/upload', component: Upload },
     { path: '/court-finder', component: CourtFinder },

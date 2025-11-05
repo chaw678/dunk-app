@@ -112,7 +112,7 @@
                 <div class="row g-3 matches-grid">
                     <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.ongoing ? groupedMatches.ongoing : [])" :key="match?.id || idx">
     <div
-        :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']"
+        :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : (isPlaying(match) ? 'playing-match' : '')]"
         role="button"
         tabindex="0"
         @click="openMatch(match, $event)"
@@ -151,36 +151,42 @@
         </div>
       </div>
 
-      <div class="mt-auto d-flex justify-content-between align-items-center">
-        <div class="btn-group">
-          <template v-if="isHost(match)">
-            <template v-if="match.started || match._started">
-              <!-- Host can still invite even after the match has started -->
-              <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-              <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="endMatch(match)"><i class="bi bi-stop-fill me-2"></i>End Match</button>
+      <div class="mt-auto">
+        <!-- Action buttons row -->
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="btn-group">
+            <template v-if="isHost(match)">
+              <template v-if="match.started || match._started">
+                <!-- Host can still invite even after the match has started -->
+                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="endMatch(match)"><i class="bi bi-stop-fill me-2"></i>End Match</button>
+              </template>
+              <template v-else>
+                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+              </template>
             </template>
-            <template v-else>
-              <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-              <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+            <template v-else-if="isJoined(match)">
+                          <template v-if="match.started || match._started">
+                              <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                            </template>
+                          <template v-else>
+                              <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                              <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                          </template>
             </template>
-          </template>
-          <template v-else-if="isJoined(match)">
-                        <template v-if="match.started || match._started">
-                            <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                            <button type="button" class="btn btn-primary btn-sm d-flex align-items-center ms-2" @click.prevent.stop="playMatch(match)"><i class="bi bi-controller me-2"></i>Play</button>
-                        </template>
-                        <template v-else>
-                            <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                            <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
-                        </template>
-          </template>
-                    <template v-else>
-                        <span class="join-wrapper" :title="joinDisabledReason(match) || 'Join match'" @click.stop>
-                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" @click.prevent.stop="joinMatch(match)">Join</button>
-                        </span>
-                    </template>
+                      <template v-else>
+                          <span class="join-wrapper" :title="joinDisabledReason(match) || 'Join match'" @click.stop>
+                              <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" @click.prevent.stop="joinMatch(match)">Join</button>
+                          </span>
+                      </template>
+          </div>
+          <div></div>
         </div>
-        <div></div>
+        <!-- Match Summary button row - only shown if match has started -->
+        <div v-if="match.started || match._started" class="mt-2">
+          <button type="button" class="btn summary-btn btn-sm d-flex align-items-center" @click.prevent.stop="openMatchSummary(match)"><i class="bi bi-list-check me-2"></i>Match Summary</button>
+        </div>
       </div>
     </div>
   </div>
@@ -192,9 +198,9 @@
             <div v-if="groupedMatches && groupedMatches.scheduled && groupedMatches.scheduled.length">
                 <h3 class="section-heading">Scheduled</h3>
                 <div class="row g-3 matches-grid">
-                    <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.scheduled ? groupedMatches.scheduled : [])" :key="match?.id || idx">
+                        <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.scheduled ? groupedMatches.scheduled : [])" :key="match?.id || idx">
                         <!-- reuse same card markup -->
-                        <div :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']">
+                        <div :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : (isPlaying(match) ? 'playing-match' : '')]">
                             <div class="card-header match-card-header">
                                 <h3 class="match-title mb-1">{{ match.title }}</h3>
                                 <div class="match-header-right">
@@ -253,9 +259,15 @@
             <div v-if="groupedMatches && groupedMatches.past && groupedMatches.past.length">
                 <h3 class="section-heading">Past</h3>
                 <div class="row g-3 matches-grid">
-                    <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.past ? groupedMatches.past : [])" :key="match?.id || idx">
+                        <div class="col-12 col-md-6 col-xl-4" v-for="(match, idx) in (groupedMatches && groupedMatches.past ? groupedMatches.past : [])" :key="match?.id || idx">
                         <!-- reuse same card markup -->
-                        <div :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : '']">
+                        <div 
+                            :class="['card', 'match-card', 'h-100', 'text-reset', 'text-decoration-none', isHost(match) ? 'host-match' : (isPlaying(match) ? 'playing-match' : '')]"
+                            role="button"
+                            tabindex="0"
+                            @click="openMatch(match, $event)"
+                            @keydown.enter="openMatch(match, $event)"
+                        >
                             <div class="card-header match-card-header">
                                 <h3 class="match-title mb-1">{{ match.title }}</h3>
                                 <div class="match-header-right">
@@ -289,21 +301,28 @@
                                     </div>
                                 </div>
 
-                                <div class="mt-auto d-flex justify-content-between align-items-center">
-                                    <div class="btn-group">
-                                        <template v-if="isHost(match)">
-                                            <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                            <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
-                                        </template>
-                                        <template v-else-if="isJoined(match)">
-                                            <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                            <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
-                                        </template>
-                                        <template v-else>
-                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
-                                        </template>
+                                <div class="mt-auto">
+                                    <!-- Action buttons row -->
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="btn-group">
+                                            <template v-if="isHost(match)">
+                                                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                                <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                            </template>
+                                            <template v-else-if="isJoined(match)">
+                                                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                                <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                            </template>
+                                            <template v-else>
+                                                <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
+                                            </template>
+                                        </div>
+                                        <div></div>
                                     </div>
-                                    <div></div>
+                                    <!-- Match Summary button row - shown for past matches that were started -->
+                                    <div v-if="match.started || match._started" class="mt-2">
+                                        <button type="button" class="btn summary-btn btn-sm d-flex align-items-center" @click.prevent.stop="openMatchSummary(match)"><i class="bi bi-list-check me-2"></i>Match Summary</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -320,6 +339,7 @@
         <AddMatchModal v-if="showAddMatchModal" :courtList="courts" :courtName="courtFilter || ''" @close="showAddMatchModal = false" @created="onMatchCreated" />
         <InviteModal v-if="showInviteModal" :match="inviteMatch" :users="usersCache.value" :me="currentUser" @close="showInviteModal = false" @sent="onInvitesSent" />
         <JoinedPlayersModal v-if="showPlayersModal" :players="activePlayers" :title="activeTitle" @close="closePlayersModal" />
+        <EndMatchSummary v-if="showMatchSummary" :dbPath="(summaryMatch && summaryMatch.__dbPath) || (summaryMatch && summaryMatch.id ? `matches/${summaryMatch.id}` : null)" :matchData="summaryMatch" compact @close="showMatchSummary = false" />
         <ConfirmModal
             v-if="showConfirm"
             v-model="showConfirm"
@@ -329,6 +349,11 @@
             cancelLabel="Cancel"
             :destructive="pendingConfirm && pendingConfirm.destructive"
             @confirm="onConfirmModal"
+        />
+        <FinalResultsModal 
+            v-if="showFinalResultsModal" 
+            :matchPath="finalResultsMatchPath" 
+            @close="showFinalResultsModal = false" 
         />
     </Teleport>
     </div>
@@ -352,11 +377,16 @@ import JoinedPlayersModal from './JoinedPlayersModal.vue'
 import InviteModal from './InviteModal.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import DunkLogo from './DunkLogo.vue'
+import EndMatchSummary from './EndMatchSummary.vue'
 import { seededAvatar, avatarForUser } from '../utils/avatar.js'
+import FinalResultsModal from './FinalResultsModal.vue'
 
 const showPopup = ref(false)
 const isSigningIn = ref(false)
 const auth = getAuth()
+
+const showFinalResultsModal = ref(false)
+const finalResultsMatchPath = ref('')
 
 const maxAvatars = 6
 const usersCache = ref({})
@@ -454,69 +484,89 @@ const selectedTab = ref(route.query.tab || 'all')
 //   }
 // }
 
-async function openMatch(match) {
-  console.log('openMatch called with match:', match)
-  if (!match) return
-    // If the click originated from an interactive child (button, link, avatar, tooltip wrapper,
-    // or other control), do not navigate — the child should handle the action.
+async function openMatch(match, event) {
+    console.log('openMatch called with match:', match)
+    if (!match) return
+        // If the click originated from an interactive child (button, link, avatar, tooltip wrapper,
+        // or other control), do not navigate — the child should handle the action.
+        try {
+                if (event && event.target && event.target.closest) {
+                        const blocked = event.target.closest('button, a, .join-wrapper, .avatar-stack, .popup-buttons, .invitation-actions, .sign-in-btn, .close-btn')
+                        if (blocked) return
+                }
+        } catch (e) {
+                // ignore and continue
+        }
+        
+        // If match is ended, show the final results modal instead of navigating
+        if (isPast(match)) {
+            const matchPath = match.__dbPath || `matches/${match.id || match.key}`
+            showFinalResultsModal.value = true
+            finalResultsMatchPath.value = matchPath
+            return
+        }
+        
+        // If joining is disabled for this match (e.g., wrong gender, full, or not signed in),
+        // prevent card-level navigation so users don't get taken to the MatchRoom unintentionally.
+        try {
+                const disabledReason = joinDisabledReason(match)
+                // allow hosts and already-joined users to still open the room
+                if (disabledReason && !isHost(match) && !isJoined(match)) return
+        } catch (e) {
+                // conservative default: do not block navigation on error
+        }
+
+    // common id locations on match objects
+    let id = match.id || match.key || match['.key'] || match._id || (match.__dbPath ? String(match.__dbPath).split('/').pop() : null)
+
+    // If we still don't have an id, try to infer it from the matches collection using title/id fields
+    if (!id) {
+        try {
+            const all = await getDataFromFirebase('matches')
+            if (all && typeof all === 'object') {
+                // try direct key lookup (unlikely since id was falsy) then search values
+                const byKey = all[match] || all[match?.title]
+                if (byKey) id = match?.title || match
+                if (!id) {
+                    const foundEntry = Object.entries(all).find(([k, v]) => {
+                        if (!v || typeof v !== 'object') return false
+                        // match by known fields: id, key, title, name
+                        return String(v.id) === String(match.id)
+                            || String(v.key) === String(match.key)
+                            || String(v.title) === String(match.title)
+                            || String(v.name) === String(match.title)
+                            || String(k) === String(match.title)
+                    })
+                    if (foundEntry) id = foundEntry[0]
+                }
+            }
+        } catch (e) {
+            console.warn('openMatch: failed to fetch matches to infer id', e)
+        }
+    }
+
+    if (!id) {
+        console.warn('openMatch: could not find a DB id for match object', match)
+        return
+    }
+
+    const strId = String(id)
+    // If this match is live and the current user has joined but is not the host,
+    // route to the nested player view so host-only controls are hidden.
     try {
-        if (event && event.target && event.target.closest) {
-            const blocked = event.target.closest('button, a, .join-wrapper, .avatar-stack, .popup-buttons, .invitation-actions, .sign-in-btn, .close-btn')
-            if (blocked) return
+        // Use the router instance available in this component
+        if ((match.started || match._started) && isJoined(match) && !isHost(match)) {
+            router.push({ name: 'PlayerRoom', params: { id: strId }, query: { path: match.__dbPath || '' } })
+        } else {
+            router.push({ name: 'MatchRoom', params: { id: strId }, query: { path: match.__dbPath || '' } })
         }
     } catch (e) {
-        // ignore and continue
+        // Fallback to path-based navigation; include /player suffix for player view
+        const playerPath = (match.started || match._started) && isJoined(match) && !isHost(match)
+            ? `/match/${encodeURIComponent(strId)}/player`
+            : `/match/${encodeURIComponent(strId)}`
+        router.push({ path: playerPath, query: { path: match.__dbPath || '' } })
     }
-    // If joining is disabled for this match (e.g., wrong gender, full, or not signed in),
-    // prevent card-level navigation so users don't get taken to the MatchRoom unintentionally.
-    try {
-        const disabledReason = joinDisabledReason(match)
-        // allow hosts and already-joined users to still open the room
-        if (disabledReason && !isHost(match) && !isJoined(match)) return
-    } catch (e) {
-        // conservative default: do not block navigation on error
-    }
-
-  // common id locations on match objects
-  let id = match.id || match.key || match['.key'] || match._id || (match.__dbPath ? String(match.__dbPath).split('/').pop() : null)
-
-  // If we still don't have an id, try to infer it from the matches collection using title/id fields
-  if (!id) {
-    try {
-      const all = await getDataFromFirebase('matches')
-      if (all && typeof all === 'object') {
-        // try direct key lookup (unlikely since id was falsy) then search values
-        const byKey = all[match] || all[match?.title]
-        if (byKey) id = match?.title || match
-        if (!id) {
-          const foundEntry = Object.entries(all).find(([k, v]) => {
-            if (!v || typeof v !== 'object') return false
-            // match by known fields: id, key, title, name
-            return String(v.id) === String(match.id)
-              || String(v.key) === String(match.key)
-              || String(v.title) === String(match.title)
-              || String(v.name) === String(match.title)
-              || String(k) === String(match.title)
-          })
-          if (foundEntry) id = foundEntry[0]
-        }
-      }
-    } catch (e) {
-      console.warn('openMatch: failed to fetch matches to infer id', e)
-    }
-  }
-
-  if (!id) {
-    console.warn('openMatch: could not find a DB id for match object', match)
-    return
-  }
-
-  const strId = String(id)
-  try {
-    outer.push({ name: 'MatchRoom', params: { id: strId }, query: { path: match.__dbPath || '' } })
-  } catch (e) {
-    router.push({ path: `/match/${encodeURIComponent(strId)}`, query: { path: match.__dbPath || '' } })
-  }
 }
 
 // Google sign-in handler
@@ -678,6 +728,52 @@ const inviteMatch = ref(null)
 const invitations = ref([])
 const invitationsCount = computed(() => invitations.value.length)
 
+// Match Summary modal state
+const showMatchSummary = ref(false)
+const summaryMatch = ref(null)
+// local map of matches the user has marked as "playing" (transient UI state)
+const playingMatches = ref({})
+
+function isPlaying(match) {
+    if (!match) return false
+    // Don't show blue playing style for ended matches
+    if (match.matchEnded || match.endedAt || match.endedAtISO) return false
+    const id = String(match.id || match.key || match._id || (match.__dbPath ? String(match.__dbPath).split('/').pop() : ''))
+    return Boolean(playingMatches.value && playingMatches.value[id])
+}
+
+// Persistence helpers: store playing match ids in localStorage so state survives reloads
+const PLAYING_STORAGE_KEY = 'dunk_playingMatches_v1'
+function loadPlayingMatchesFromStorage() {
+    try {
+        const raw = localStorage.getItem(PLAYING_STORAGE_KEY)
+        if (raw) {
+            const parsed = JSON.parse(raw)
+            if (parsed && typeof parsed === 'object') playingMatches.value = parsed
+        }
+    } catch (e) {
+        console.warn('Failed to load playingMatches from storage', e)
+    }
+}
+function savePlayingMatchesToStorage() {
+    try {
+        localStorage.setItem(PLAYING_STORAGE_KEY, JSON.stringify(playingMatches.value || {}))
+    } catch (e) {
+        console.warn('Failed to save playingMatches to storage', e)
+    }
+}
+function clearPlayingForId(id) {
+    if (!id) return
+    try {
+        const copy = { ...(playingMatches.value || {}) }
+        if (copy[id]) {
+            delete copy[id]
+            playingMatches.value = copy
+            savePlayingMatchesToStorage()
+        }
+    } catch (e) { /* ignore */ }
+}
+
 // Location and recommendation data
 const userLocation = ref(null)
 const locationPermissionGranted = ref(false)
@@ -714,6 +810,11 @@ function openInvite(match) {
     }
     inviteMatch.value = match
     showInviteModal.value = true
+}
+
+function openMatchSummary(match) {
+    summaryMatch.value = match
+    showMatchSummary.value = true
 }
 
 function onInvitesSent(uids) {
@@ -1243,6 +1344,8 @@ async function createTestRecommendationMatch() {
 onMounted(async () => {
     // subscribe to users realtime so profile/name changes propagate immediately
     subscribeUsersRealtime()
+    // load previously persisted playing state from localStorage
+    try { loadPlayingMatchesFromStorage() } catch (e) { /* ignore */ }
     await loadMatches()
     // subscribe to realtime matches updates so lists update without navigation
     try { subscribeMatchesRealtime() } catch (e) { console.warn('subscribeMatchesRealtime failed', e) }
@@ -1359,6 +1462,28 @@ async function loadMatches() {
             }
         }
         matches.value = out
+        // Sync persisted playing flags with loaded matches: prune past matches, set live-joined matches
+        try {
+            const copy = { ...(playingMatches.value || {}) }
+            let changed = false
+            const outById = new Map(out.map(m => [String(m.id), m]))
+            // prune past matches
+            for (const pk of Object.keys(copy)) {
+                const m = outById.get(String(pk))
+                if (m && isPast(m)) { delete copy[pk]; changed = true }
+            }
+            // auto-set playing for live matches the user has joined
+            if (currentUser.value) {
+                const uid = currentUser.value.uid
+                for (const m of out) {
+                    const mid = String(m.id)
+                    if ((m.started || m._started) && m.joinedBy && m.joinedBy[uid]) {
+                        if (!copy[mid]) { copy[mid] = true; changed = true }
+                    }
+                }
+            }
+            if (changed) { playingMatches.value = copy; savePlayingMatchesToStorage() }
+        } catch (e) { console.warn('Failed to sync playingMatches after loadMatches', e) }
     } catch (err) {
         console.error('Failed to load matches', err)
         matches.value = []
@@ -1387,6 +1512,36 @@ function subscribeMatchesRealtime() {
                 }
             }
             matches.value = out
+            // Update playing flags:
+            //  - clear playing flags for matches that became past
+            //  - set playing flags for matches that are live and the current user has joined
+            try {
+                const copy = { ...(playingMatches.value || {}) }
+                let changed = false
+                const outById = new Map(out.map(m => [String(m.id), m]))
+                // prune past matches
+                for (const pk of Object.keys(copy)) {
+                    const m = outById.get(String(pk))
+                    if (m && isPast(m)) {
+                        delete copy[pk]
+                        changed = true
+                    }
+                }
+                // set playing for live matches the user has joined
+                if (currentUser.value) {
+                    const uid = currentUser.value.uid
+                    for (const m of out) {
+                        const mid = String(m.id)
+                        if ((m.started || m._started) && m.joinedBy && m.joinedBy[uid]) {
+                            if (!copy[mid]) { copy[mid] = true; changed = true }
+                        }
+                    }
+                }
+                if (changed) {
+                    playingMatches.value = copy
+                    savePlayingMatchesToStorage()
+                }
+            } catch (e) { console.warn('Failed to sync playingMatches after matches update', e) }
         } catch (err) {
             console.error('subscribeMatchesRealtime handler error', err)
         }
@@ -1859,9 +2014,9 @@ function playersCount(match) {
 }
 
 function isPast(match) {
-    // If an explicit endedAt/endedAtISO exists, treat as past immediately
+    // If an explicit endedAt/endedAtISO or matchEnded flag exists, treat as past immediately
     try {
-        if (match && (match.endedAt || match.endedAtISO)) return true
+        if (match && (match.matchEnded || match.endedAt || match.endedAtISO)) return true
     } catch (e) {}
     const { start, end } = getMatchStartEnd(match)
     const now = new Date()
@@ -2054,6 +2209,12 @@ async function endMatchConfirmed(match) {
             try { match.started = true } catch(_){ }
         }
     }
+    // Clear any local "playing" state for this match so UI updates across clients
+    try {
+        const parts2 = (match && match.__dbPath) ? String(match.__dbPath).split('/') : []
+        const mid = match && match.id ? String(match.id) : (parts2.length ? parts2.pop() : '')
+        if (mid) clearPlayingForId(String(mid))
+    } catch (e) { /* ignore */ }
     // After successfully ending the match, navigate to Forum and open the Create Post modal
         try {
             const courtName = (match && (match.court || match.location)) ? encodeURIComponent((match.court || match.location)) : ''
@@ -2069,8 +2230,11 @@ async function endMatchConfirmed(match) {
 function playMatch(match) {
     // only allowed when started
     if (!(match.started || match._started)) { alert('Match has not been started by the host yet'); return }
-    // placeholder: open match view or mark user as 'in play'
-    alert('Entering match live view — implement actual play flow')
+    if (!currentUser.value) { showPopup.value = true; return }
+    // mark this match as playing in local transient state so the UI updates (card turns primary, Play button hidden)
+    const id = String(match.id || match.key || match._id || (match.__dbPath ? String(match.__dbPath).split('/').pop() : ''))
+    playingMatches.value = { ...(playingMatches.value || {}), [id]: true }
+    try { savePlayingMatchesToStorage() } catch (e) { /* ignore */ }
 }
 
 function initials(name) {
@@ -2274,7 +2438,6 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 .match-card .card-body { box-sizing: border-box }
 .match-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.45); transform: translateY(-6px); transition: all 180ms ease }
 
-
 .match-left {
     margin-bottom: 14px
 }
@@ -2423,6 +2586,23 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     box-shadow: 0 4px 12px rgba(255, 154, 60, 0.3);
 }
 
+.summary-btn {
+    border: none;
+    background: #2b6baf;
+    color: #fff;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.summary-btn:hover {
+    background: #3a7bc8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(43, 107, 175, 0.3);
+}
+
 @media (min-width: 768px) {
     .match-card {
         flex-direction: column
@@ -2454,6 +2634,21 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 .match-card.host-match .meta-pill { background: rgba(0,0,0,0.10); color: #111 }
 .match-card.host-match .meta-pill.badge-type { background: rgba(0,0,0,0.18); color: #111 }
 .match-card.host-match .match-people { color: #111 }
+
+/* Playing match state: visually indicate an active/playing match (same treatment as host-match) */
+.match-card.playing-match {
+    /* Use Bootstrap primary color to match the Play button */
+    background: linear-gradient(180deg, #0d6efd 0%, #0b5ed7 100%);
+    color: #fff;
+    border-color: rgba(11,94,215,0.12);
+}
+.match-card.playing-match .match-title { color: #fff }
+.match-card.playing-match .match-sub { color: rgba(255,255,255,0.9) }
+.match-card.playing-match .match-date { color: #fff }
+.match-card.playing-match .match-meta-row .time-range { color: #fff }
+.match-card.playing-match .meta-pill { background: rgba(255,255,255,0.06); color: #fff }
+.match-card.playing-match .meta-pill.badge-type { background: rgba(255,255,255,0.08); color: #fff }
+.match-card.playing-match .match-people { color: #fff }
 
 .section-heading { color: #ff9a3c; font-weight: 800; margin-top: 18px; margin-bottom: 12px }
 
