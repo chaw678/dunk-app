@@ -237,11 +237,14 @@
                                 <div class="mt-auto d-flex justify-content-between align-items-center">
                                     <div class="btn-group">
                                         <template v-if="isHost(match)">
-                                            <!-- Invite removed for past matches; keep Delete for hosts -->
-                                            <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                            <!-- For scheduled matches, hosts can invite and start; keep delete as a secondary action -->
+                                            <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+                                            <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                         </template>
                                         <template v-else-if="isJoined(match)">
-                                            <!-- Invite removed for past matches; allow leaving if applicable -->
+                                            <!-- Joined players can invite others before the match starts and can leave -->
+                                            <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                         </template>
                                         <template v-else>
@@ -306,12 +309,10 @@
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="btn-group">
                                             <template v-if="isHost(match)">
-                                                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                                <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                                <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                             </template>
                                             <template v-else-if="isJoined(match)">
-                                                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                                <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                                <!-- No actions for joined users on past matches -->
                                             </template>
                                             <template v-else>
                                                 <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>

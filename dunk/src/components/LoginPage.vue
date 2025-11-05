@@ -70,7 +70,8 @@ const dobYear = ref('');
 const dobMonth = ref('');
 const dobDay = ref('');
 const editBio = ref(''); 
-const editSkill = ref('');
+// Preferred positions (comma-separated string in edit modal)
+const editPositionsText = ref('');
 
 
 
@@ -375,6 +376,15 @@ async function saveProfileEdits() {
     }
   }
 
+  // Build preferred positions array from comma-separated editor
+  const preferredPositions = String(editPositionsText.value || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(s => s.toUpperCase())
+    .filter((v, i, a) => a.findIndex(x => x.toUpperCase() === v.toUpperCase()) === i)
+    .slice(0, 8)
+
   const updates = {
     // displayName: editName.value,
     name: editName.value,  
@@ -384,10 +394,8 @@ async function saveProfileEdits() {
     dobDay: dobDay.value,
     // <-- change 27: adds age, bio and skill as  profile property
     age: age,
-    bio: editBio.value,     
-    skill: editSkill.value,
-    // also write canonical `ranking` field so DB uses the authoritative attribute
-    ranking: editSkill.value
+    bio: editBio.value,
+    preferredPositions
   }
 
   // ensure ranking is derived from wins and not editable
@@ -404,10 +412,8 @@ async function saveProfileEdits() {
       dobMonth: updates.dobMonth,
       dobDay: updates.dobDay,
       age: updates.age, // <-- Actually push age data to DB
-      bio: updates.bio,      
-      skill: updates.skill,
-      ranking: updates.ranking,
-      skill: updates.skill,
+      bio: updates.bio,
+      preferredPositions: updates.preferredPositions,
       ranking: updates.ranking
     };
 
@@ -499,8 +505,8 @@ onMounted(() => {
           dobMonth.value   = val.dobMonth ?? '';
           dobDay.value     = val.dobDay  ?? '';
           editBio.value    = val.bio ?? '';      
-          // prefer `ranking` field if present, fall back to legacy `skill`
-          editSkill.value  = val.ranking ?? val.skill ?? '';
+          // hydrate preferred positions into comma-separated input for modal
+          editPositionsText.value = Array.isArray(val.preferredPositions) ? val.preferredPositions.join(', ') : '';
 
           
           followingCount.value = val.following ? Object.keys(val.following).length : 0
@@ -969,8 +975,16 @@ watch(animateBars, (v) => { if (v) animateCounts() })
     </div>
 
     <div class="col-12 d-flex">
-      <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
-        <span class="fw-medium">Skill / Badge</span>
+      <div class="stat-card flex-fill px-3 py-3 border rounded-3 border-gray-600 text-center">
+        <div class="d-flex align-items-center justify-content-center flex-wrap gap-2 mb-2">
+          <span class="fw-medium">Preferred Position(s)</span>
+        </div>
+        <div class="positions-wrap">
+          <template v-if="Array.isArray(user.preferredPositions) && user.preferredPositions.length">
+            <span v-for="(p, idx) in user.preferredPositions" :key="p + '-' + idx" class="chip chip-filled">{{ p }}</span>
+          </template>
+          <span v-else class="text-warning">—</span>
+        </div>
       </div>
     </div>
 
@@ -1086,10 +1100,11 @@ watch(animateBars, (v) => { if (v) animateCounts() })
           <textarea v-model="editBio" rows="2" class="form-control" placeholder="Write something about yourself..."></textarea>
         </div>
 
-        <!-- Skill Badge -->
+        <!-- Preferred Positions -->
         <div class="mb-2">
-          <label class="form-label text-white mb-1">Skill / Badge</label>
-          <input v-model="editSkill" type="text" class="form-control" placeholder="Enter your skill or badge (e.g., Shooter, Defender)" />
+          <label class="form-label text-white mb-1">Preferred Position(s)</label>
+          <input v-model="editPositionsText" type="text" class="form-control" placeholder="Comma-separated (e.g., PG, SF, C)" />
+          <div class="form-text" style="color:#9CA3AF;">We’ll save up to 8 positions; duplicates are removed automatically.</div>
         </div>
 
 
@@ -1302,6 +1317,11 @@ watch(animateBars, (v) => { if (v) animateCounts() })
       cursor: pointer;
       border: none;
     }
+
+/* Preferred Positions chips */
+.positions-wrap { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px; }
+.chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; font-weight:700; font-size:0.92rem; }
+.chip-filled { background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.08)); color:#ffd98a; border:1px solid rgba(255,255,255,0.08); }
     .btn-cancel:hover {
       background: #3A4350;
     }

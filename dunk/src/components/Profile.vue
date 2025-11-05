@@ -117,8 +117,43 @@
           </div>
         </div>
         <div class="col-12 d-flex">
-          <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
-            <span class="fw-medium">Skill / Badge</span>
+          <div class="stat-card flex-fill px-3 py-3 border rounded-3 border-gray-600 text-center">
+            <div class="pp-header d-flex flex-wrap gap-2 mb-2 justify-content-center align-items-center">
+              <span class="fw-medium">Preferred Position(s)</span>
+              <div v-if="isOwner" class="quick-add">
+                <span class="qa-label">Quick add:</span>
+                <button v-for="p in commonPositions" :key="p" class="chip chip-action" @click="toggleQuick(p)">{{ p }}</button>
+              </div>
+            </div>
+
+            <!-- Owner: editable tags input -->
+            <div v-if="isOwner">
+              <div class="positions-wrap">
+                <button v-for="(p, idx) in localPositions" :key="p + '-' + idx" class="chip chip-filled" @click="removePosition(idx)">
+                  {{ p }}
+                  <span class="chip-x" aria-hidden>×</span>
+                </button>
+                <input
+                  v-model="positionsInput"
+                  class="pos-input"
+                  type="text"
+                  placeholder="Type a position (e.g., PG) and press Enter"
+                  @keydown.enter.prevent="commitPosition"
+                  @blur="commitPosition"
+                />
+              </div>
+              <div class="d-flex justify-content-end mt-2">
+                <button class="btn btn-warning fw-bold" :disabled="!positionsDirty" @click="savePositions">Save</button>
+              </div>
+            </div>
+
+            <!-- Public: view-only chips -->
+            <div v-else class="positions-wrap view-only">
+              <template v-if="(profile && Array.isArray(profile.preferredPositions) && profile.preferredPositions.length)">
+                <span v-for="(p, idx) in profile.preferredPositions" :key="p + '-' + idx" class="chip chip-filled">{{ p }}</span>
+              </template>
+              <span v-else class="text-warning">—</span>
+            </div>
           </div>
         </div>
 
@@ -302,6 +337,71 @@ const profile = ref({
   // old nested `statistics` removed
 })
 
+// Preferred Positions editor state (owner only)
+const localPositions = ref([])
+const positionsInput = ref('')
+const positionsDirty = ref(false)
+const commonPositions = ['PG', 'SG', 'SF', 'PF', 'C']
+const isOwner = computed(() => currentUser.value && currentUser.value.uid && String(currentUser.value.uid) === String(uid.value))
+
+function syncLocalPositionsFromProfile() {
+  try {
+    const arr = (profile.value && Array.isArray(profile.value.preferredPositions)) ? profile.value.preferredPositions : []
+    // normalize: trim strings, dedupe case-insensitively, keep short
+    const norm = Array.from(new Set(arr.map(s => String(s || '').trim()).filter(Boolean).map(s => s.toUpperCase())))
+    localPositions.value = norm.slice(0, 8)
+    positionsDirty.value = false
+  } catch (e) {
+    localPositions.value = []
+    positionsDirty.value = false
+  }
+}
+
+function commitPosition() {
+  const raw = String(positionsInput.value || '')
+  if (!raw.trim()) return
+  const pieces = raw.split(',').map(s => s.trim()).filter(Boolean)
+  let next = localPositions.value.slice()
+  pieces.forEach(piece => {
+    const up = piece.toUpperCase()
+    if (!next.some(x => String(x).toUpperCase() === up)) next.push(up)
+  })
+  localPositions.value = next.slice(0, 8)
+  positionsInput.value = ''
+  positionsDirty.value = true
+}
+
+function removePosition(idx) {
+  try {
+    localPositions.value.splice(idx, 1)
+    positionsDirty.value = true
+  } catch (e) {}
+}
+
+function toggleQuick(pos) {
+  const up = String(pos || '').toUpperCase()
+  const i = localPositions.value.findIndex(x => String(x).toUpperCase() === up)
+  if (i >= 0) {
+    localPositions.value.splice(i, 1)
+  } else {
+    if (localPositions.value.length < 8) localPositions.value.push(up)
+  }
+  positionsDirty.value = true
+}
+
+async function savePositions() {
+  try {
+    if (!isOwner.value) return
+    await setChildData(`users/${uid.value}`, 'preferredPositions', localPositions.value)
+    // reflect immediately in local profile
+    profile.value = { ...(profile.value || {}), preferredPositions: localPositions.value.slice() }
+    positionsDirty.value = false
+  } catch (e) {
+    console.error('Failed to save preferred positions', e)
+    alert('Failed to save positions — try again')
+  }
+}
+
 watch(() => route.params.uid, async (newUid, oldUid) => {
   if (newUid && newUid !== oldUid) await fetchProfile(newUid)
 })
@@ -315,6 +415,8 @@ async function fetchProfile(targetUid) {
       const resolvedAvatar = avatarForUser(userObj)
       const avatarField = (u && (u.avatar || u.photoURL)) ? (u.avatar || u.photoURL) : resolvedAvatar
       profile.value = { ...profile.value, ...u, avatar: avatarField }
+      // refresh local positions when profile loads
+      syncLocalPositionsFromProfile()
     }
   } catch (e) {
     console.warn('Failed to load profile', e)
@@ -463,6 +565,8 @@ onMounted(async () => {
           profile.value = { ...(profile.value || {}), ...val }
           // also ensure usersMap has the same normalized record for modal lists
           usersMap.value = Object.assign({}, usersMap.value || {}, { [uid.value]: val })
+          // keep local positions in sync with realtime updates
+          syncLocalPositionsFromProfile()
         }
       })
     } catch (e) {
@@ -1139,5 +1243,19 @@ function matchesQuery(u) {
   font-size: 1.25rem;
   cursor: pointer;
 }
+
+/* Preferred Positions editor */
+.positions-wrap { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px; }
+.pp-header { justify-content:center; text-align:center; }
+.positions-wrap.view-only { padding: 4px 0; }
+.chip { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; font-weight:700; font-size:0.92rem; cursor: default; user-select:none; }
+.chip-filled { background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.08)); color:#ffd98a; border:1px solid rgba(255,255,255,0.08); }
+.chip-action { background: transparent; color:#ffd98a; border:1px solid rgba(255,173,29,0.28); cursor:pointer; }
+.chip-action:hover { background: rgba(255,173,29,0.08); }
+.chip-x { margin-left: 2px; opacity: 0.85; font-weight:900; }
+.pos-input { min-width: 220px; flex: 1 1 160px; padding:8px 10px; border-radius:10px; background:#181a20; color:#fff; border:1px solid rgba(255,255,255,0.08); outline:none; }
+.pos-input::placeholder { color: rgba(255,255,255,0.4); }
+.quick-add { display:flex; align-items:center; gap:6px; }
+.qa-label { color:#9CA3AF; font-size:0.85rem; margin-right:2px; }
 
 </style>

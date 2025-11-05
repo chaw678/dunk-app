@@ -1827,7 +1827,7 @@ section {
     align-items: center;
     gap: 6px;
     transition: all 0.2s ease;
-    white-space: nowrap;
+  white-space: nowrap;
 }
 
 .btn-view-all:hover {
@@ -2273,6 +2273,24 @@ section {
 }
 
 @media (max-width: 480px) {
+  /* Stack title and button and prevent overflow on very small screens */
+  .section-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .recommendations-section .section-heading,
+  .section-header .section-heading {
+    text-align: left;
+    width: 100%;
+  }
+  .btn-view-all {
+    width: 100%;
+    justify-content: center;
+    white-space: normal; /* allow wrapping instead of overflowing */
+    font-size: 0.95rem;
+    padding: 10px 14px;
+  }
   .hero-title {
     font-size: clamp(1.5rem, 8vw, 2rem);
   }
@@ -2343,6 +2361,21 @@ section {
   .hero-text {
     padding-left: 8px;
     padding-right: 8px;
+  }
+}
+
+/* Slightly wider small screens: keep the header from pushing the button out
+   of its card by stacking earlier. */
+@media (max-width: 640px) {
+  .section-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .btn-view-all {
+    width: 100%;
+    justify-content: center;
+    white-space: normal;
   }
 }
 

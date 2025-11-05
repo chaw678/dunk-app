@@ -6,7 +6,7 @@
           <strong>{{ title || 'Players' }}</strong>
           <div class="small text-muted">{{ players?.length || 0 }} joined</div>
         </div>
-        <button class="btn-close" @click="close" aria-label="Close"></button>
+  <button class="btn-close jp-close" @click="close" aria-label="Close">&times;</button>
       </div>
       <div class="card-body jp-body">
         <ul class="list-unstyled mb-0">
@@ -172,6 +172,32 @@ async function unfollowUser(uid) {
 .jp-body .fw-bold { color: #e6eef6 }
 .jp-body .small { color: #9fb0bf }
 .btn-close { background: transparent; border: none; color:#cfd9e3; font-size: 18px; }
+/* High-contrast, large hit target close button for dark backgrounds */
+.jp-close {
+  width: 40px;
+  height: 40px;
+  line-height: 1;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px; /* larger X */
+  font-weight: 900;
+  color: #ffffff;
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.24);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  transition: all 0.15s ease-in-out;
+}
+.jp-close:hover,
+.jp-close:focus {
+  background: #ff9a3c;
+  color: #111;
+  border-color: rgba(0,0,0,0.3);
+  outline: none;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.55), 0 0 0 3px rgba(255,154,60,0.3);
+}
 .player-row.border-bottom { border-bottom: none; }
 .player-row.border-bottom::after {
   content: '';

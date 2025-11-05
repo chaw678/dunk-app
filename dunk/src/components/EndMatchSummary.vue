@@ -8,7 +8,6 @@
         <header class="summary-header">
           <!-- LIVE / Match Complete indicator -->
           <span v-if="isMatchLive" class="match-status-badge live-badge">LIVE</span>
-          <span v-else-if="isMatchEnded" class="match-status-badge ended-badge">MATCH COMPLETE</span>
           <button class="close-btn" @click="close">✕</button>
         </header>
 
@@ -280,16 +279,22 @@ const matchTypeDisplay = computed(() => { try { return match.value && match.valu
 const genderDisplay = computed(() => { try { return match.value && match.value.gender ? String(match.value.gender) : 'All' } catch (e) { return 'All' } })
 
 // Match status indicators
+// Consider a match LIVE only if it has started and is not explicitly ended.
+// Some legacy entries may lack endedAt/endedAtISO but set matchEnded=true; guard for that as well.
 const isMatchLive = computed(() => {
   try {
-    return (match.value.started || match.value._started) && !match.value.endedAt && !match.value.endedAtISO
+    const m = match.value || {}
+    const started = !!(m.started || m._started)
+    const explicitlyEnded = !!(m.endedAt || m.endedAtISO || m.endAtISO || m.matchEnded === true || m.ended === true)
+    return started && !explicitlyEnded
   } catch (e) {
     return false
   }
 })
 const isMatchEnded = computed(() => {
   try {
-    return !!(match.value.endedAt || match.value.endedAtISO)
+    const m = match.value || {}
+    return !!(m.endedAt || m.endedAtISO || m.endAtISO || m.matchEnded === true || m.ended === true)
   } catch (e) {
     return false
   }
