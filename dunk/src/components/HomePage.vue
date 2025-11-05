@@ -1210,11 +1210,13 @@ onUnmounted(() => {
   gap: 50px;
   align-items: center;
   width: 100%;
+  align-content: center;
 }
 
 .hero-text {
   text-align: center;
-  padding-left: 180px;
+  padding-left: 24px; /* remove heavy left indent */
+  padding-right: 24px;
 }
 
 .brand-highlight {
@@ -1334,6 +1336,17 @@ onUnmounted(() => {
   animation: bounce 1.5s infinite ease-in-out;
 }
 
+/* Standard container for consistent horizontal padding/centering */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+
+/* Normalize section spacing for visual consistency */
+section { padding-top: 40px; padding-bottom: 40px; }
+
 @keyframes bounce {
   0%, 20%, 50%, 80%, 100% {
     transform: translateY(0);
@@ -1368,7 +1381,7 @@ onUnmounted(() => {
 
 /* Invites Section */
 .invites-section {
-  padding: 60px 20px;
+  padding: 40px 20px;
   background: rgba(0, 0, 0, 0.1);
 }
 
@@ -1408,12 +1421,12 @@ onUnmounted(() => {
 }
 
 .invitations-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr); /* Fixed 3 columns */
-    gap: 20px;
-    width: 100%;
-    align-items: start;
-    justify-items: center; /* Center cards in grid cells */
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* Fixed 3 columns */
+  gap: 20px;
+  width: 100%;
+  align-items: start;
+  justify-items: stretch; /* allow cards to align consistently */
 }
 
 /* Carousel styles */
@@ -2189,6 +2202,19 @@ onUnmounted(() => {
   .cta-content h2 {
     font-size: 2rem;
   }
+}
+
+/* Stack hero text and image earlier for medium-large screens to avoid side-by-side overlap */
+@media (max-width: 1100px) {
+  .hero-main {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    align-items: center;
+    text-align: center;
+  }
+  .hero-text { padding-left: 16px; padding-right: 16px; }
+  .hero-image { justify-content: center; }
+  .basketball-icon { margin: 0 auto; }
 }
 
 @media (max-width: 480px) {

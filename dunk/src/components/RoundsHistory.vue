@@ -12,13 +12,19 @@
           <div class="team">
             <div class="team-label">A</div>
             <div class="team-members">
-              <span v-for="uid in r.teamA" :key="uid" class="member">{{ nameFor(uid) }} <span class="member-wins">🏆 {{ (users[uid] && users[uid].wins) ? users[uid].wins : (users.value && users.value[uid] && users.value[uid].wins) || 0 }}</span></span>
+              <span v-for="uid in r.teamA" :key="uid" class="member">
+                <span class="member-avatar-small"><img :src="avatarForUid(uid)" :alt="nameFor(uid) + ' avatar'"/></span>
+                {{ nameFor(uid) }} <span class="member-wins">🏆 {{ (users[uid] && users[uid].wins) ? users[uid].wins : (users.value && users.value[uid] && users.value[uid].wins) || 0 }}</span>
+              </span>
             </div>
           </div>
           <div class="team">
             <div class="team-label">B</div>
             <div class="team-members">
-              <span v-for="uid in r.teamB" :key="uid" class="member">{{ nameFor(uid) }} <span class="member-wins">🏆 {{ (users[uid] && users[uid].wins) ? users[uid].wins : (users.value && users.value[uid] && users.value[uid].wins) || 0 }}</span></span>
+              <span v-for="uid in r.teamB" :key="uid" class="member">
+                <span class="member-avatar-small"><img :src="avatarForUid(uid)" :alt="nameFor(uid) + ' avatar'"/></span>
+                {{ nameFor(uid) }} <span class="member-wins">🏆 {{ (users[uid] && users[uid].wins) ? users[uid].wins : (users.value && users.value[uid] && users.value[uid].wins) || 0 }}</span>
+              </span>
             </div>
           </div>
         </div>
@@ -31,6 +37,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { getDataFromFirebase, onDataChange } from '../firebase/firebase'
+import { avatarForUser } from '../utils/avatar.js'
 
 const props = defineProps({ matchData: { type: Object, required: false }, matchId: { type: [String, Number], required: false } })
 
@@ -56,6 +63,13 @@ function formatDuration(sec) {
 function nameFor(uid) {
   const u = users.value && users.value[uid]
   return (u && (u.name || u.displayName || u.username)) || uid
+}
+
+function avatarForUid(uid) {
+  if (!uid) return avatarForUser('anon')
+  const u = users.value && users.value[uid]
+  if (u && u.profilepicture) return u.profilepicture
+  return avatarForUser(u || uid)
 }
 
 function winnersLabel(r) {
@@ -116,6 +130,8 @@ onBeforeUnmount(() => {
 .team-members { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap }
   .team-members { margin-top:8px; display:flex; gap:8px; flex-wrap:nowrap; overflow:auto }
   .member { background:#1b1d20; color:#ffefcf; padding:6px 8px; border-radius:8px; font-weight:700; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; max-width:240px; display:inline-flex; align-items:center }
+  .member-avatar-small { width:28px; height:28px; border-radius:50%; overflow:hidden; flex-shrink:0; margin-right:8px; display:inline-block }
+  .member-avatar-small img { width:100%; height:100%; object-fit:cover; display:block }
   .member-wins { margin-left:8px; color:#ffd98a; font-weight:800; flex-shrink:0 }
 .round-winner { margin-top:10px; color:#fff }
 </style>

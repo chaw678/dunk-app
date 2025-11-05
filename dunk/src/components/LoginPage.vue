@@ -3,7 +3,8 @@
 import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
 import { Trophy, Star, Users, Cake, ChartColumn } from 'lucide-vue-next'
 import { loginWithGoogle, logout, onUserStateChanged, saveUserToDatabase } from '../firebase/auth.js'
-import { onDataChange, getDataFromFirebase } from '../firebase/firebase'
+import { onDataChange, getDataFromFirebase, setChildData } from '../firebase/firebase'
+import { avatarForUser, seededAvatar } from '../utils/avatar.js'
 import { getDatabase, ref as dbRef, set, update } from 'firebase/database'
 
 
@@ -40,18 +41,18 @@ function onLocalFollowChanged(e) {
   }
 }
 
+function safeEmailLocal(email) {
+  try {
+    if (!email) return null
+    if (typeof email === 'string') return String(email).split('@')[0]
+    return null
+  } catch (e) { return null }
+}
+
 const photoSrc = computed(() => {
-  // Use the seeded avatar API (same used in Forum) so avatars are consistent across the app.
-  // Derive a username from the email local-part when available.
-  const u = user.value
-  const username = (u && (u.email ? u.email.split('@')[0] : (u.displayName || u.uid))) || 'anon'
-  if (u?.gender?.toLowerCase() === 'female') {
-    return `https://avatar.iran.liara.run/public/girl?username=${encodeURIComponent(username)}`;
-  } else {
-    // Default male avatar
-    return `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(username)}`;
-  }
-});
+  // Prefer the normalized avatar helper so the same avatar is used everywhere.
+  return avatarForUser(user.value)
+})
 
 const imgErrored = ref(false)
 
@@ -433,12 +434,11 @@ function initials(name) {
 function onImgError(e) {
   // If the image fails (eg 429), try the seeded avatar API first, then fall back to initials
   try {
-  const u = user.value
-  const username = (u && (u.email ? u.email.split('@')[0] : (u.displayName || u.uid))) || 'anon'
-  const fallback = `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(username)}`
+    const u = user.value
+    const fallback = avatarForUser(u)
     const img = e && e.target
     if (!img) return
-    // avoid infinite loop: if already set to fallback, show initials
+    // avoid infinite loop: if already set to a seeded avatar, show initials
     if (img.src && img.src.includes('avatar.iran.liara.run')) {
       imgErrored.value = true
     } else {
@@ -446,6 +446,30 @@ function onImgError(e) {
     }
   } catch (err) {
     imgErrored.value = true
+  }
+}
+
+// Allow the signed-in user to randomize their persisted seeded avatar from the sidebar
+async function randomizeAvatar() {
+  try {
+    if (!user.value || !user.value.uid) {
+      alert('Please sign in to change your avatar.')
+      return
+    }
+    // generate a short random suffix to change the seeded avatar
+    const suffix = Math.random().toString(36).slice(2, 9)
+    const seed = `${user.value.uid}-${suffix}`
+    const gender = (user.value && user.value.gender) || undefined
+    const newUrl = seededAvatar(seed, gender)
+    // persist to users/<uid>/avatar so it is consistent across the app
+    await setChildData(`users/${user.value.uid}`, 'avatar', newUrl)
+    // update local reactive user immediately so UI updates without waiting for realtime
+    try { user.value = { ...(user.value || {}), avatar: newUrl, photoURL: user.value.photoURL || newUrl } } catch(e) {}
+  // Reload so the new avatar is fetched and shown across the app
+  try { window.location.reload() } catch (e) { /* ignore */ }
+  } catch (e) {
+    console.error('randomizeAvatar failed', e)
+    alert('Failed to randomize avatar — try again.')
   }
 }
 
@@ -834,6 +858,12 @@ watch(animateBars, (v) => { if (v) animateCounts() })
           @click="showEditProfile = true">
           Edit Profile
         </button>
+            <button
+              class="btn btn-outline-warning px-4 py-2 rounded-pill fw-semibold ms-2"
+              style="font-size:1.14rem; letter-spacing:0.5px;"
+              @click="randomizeAvatar">
+              Randomize avatar
+            </button>
       </div>
           <!-- Following & Followers -->
           <div class="row gx-3 justify-content-center mb-3">
@@ -1089,7 +1119,7 @@ watch(animateBars, (v) => { if (v) animateCounts() })
         <!-- <div class="follow-list">
           <div class="follow-item" v-for="f in filteredFollowers" :key="f.uid">
             <img
-              :src="f.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f.email.split('@')[0])}`"
+              :src="avatarForUser(f)"
               class="avatar"
             />
             <div class="info">
@@ -1109,7 +1139,7 @@ watch(animateBars, (v) => { if (v) animateCounts() })
             class="d-flex align-items-center w-100 text-decoration-none text-reset"
           >
             <img
-              :src="f.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f.email.split('@')[0])}`"
+              :src="avatarForUser(f)"
               class="avatar"
             />
             <div class="info ms-2">
@@ -1148,7 +1178,7 @@ watch(animateBars, (v) => { if (v) animateCounts() })
             class="d-flex align-items-center w-100 text-decoration-none text-reset"
           >
             <img
-              :src="f.photoURL || `https://avatar.iran.liara.run/public/boy?username=${encodeURIComponent(f.email.split('@')[0])}`"
+              :src="avatarForUser(f)"
               class="avatar"
             />
             <div class="info ms-2">

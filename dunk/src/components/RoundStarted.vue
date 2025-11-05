@@ -113,8 +113,8 @@
           <button class="btn-reset" v-if="roundActive && timerPaused" @click="resumeTimer">Resume</button>
           <button class="btn-reset" v-if="roundActive && timerPaused" @click.prevent.stop="restartRound">Restart</button>
           <button class="btn-reset" v-if="!roundActive && timerSet && !roundFinished" @click="resetTimer">Reset</button>
-          <button class="btn-end" v-if="roundActive" @click.prevent.stop="endRound(true)">End Round</button>
-  </div>
+          <button class="btn-end" v-if="roundActive" @click.prevent.stop="requestEndRound">End Round</button>
+        </div>
       </div>
     </div>
 
@@ -180,8 +180,7 @@
         </div>
       </div>
     </section>
-
-    <!-- Rounds History (always visible for players) -->
+  <!-- Rounds History (always visible for players) -->
     <section class="rounds-history">
       <h2 class="rounds-history-header">Rounds History</h2>
       <div v-if="!rounds || rounds.length === 0" class="rounds-empty">
@@ -236,12 +235,30 @@
     </section>
     </div>
   </div>
+  <!-- Teleport ConfirmModal for End Round -->
+  <Teleport to="body">
+    <ConfirmModal
+      v-if="showEndConfirm"
+      v-model="showEndConfirm"
+      :title="endConfirm.title"
+      :message="endConfirm.message"
+      confirmLabel="YES"
+      cancelLabel="Cancel"
+      :primaryFirst="true"
+      :destructive="false"
+      @confirm="onEndConfirm"
+    />
+    <EndMatchSummary v-if="showEndSummary" :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" :matchData="matchData" @close="onEndSummaryClose" />
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, Teleport } from 'vue'
+import { avatarForUser } from '../utils/avatar.js'
 import { useRoute, useRouter } from 'vue-router'
 import { getDataFromFirebase, setChildData, deleteChildData, onDataChange, incrementField, getUserName } from '../firebase/firebase'
+import ConfirmModal from './ConfirmModal.vue'
+import EndMatchSummary from './EndMatchSummary.vue'
 import { onUserStateChanged } from '../firebase/auth'
 
 const route = useRoute()
@@ -345,6 +362,31 @@ const timerSet = ref(false)
 const timerInterval = ref(null)
 const timerPaused = ref(false)
 const roundActive = ref(false)
+
+// modal state for End Round confirmation (use the same ConfirmModal as Matches.vue)
+const showEndConfirm = ref(false)
+const endConfirm = ref({ title: '', message: 'Are you sure you want to end this round?' })
+const showEndSummary = ref(false)
+
+function requestEndRound() {
+  // set a contextual title that includes the current round number shown in the header
+  try {
+    endConfirm.value.title = `End Round #${displayTitle.value} now?`
+  } catch (e) {
+    endConfirm.value.title = 'End Round now?'
+  }
+  // Pause the timer immediately so the UI freezes at the exact minute/second
+  try {
+    if (roundActive.value && !timerPaused.value) pauseTimer()
+  } catch (e) { /* ignore pause errors */ }
+  showEndConfirm.value = true
+}
+
+function onEndConfirm() {
+  // user confirmed via modal — proceed to end round without another prompt
+  showEndConfirm.value = false
+  endRound(false)
+}
 // remote timer sync fields (for non-host clients)
 const remoteLastStartedAt = ref(null)
 const remoteRoundDuration = ref(0)
@@ -453,11 +495,10 @@ async function enrichPlayers(list) {
         resolved.thumbnail ||
         null
 
-      // only generate fallback if no profile/avatar exists
+      // only generate fallback if no profile/avatar exists - use centralized helper
       let finalAvatar = avatar
       if (!finalAvatar) {
-        const nameFull = encodeURIComponent((name || uid).split(' ')[0] || uid)
-        finalAvatar = `https://ui-avatars.com/api/?name=${nameFull}&background=1f262b&color=ffad1d&format=png&size=128`
+        finalAvatar = avatarForUser({ uid, name, gender: resolved.gender, photoURL: avatar })
       }
 
       console.log('enrichPlayers: result for', uid, ':', { uid, name, avatar: finalAvatar })
@@ -773,6 +814,7 @@ async function confirmWinnerNextRound() {
 // confirm winner and end match (persist winner and rounds, mark match ended and go to Matches list)
 async function confirmWinnerEndMatch() {
   if (!selectedWinner.value) return
+  // keep the existing browser confirm as a final guard, then show the end-summary modal
   if (!confirm('Are you sure you want to end this match? This will move it to past matches.')) return
   const nowIso = new Date().toISOString()
   try {
@@ -850,17 +892,13 @@ async function confirmWinnerEndMatch() {
     }
   } catch (err) { console.warn('Could not persist roundsplayed entry', err) }
 
-  // navigate back to MatchRoom so the final round's team allocations are visible there
+  // show the end-of-match summary modal so the host can review final stats
   try {
-    const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
-    const teamAUids = (teamA.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
-    const teamBUids = (teamB.value || []).map(p => (p && p.uid) ? p.uid : (typeof p === 'string' ? p : null)).filter(Boolean)
-    const state = { teams: { teamA: teamAUids, teamB: teamBUids }, confirmed: true }
-    if (matchData.value && matchData.value.__dbPath) state.matchPath = matchData.value.__dbPath
-    await router.push({ name: 'MatchRoom', params: { id: matchId.value }, query, state })
+    showEndSummary.value = true
+    return
   } catch (err) {
-    // fallback to matches list if navigation to matchroom fails
-    await router.push({ path: '/matches' })
+    // fallback to matches list if modal cannot be shown
+    try { await router.push({ path: '/matches' }) } catch (_) {}
   }
 }
 
@@ -1049,6 +1087,15 @@ function displayAvatarFor(element) {
 }
 
 function goBack() {
+
+function onEndSummaryClose() {
+  showEndSummary.value = false
+  try {
+    router.push('/matches')
+  } catch (e) {
+    try { router.back() } catch (_) { /* ignore */ }
+  }
+}
   // Preserve current allocations in history state so MatchRoom can restore
   // them immediately when the user navigates back.
   const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
@@ -1431,6 +1478,18 @@ function syncTimerFromServer() {
 
 <style scoped>
 
+/* Ensure Round title matches MatchRoom title exactly */
+.matchroom-title {
+  margin: 0;
+  color: #fff;
+  font-size: 48px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
 
 .team-players-row { display:flex; gap:20px; padding-top:18px; align-items:center; flex-wrap:wrap; }
 .team-player { display:flex; flex-direction:column; align-items:center; width:120px; }
@@ -1440,8 +1499,8 @@ function syncTimerFromServer() {
 
 /* copy of MatchRoom timer & team styles so RoundStarted visually matches */
 .matchroom-container { background: #10121A; color: #fff; min-height: 100vh; padding: 32px; }
-header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.back-btn { border:none; background:#B23B3B; color:#fff; border-radius:8px; padding:9px 18px; font-weight:700; }
+header { display:flex; align-items:center; justify-content:center; gap:12px; position:relative; }
+.back-btn { border:none; background:#B23B3B; color:#fff; border-radius:8px; padding:9px 18px; font-weight:700; position:absolute; left:12px; top:12px; }
 
 .players-row { display:flex; gap:18px; padding-top:12px; flex-wrap:wrap; align-items:center; }
 .player-tile { display:flex; align-items:center; gap:14px; padding:10px 0; }

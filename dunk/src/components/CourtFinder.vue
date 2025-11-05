@@ -1358,8 +1358,8 @@ function openCreateMatchForCourt(court) {
     showAddMatchModal.value = true
   } catch (e) {
     // fallback
-    selectedCourt = court
-    showAddMatchModal = true
+    try { selectedCourt.value = court } catch(_) { /* ignore */ }
+    try { showAddMatchModal.value = true } catch(_) { /* ignore */ }
   }
 }
 
@@ -1635,6 +1635,12 @@ onMounted(() => {
   padding: 0;
 }
 
+/* Ensure the content wrapper stays centered regardless of sidebar state */
+.content-wrapper {
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
 .card,
 .main-card {
   background: #20242b;
@@ -1645,6 +1651,9 @@ onMounted(() => {
   margin-bottom: 30px;
   position: relative;
 }
+
+/* Keep the card centered in its container even when global layout variables change */
+.card { margin: 0 auto; }
 
 .header-row {
   display: flex;
@@ -1697,8 +1706,6 @@ onMounted(() => {
 }
 
 .search-input {
-}
-.search-input {
   flex: 1;
   padding: 12px 16px;
   border-radius: 10px 0 0 10px;
@@ -1712,6 +1719,8 @@ onMounted(() => {
   box-shadow: 0 1px 3px rgba(80, 80, 100, 0.07);
   transition: border-color 0.2s;
   outline: none;
+  box-sizing: border-box;
+  height: 44px;
 }
 
 .search-input::placeholder {
@@ -1724,6 +1733,46 @@ onMounted(() => {
   border-color: #ffa733;
   background: #262b33;
 }
+
+/* Layout wrapper for input + button so they align like the Add Court button */
+.search-section {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  max-width: 720px;
+  position: relative; /* anchors suggestions */
+  margin-bottom: 18px;
+}
+
+.search-btn {
+  background: #ffa733;
+  color: #181c23;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 0 18px;
+  border: 1.5px solid #3b4252;
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  cursor: pointer;
+  box-shadow: 0 2px 14px rgba(255, 167, 51, 0.14);
+  transition: all 0.18s ease;
+  box-sizing: border-box;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* overlap the input by the border width so there's no visible seam */
+  margin-left: -1.5px;
+  margin-top: -12px;
+  z-index: 2;
+}
+
+.search-btn:hover { background: #ffb751; box-shadow: 0 4px 18px rgba(255,183,81,0.28); }
+
+.search-btn:disabled { opacity: 0.6; cursor: not-allowed }
+
+/* Make suggestions span the full width of the input+button wrapper */
+.suggestions-list { left: 0; right: 0; width: auto }
 
 .region-filter {
   display: flex;
@@ -2037,18 +2086,16 @@ text-decoration: underline;
 }
 
 .search-btn {
-}
-.search-btn {
-  padding: 12px 20px;
-  background-color: #ff9500;
-  color: white;
-  border: none;
-  border-radius: 0 10px 10px 0;
-  /* rounded right corners */
-  cursor: pointer;
+  background: #ffa733;
+  color: #181c23;
   font-weight: 700;
   font-size: 1rem;
-  transition: background-color 0.3s;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 0 10px 10px 0;
+  cursor: pointer;
+  box-shadow: 0 2px 14px rgba(255, 167, 51, 0.14);
+  transition: all 0.18s ease;
 }
 
 .search-btn:hover {
