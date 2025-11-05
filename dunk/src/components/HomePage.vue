@@ -161,7 +161,7 @@
                 <template v-if="recommendedMatches.length >= 4">
                   <!-- Enough matches for smooth scrolling - create 3 sets -->
                   <div v-for="duplicateIndex in 3" :key="`duplicate-${duplicateIndex}`" class="conveyor-belt-section">
-                    <div v-for="match in recommendedMatches" :key="`${duplicateIndex}-${match.id}`" class="match-card conveyor-card">
+                    <div v-for="match in recommendedMatches" :key="`${duplicateIndex}-${match.id}`" class="match-card conveyor-card" @click="openMatch(match, $event)">
                       <div class="match-header">
                         <h4 class="match-title">{{ match.title }}</h4>
                         <div v-if="isMatchCurrentlyLive(match)" class="match-status ongoing">LIVE</div>
@@ -186,9 +186,16 @@
                           </div>
                         </div>
                         <div class="match-actions">
-                          <button class="btn-join-recommendation" @click="joinMatch(match)">
-                            <i class="bi bi-plus-lg"></i> Join Match
-                          </button>
+                          <template v-if="isHost(match) || isJoined(match)">
+                            <button class="btn-invite-recommendation" @click="openInvite(match)">
+                              <i class="bi bi-person-plus"></i> Invite
+                            </button>
+                          </template>
+                          <template v-else>
+                            <button class="btn-join-recommendation" @click="joinMatch(match)">
+                              <i class="bi bi-plus-lg"></i> Join Match
+                            </button>
+                          </template>
                         </div>
                       </div>
                     </div>
@@ -198,7 +205,7 @@
                 <template v-else>
                   <!-- Few matches - show static grid without auto-scroll -->
                   <div class="conveyor-belt-section static-matches">
-                    <div v-for="match in recommendedMatches" :key="match.id" class="match-card conveyor-card">
+                    <div v-for="match in recommendedMatches" :key="match.id" class="match-card conveyor-card" @click="openMatch(match, $event)">
                       <div class="match-header">
                         <h4 class="match-title">{{ match.title }}</h4>
                         <div v-if="isMatchCurrentlyLive(match)" class="match-status ongoing">LIVE</div>
@@ -223,9 +230,16 @@
                           </div>
                         </div>
                         <div class="match-actions">
-                          <button class="btn-join-recommendation" @click="joinMatch(match)">
-                            <i class="bi bi-plus-lg"></i> Join Match
-                          </button>
+                          <template v-if="isHost(match) || isJoined(match)">
+                            <button class="btn-invite-recommendation" @click="openInvite(match)">
+                              <i class="bi bi-person-plus"></i> Invite
+                            </button>
+                          </template>
+                          <template v-else>
+                            <button class="btn-join-recommendation" @click="joinMatch(match)">
+                              <i class="bi bi-plus-lg"></i> Join Match
+                            </button>
+                          </template>
                         </div>
                       </div>
                     </div>
@@ -313,6 +327,9 @@
         </div>
       </div>
     </section>
+
+    <!-- Invite Modal -->
+    <InviteModal v-if="showInviteModal" :match="inviteMatch" :users="usersCache" :me="currentUser" @close="showInviteModal = false" @sent="onInvitesSent" />
   </div>
 </template>
 
@@ -321,6 +338,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getDataFromFirebase, setChildData, deleteChildData, onDataChange } from '../firebase/firebase'
 import { onUserStateChanged } from '../firebase/auth'
+import InviteModal from './InviteModal.vue'
 
 const router = useRouter()
 
@@ -338,6 +356,10 @@ const userLocation = ref(null)
 const locationPermissionGranted = ref(false)
 const courtsData = ref({})
 const usersCache = ref({})
+
+// Invite modal state
+const showInviteModal = ref(false)
+const inviteMatch = ref(null)
 
 // Carousel state
 const currentSlide = ref(0)
@@ -417,6 +439,7 @@ async function acceptInvite(invitation) {
         const matchPath = invitation.matchPath
         if (!matchPath) {
             console.error('No match path in invitation')
+            alert('Invalid invitation - missing match path')
             return
         }
         
@@ -428,12 +451,25 @@ async function acceptInvite(invitation) {
             return
         }
         
+        // Check if already joined
+        if (matchData.joinedBy && matchData.joinedBy[currentUser.value.uid]) {
+            alert('You have already joined this match!')
+            await declineInvite(invitation)
+            return
+        }
+        
         // Add user to the match's joinedBy and playersMap
         await setChildData(`${matchPath}/joinedBy`, currentUser.value.uid, true)
         
+        // Use profile name if available, fallback to display name or email
+        const playerName = currentUserProfile.value?.name || 
+                          currentUser.value.displayName || 
+                          currentUser.value.email || 
+                          'Player'
+        
         const playerData = {
             uid: currentUser.value.uid,
-            name: currentUser.value.displayName || currentUser.value.email || 'Player',
+            name: playerName,
             avatar: currentUser.value.photoURL || '',
             joinedAt: Date.now()
         }
@@ -447,11 +483,11 @@ async function acceptInvite(invitation) {
         
         alert('You have joined the match!')
         
-        // Navigate to matches page to see the joined match
-        router.push('/matches')
+        // Navigate to matches page with joined tab selected
+        router.push('/matches?tab=joined')
     } catch (err) {
         console.error('Failed to accept invitation', err)
-        alert('Failed to join match')
+        alert('Failed to join match. Please try again.')
     }
 }
 
@@ -674,30 +710,74 @@ function calculateRecommendationScore(match, userProfile, userLoc, usersData) {
     return finalScore
 }
 
-function isPast(match) {
-    if (!match) return false
-    
-    // Check if manually ended
-    if (match.ended || match.endedAt) return true
-    
-    const now = new Date()
-    
-    // If we have end time, check if it's past that
-    if (match.endTime && match.date) {
-        try {
-            const endDateTime = new Date(`${match.date}T${match.endTime}:00`)
-            if (endDateTime < now) return true
-        } catch (e) {
-            // Invalid date format, fall back to other checks
+function getMatchStartEnd(match) {
+    if (!match) return { start: null, end: null }
+    // prefer ISO fields
+    try {
+        if (match.startAtISO) {
+            const s = new Date(match.startAtISO)
+            let e = match.endAtISO ? new Date(match.endAtISO) : null
+            if (!e || isNaN(e.getTime())) e = new Date(s.getTime() + 90 * 60 * 1000) // default 90min
+            return { start: s, end: e }
         }
+        // fallback to startAt / endAt which may be stored as ISO-like
+        if (match.startAt) {
+            const s = new Date(match.startAt)
+            let e = match.endAt ? new Date(match.endAt) : null
+            if (!e || isNaN(e.getTime())) e = new Date(s.getTime() + 90 * 60 * 1000)
+            return { start: s, end: e }
+        }
+        // try to combine date + startTime / endTime
+        if (match.date && match.startTime) {
+            // if date is ISO-like, use it
+            let base = new Date(match.date)
+            if (isNaN(base.getTime())) base = new Date()
+            const t = ('' + match.startTime).trim()
+            // parse hh:mm or hh:mm:ss
+            const m = t.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/) || []
+            if (m.length) {
+                base.setHours(Number(m[1]), Number(m[2]) || 0, Number(m[3]) || 0, 0)
+                const s = base
+                let e = null
+                if (match.endTime) {
+                    const mbe = ('' + match.endTime).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/) || []
+                    if (mbe.length) {
+                        const be = new Date(base)
+                        be.setHours(Number(mbe[1]), Number(mbe[2]) || 0, Number(mbe[3]) || 0, 0)
+                        e = be
+                    }
+                }
+                if (!e) e = new Date(s.getTime() + 90 * 60 * 1000)
+                return { start: s, end: e }
+            }
+        }
+    } catch (err) {
+        // parsing failed
     }
-    
+    return { start: null, end: null }
+}
+
+function isPast(match) {
+    // If an explicit endedAt/endedAtISO or matchEnded flag exists, treat as past immediately
+    try {
+        if (match && (match.matchEnded || match.endedAt || match.endedAtISO || match.ended)) return true
+    } catch (e) {}
+    const { start, end } = getMatchStartEnd(match)
+    const now = new Date()
+    if (end && end instanceof Date && !isNaN(end.getTime())) return end < now
+    // if only start exists and is in the past and there's no end, treat as past
+    if (start && start instanceof Date && !isNaN(start.getTime()) && (!end || isNaN((end && end.getTime) ? end.getTime() : NaN))) return start < now
     return false
 }
 
 function isHost(match) {
     if (!currentUser.value || !match) return false
     return match.createdby === currentUser.value.uid || match.ownerId === currentUser.value.uid
+}
+
+function isJoined(match) {
+    if (!currentUser.value || !match || !match.joinedBy) return false
+    return match.joinedBy[currentUser.value.uid] === true
 }
 
 function getPlayerCount(match) {
@@ -886,18 +966,101 @@ async function joinMatch(match) {
         return
     }
     
+    console.log('=== JOIN MATCH DEBUG ===')
+    console.log('Current user:', currentUser.value)
+    console.log('Match object:', match)
+    console.log('Match __dbPath:', match.__dbPath)
+    
     try {
-        // Simple join logic - in a real app you'd want more validation
-        const matchPath = `matches/${match.court}/${match.date}/${match.id || match.title}`
-        await setChildData(`${matchPath}/joinedBy`, currentUser.value.uid, true)
+        const uid = currentUser.value.uid
         
-        // Refresh matches
+        // Check if already joined
+        if (match.joinedBy && match.joinedBy[uid]) {
+            alert('You have already joined this match!')
+            return
+        }
+        
+        // Find the match in the matches array and update it optimistically
+        const matchIndex = matches.value.findIndex(m => 
+            (m.id && m.id === match.id) || 
+            (m.__dbPath && m.__dbPath === match.__dbPath) ||
+            (m.title === match.title && m.court === match.court && m.date === match.date)
+        )
+        
+        console.log('Found match index:', matchIndex)
+        
+        // Optimistic local update: mark joinedBy
+        match.joinedBy = { ...(match.joinedBy || {}), [uid]: true }
+        if (matchIndex !== -1) {
+            matches.value[matchIndex].joinedBy = { ...(matches.value[matchIndex].joinedBy || {}), [uid]: true }
+        }
+        
+        console.log('Optimistic update completed')
+        
+        // Persist the changes using the same logic as Matches.vue
+        if (match.__dbPath) {
+            // Use the proper database path
+            const parts = match.__dbPath.split('/')
+            const id = parts.pop()
+            const path = parts.join('/')
+            const displayName = currentUserProfile.value?.name || currentUser.value.displayName || uid
+            
+            console.log('Using __dbPath approach:')
+            console.log('Path:', path)
+            console.log('ID:', id) 
+            console.log('Display name:', displayName)
+            
+            console.log('Setting joinedBy...')
+            await setChildData(`${path}/${id}/joinedBy`, uid, true)
+            console.log('Setting playersMap...')
+            await setChildData(`${path}/${id}/playersMap`, uid, displayName)
+        } else {
+            console.error('Match is missing __dbPath! This should not happen.')
+            console.error('Match object:', match)
+            throw new Error('Match missing __dbPath - cannot join')
+        }
+        
+        console.log('Database operations completed successfully')
+        
+        // Reload matches to ensure latest data
         await loadMatches()
         
         alert('Successfully joined the match!')
+        
+        // Navigate to matches page with joined tab to show the match
+        router.push('/matches?tab=joined')
+        
     } catch (error) {
-        console.error('Failed to join match:', error)
-        alert('Failed to join match. Please try again.')
+        console.error('=== JOIN MATCH ERROR ===')
+        console.error('Error details:', error)
+        console.error('Error message:', error.message)
+        console.error('Error code:', error.code)
+        alert('Failed to join match. Please try again. Check console for details.')
+        
+        // Revert optimistic update on error
+        if (currentUser.value) {
+            const uid = currentUser.value.uid
+            
+            // Revert in matches array
+            const matchIndex = matches.value.findIndex(m => 
+                (m.id && m.id === match.id) || 
+                (m.__dbPath && m.__dbPath === match.__dbPath) ||
+                (m.title === match.title && m.court === match.court && m.date === match.date)
+            )
+            
+            if (matchIndex !== -1 && matches.value[matchIndex].joinedBy) {
+                const copyJoined = { ...(matches.value[matchIndex].joinedBy || {}) }
+                delete copyJoined[uid]
+                matches.value[matchIndex].joinedBy = copyJoined
+            }
+            
+            // Revert in passed match object
+            if (match.joinedBy) {
+                const copyJoined = { ...(match.joinedBy || {}) }
+                delete copyJoined[uid]
+                match.joinedBy = copyJoined
+            }
+        }
     }
 }
 
@@ -911,26 +1074,35 @@ async function loadMatches() {
         }
         
         const out = []
-        for (const [court, matchesByDate] of Object.entries(data)) {
-            if (!matchesByDate || typeof matchesByDate !== 'object') continue
-            
-            for (const [date, matchesOnDate] of Object.entries(matchesByDate)) {
-                if (!matchesOnDate || typeof matchesOnDate !== 'object') continue
-                
-                for (const [matchId, matchData] of Object.entries(matchesOnDate)) {
-                    if (!matchData || typeof matchData !== 'object') continue
-                    
-                    out.push({
-                        id: matchId,
-                        court: court,
-                        date: date,
-                        ...matchData
-                    })
+        // Use the same logic as Matches.vue to ensure consistency
+        if (typeof data === 'object') {
+            for (const [k1, v1] of Object.entries(data)) {
+                if (!v1) continue
+                // v1 could be { '2025-10-19': { id1: {...}, id2: {...} }, ... }
+                if (typeof v1 === 'object') {
+                    for (const [k2, v2] of Object.entries(v1)) {
+                        if (!v2) continue
+                        // v2 may be an object of matches
+                        if (typeof v2 === 'object') {
+                            for (const [mid, mv] of Object.entries(v2)) {
+                                // k1 is the court key, k2 is the date, mid is the match id
+                                const copy = { 
+                                    id: mid, 
+                                    __dbPath: `matches/${k1}/${k2}/${mid}`, 
+                                    court: k1,
+                                    date: k2,
+                                    ...mv 
+                                }
+                                out.push(copy)
+                            }
+                        }
+                    }
                 }
             }
         }
         
         matches.value = out
+        console.log('HomePage loaded matches:', out.length, 'matches with __dbPath')
     } catch (error) {
         console.error('Failed to load matches:', error)
         matches.value = []
@@ -1085,6 +1257,76 @@ const navigateToRecommendedMatches = () => {
 
 const navigateToCourts = () => {
   router.push('/court-finder')
+}
+
+const navigateToLeaderboard = () => {
+  router.push('/leaderboard')
+}
+
+// Open match details function
+const openMatch = (match, event) => {
+  console.log('HomePage openMatch called with match:', match)
+  if (!match) return
+  
+  // If the click originated from an interactive element (button), don't navigate
+  try {
+    if (event && event.target && event.target.closest) {
+      const blocked = event.target.closest('button, a, .btn-join-recommendation, .btn-invite-recommendation')
+      if (blocked) return
+    }
+  } catch (e) {
+    // ignore and continue
+  }
+  
+  // Get the match ID
+  let id = match.id || match.key || match['.key'] || match._id || (match.__dbPath ? String(match.__dbPath).split('/').pop() : null)
+  
+  if (!id) {
+    console.warn('openMatch: could not find a DB id for match object', match)
+    return
+  }
+  
+  const strId = String(id)
+  
+  try {
+    // For HomePage, always navigate to PlayerRoom since users are viewing matches to join
+    // Include the __dbPath for proper match loading and referrer for back navigation
+    router.push({ 
+      name: 'PlayerRoom', 
+      params: { id: strId }, 
+      query: { 
+        path: match.__dbPath || '',
+        from: 'homepage'
+      } 
+    })
+  } catch (e) {
+    // Fallback to path-based navigation
+    const playerPath = `/match/${encodeURIComponent(strId)}/player`
+    router.push({ 
+      path: playerPath, 
+      query: { 
+        path: match.__dbPath || '',
+        from: 'homepage'
+      } 
+    })
+  }
+}
+
+// Invite functions
+const openInvite = (match) => {
+  if (!currentUser.value) {
+    // Could show a login prompt here
+    console.log('Must be logged in to send invites')
+    return
+  }
+  inviteMatch.value = match
+  showInviteModal.value = true
+}
+
+const onInvitesSent = (uids) => {
+  console.log('Invites sent to:', uids)
+  showInviteModal.value = false
+  // Could show a success message here
 }
 
 const getStarted = () => {
@@ -1856,6 +2098,7 @@ onUnmounted(() => {
     padding: 20px;
     transition: all 0.3s ease;
     backdrop-filter: blur(10px);
+    cursor: pointer;
 }
 
 .match-card:hover {
@@ -1976,6 +2219,30 @@ onUnmounted(() => {
 }
 
 .btn-join-recommendation i {
+    font-size: 12px;
+}
+
+.btn-invite-recommendation {
+    background: linear-gradient(135deg, #4a90e2 0%, #6bb3ff 100%);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-invite-recommendation:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+}
+
+.btn-invite-recommendation i {
     font-size: 12px;
 }
 

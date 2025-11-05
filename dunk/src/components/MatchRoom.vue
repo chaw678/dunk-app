@@ -554,7 +554,24 @@ async function onEndMatch() {
   } catch (e) { /* ignore persistence errors */ }
 }
 
-function goBack() { router.back() }
+function goBack() {
+  // Navigate back to the referring page based on query parameter
+  const referrer = route.query.from
+  
+  try {
+    if (referrer === 'homepage') {
+      router.push('/homepage')
+    } else if (referrer === 'matches') {
+      router.push('/matches')
+    } else {
+      // Fallback: navigate to matches with all tab
+      router.push({ path: '/matches', query: { tab: 'all' } })
+    }
+  } catch (e) {
+    // fallback to history back if push fails
+    try { router.back() } catch (err) { /* ignore */ }
+  }
+}
 
 onBeforeUnmount(() => {
   if (winsUnsub) {

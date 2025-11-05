@@ -60,7 +60,7 @@ const navigateToHomePage = () => {
   margin-left: calc(var(--sidebar-current-width, var(--sidebar-width)));
   background: #000;
   overflow-x: hidden;
-  padding-top: 112px; /* Add space for topbar */
+  padding-top: calc(var(--topbar-height) + 32px); /* Use CSS variable + margin */
 }
 
 .main-content.collapsed {
@@ -74,18 +74,17 @@ main {
 
 /* Topbar styling */
 .topbar {
-  
   position: fixed;
+  top: 0;
   left: calc(var(--sidebar-current-width, var(--sidebar-width)));
   right: 0;
-  height: 72px;
+  height: var(--topbar-height);
   display: flex;
   align-items: center;
-  z-index: 70;
+  z-index: 1000;
   padding: 0 32px;
-  background: linear-gradient(90deg, rgba(11, 11, 11, 0.9) 70%, rgba(0,0,0,0.4) 100%);
+  background: #0b0b0b;
   box-shadow: 0 2px 16px 0 rgba(12, 18, 28, 0.14);
-  backdrop-filter: blur(8px);
   transition: left 0.25s cubic-bezier(0.4,0,0.2,1);
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
@@ -163,7 +162,7 @@ main {
   /* Optional: reduce padding on mobile/tablet */
   .main-content {
     padding: 24px 16px;
-    padding-top: 96px;
+    padding-top: calc(var(--topbar-height) + 32px); /* Use CSS variable + margin */
   }
 }
 </style>

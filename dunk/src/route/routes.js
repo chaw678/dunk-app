@@ -15,7 +15,8 @@ import Profile from '../components/Profile.vue'
 const history = createWebHistory()
 
 const routes = [
-    { path: '/', component: MainMenu },
+    { path: '/', component: HomePage },
+    { path: '/mainmenu', component: MainMenu },
     { path: '/home', component: Home },
     { path: '/homepage', component: HomePage },
     { path: '/match/:id', component: MatchRoom, name: 'MatchRoom' },

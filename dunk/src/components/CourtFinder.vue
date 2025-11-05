@@ -49,37 +49,31 @@
 
       
 
-      <div class="card-section">
-        <div class="card-section-header">
-          <h2 class="section-title">Map</h2>
-          <button class="pin-btn" :title="currentUser ? 'Add a new court location' : 'Sign in to add courts'" @click="handlePinClick">
-            <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-              <circle cx="16" cy="16" r="12" fill="#ffa733" stroke="#333" stroke-width="2"/>
-              <rect x="13" y="8" width="6" height="11" rx="3" fill="#ff9500"/>
-              <circle cx="16" cy="23" r="2.6" fill="#fff" stroke="#ff9100" stroke-width="1"/>
-            </svg>
-          </button>
-        </div>
-        <p class="section-desc">Interactive map of basketball courts in Singapore.</p>
-        <div id="map" class="map-container"></div>
-  <!-- region filter inserted below the interactive map -->
-  <div class="region-filter" style="margin-top:24px;">
-          <button
-              v-for="region in regions"
-              :key="region"
-              :class="['region-btn', selectedRegions.includes(region) ? 'active' : '']"
-              @click="toggleRegion(region)"
-            >
-        {{ region.charAt(0).toUpperCase() + region.slice(1) }}
-        <span class="region-badge">({{ (regionCounts && regionCounts[region]) || 0 }})</span>
-          </button>
-  </div>
-        <!-- Court list below map: collapsed cards that expand to show matches for that court -->
-        <div class="court-list">
-          <div v-for="(court, idx) in visibleCourts" :key="court.id || court.name" class="court-card" :data-court-key="courtKey(court)" :data-court-index="idx">
-            <div class="court-card-row">
-              <div class="court-info">
-                <h3 class="court-name clickable-court-name" @click="zoomToCourtMarker(court)">
+        <div class="card-section">
+          <div class="card-section-header">
+            <h2 class="section-title">Map</h2>
+            <button class="pin-btn" :title="currentUser ? 'Add a new court location' : 'Sign in to add courts'"
+              @click="handlePinClick">
+              <img src="/src/assets/pin-png-24.png" alt="Add court pin" width="24" height="24" />
+            </button>
+          </div>
+          <p class="section-desc">Interactive map of basketball courts in Singapore. Place pin on map to add court.</p>
+          <div id="map" ref="mapContainer" class="map-container"></div>
+          <!-- region filter inserted below the interactive map -->
+          <div class="region-filter" style="margin-top:24px;">
+            <button v-for="region in regions" :key="region"
+              :class="['region-btn', selectedRegions.includes(region) ? 'active' : '']" @click="toggleRegion(region)">
+              {{ region.charAt(0).toUpperCase() + region.slice(1) }}
+              <span class="region-badge">({{ (regionCounts && regionCounts[region]) || 0 }})</span>
+            </button>
+          </div>
+          <!-- Court list below map: collapsed cards that expand to show matches for that court -->
+          <div class="court-list">
+            <div v-for="(court, idx) in visibleCourts" :key="court.id || court.name" class="court-card"
+              :data-court-key="courtKey(court)" :data-court-index="idx">
+              <div class="court-card-row">
+                <div class="court-info">
+<h3 class="court-name clickable-court-name" @click="zoomToCourtMarker(court)">
                   {{ court.name }}
                   <span v-if="hasOngoingMatches(court)" class="live-indicator">LIVE</span>
                 </h3>

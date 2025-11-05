@@ -145,12 +145,18 @@
       </div>
 
       <div class="avatars mb-3">
-        <div class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer">
-          <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
-            <img v-if="p && p.avatar" :src="p.avatar" class="avatar-img" />
-            <span v-else class="avatar-initial">{{ initials(p && (p.name || p)) }}</span>
-          </template>
-          <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra">+{{ displayedPlayers(match).length - maxAvatars }}</span>
+        <div class="players-section">
+          <div class="small text-muted mb-1">
+            <span v-if="displayedPlayers(match).length > 0">Players Joined:</span>
+            <span v-else>No players yet - be the first to join!</span>
+          </div>
+          <div v-if="displayedPlayers(match).length > 0" class="avatar-stack me-2" @click.stop.prevent="openPlayersModal(match)" style="cursor:pointer" :title="'Click to view all players'">
+            <template v-for="(p, i) in visiblePlayers(displayedPlayers(match))" :key="i">
+              <img v-if="p && (p.profilepicture || p.avatar)" :src="p.profilepicture || p.avatar" class="avatar-img" :title="(p.name || p || 'Player')" />
+              <span v-else class="avatar-initial" :title="(p && (p.name || p) || 'Player')">{{ initials(p && (p.name || p)) }}</span>
+            </template>
+            <span v-if="displayedPlayers(match).length > maxAvatars" class="avatar extra" :title="`+${displayedPlayers(match).length - maxAvatars} more players`">+{{ displayedPlayers(match).length - maxAvatars }}</span>
+          </div>
         </div>
       </div>
 
@@ -232,11 +238,12 @@
                                 <div class="mt-auto d-flex justify-content-between align-items-center">
                                     <div class="btn-group">
                                         <template v-if="isHost(match)">
-                                            <button type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <!-- Scheduled matches should have both invite and delete buttons -->
+                                            <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
                                             <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                         </template>
                                         <template v-else-if="isJoined(match)">
-                                            <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                            <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                                         </template>
                                         <template v-else>
@@ -456,12 +463,43 @@ async function openMatch(match) {
     return
   }
 
-  const strId = String(id)
-  try {
-    outer.push({ name: 'MatchRoom', params: { id: strId }, query: { path: match.__dbPath || '' } })
-  } catch (e) {
-    router.push({ path: `/match/${encodeURIComponent(strId)}`, query: { path: match.__dbPath || '' } })
-  }
+    const strId = String(id)
+    // If this match is live and the current user has joined but is not the host,
+    // route to the nested player view so host-only controls are hidden.
+    try {
+        // Use the router instance available in this component
+        if ((match.started || match._started) && isJoined(match) && !isHost(match)) {
+            router.push({ 
+                name: 'PlayerRoom', 
+                params: { id: strId }, 
+                query: { 
+                    path: match.__dbPath || '',
+                    from: 'matches'
+                } 
+            })
+        } else {
+            router.push({ 
+                name: 'MatchRoom', 
+                params: { id: strId }, 
+                query: { 
+                    path: match.__dbPath || '',
+                    from: 'matches'
+                } 
+            })
+        }
+    } catch (e) {
+        // Fallback to path-based navigation; include /player suffix for player view
+        const playerPath = (match.started || match._started) && isJoined(match) && !isHost(match)
+            ? `/match/${encodeURIComponent(strId)}/player`
+            : `/match/${encodeURIComponent(strId)}`
+        router.push({ 
+            path: playerPath, 
+            query: { 
+                path: match.__dbPath || '',
+                from: 'matches'
+            } 
+        })
+    }
 }
 
 // Google sign-in handler
@@ -688,6 +726,7 @@ async function acceptInvite(invitation) {
         const matchPath = invitation.matchPath
         if (!matchPath) {
             console.error('No match path in invitation')
+            alert('Invalid invitation - missing match path')
             return
         }
         
@@ -699,12 +738,25 @@ async function acceptInvite(invitation) {
             return
         }
         
+        // Check if already joined
+        if (matchData.joinedBy && matchData.joinedBy[currentUser.value.uid]) {
+            alert('You have already joined this match!')
+            await declineInvite(invitation)
+            return
+        }
+        
         // Add user to the match's joinedBy and playersMap
         await setChildData(`${matchPath}/joinedBy`, currentUser.value.uid, true)
         
+        // Use profile name if available, fallback to display name or email
+        const playerName = currentUserProfile.value?.name || 
+                          currentUser.value.displayName || 
+                          currentUser.value.email || 
+                          'Player'
+        
         const playerData = {
             uid: currentUser.value.uid,
-            name: currentUser.value.displayName || currentUser.value.email || 'Player',
+            name: playerName,
             avatar: currentUser.value.photoURL || '',
             joinedAt: Date.now()
         }
@@ -713,14 +765,17 @@ async function acceptInvite(invitation) {
         // Remove the invitation
         await deleteChildData(`users/${currentUser.value.uid}/invitations`, invitation.id)
         
-        // Reload invitations and matches
+        // Reload invitations and matches to reflect the change
         await loadInvitations()
         await loadMatches()
+        
+        // Automatically switch to the joined matches tab
+        selectedTab.value = 'joined'
         
         alert('You have joined the match!')
     } catch (err) {
         console.error('Failed to accept invitation', err)
-        alert('Failed to join match')
+        alert('Failed to join match. Please try again.')
     }
 }
 
@@ -1235,7 +1290,47 @@ onUnmounted(() => {
         try { invitesUnsub() } catch (e) {}
         invitesUnsub = null
     }
+    if (matchesUnsub) {
+        try { matchesUnsub() } catch (e) {}
+        matchesUnsub = null
+    }
+    if (usersUnsub) {
+        try { usersUnsub() } catch (e) {}
+        usersUnsub = null
+    }
 })
+
+// Watch for route changes to update selected tab and reload data if needed
+watch(() => route.query.tab, async (newTab) => {
+    if (newTab && newTab !== selectedTab.value) {
+        selectedTab.value = newTab
+        
+        // If switching to joined tab, reload matches to ensure fresh data
+        if (newTab === 'joined') {
+            console.log('Switching to joined tab, reloading matches...')
+            try {
+                await loadMatches()
+                console.log('Matches reloaded for joined tab')
+            } catch (e) {
+                console.warn('Failed to reload matches for joined tab:', e)
+            }
+        }
+    }
+}, { immediate: true })
+
+// Watch for route changes to reload matches when coming from other pages
+watch(() => route.path, async (newPath, oldPath) => {
+    // If navigating to matches page from elsewhere, reload matches data
+    if (newPath === '/matches' && oldPath && oldPath !== '/matches') {
+        console.log('Navigated to Matches page, reloading data...')
+        try {
+            await loadMatches()
+            console.log('Matches data reloaded successfully')
+        } catch (e) {
+            console.warn('Failed to reload matches on navigation:', e)
+        }
+    }
+}, { immediate: false })
 
 // Handler called when AddMatchModal emits 'created'
 async function onMatchCreated() {
