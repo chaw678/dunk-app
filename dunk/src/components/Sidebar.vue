@@ -252,11 +252,14 @@ function hideTooltip() {
   top: 0;
   height: 100vh;
   width: var(--sidebar-width);
-  z-index: 80;
+  /* Make sidebar sit above glass cards and ensure opaque background */
+  z-index: 220;
   display: flex;
   align-items: stretch;
   transition: width 0.3s ease;
-  background: var(--main-dark);
+  /* Match match-card background so sidebar feels cohesive with the matches UI */
+  background: linear-gradient(180deg,#0f1418 0%, #0d1114 100%);
+  background-color: #0f1418; /* solid fallback */
   border-right: 2px solid rgba(255, 255, 255, 0.07);
 }
 
@@ -267,7 +270,9 @@ function hideTooltip() {
 /* sidebar interior */
 .sidebar-inner {
   width: 100%;
-  background: var(--main-dark-gradient);
+  /* Match match-card background gradient inside the sidebar container too */
+  background: linear-gradient(180deg,#0f1418 0%, #0d1114 100%);
+  background-color: #0f1418;
   color: #e6eef8;
   display: flex;
   flex-direction: column;

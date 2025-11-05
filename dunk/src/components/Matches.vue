@@ -2188,8 +2188,15 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 
 .large-card {
     padding: 28px;
-    border:1px solid #22272e;
-    background-color: transparent;
+    border-radius: 14px;
+    /* glass effect: subtle translucent gradient + backdrop blur */
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.008));
+    -webkit-backdrop-filter: blur(8px) saturate(120%);
+    backdrop-filter: blur(8px) saturate(120%);
+    border: 1px solid rgba(255,255,255,0.04);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+    color: inherit;
+    margin-left: 150px;
 }
 
 .page-header {

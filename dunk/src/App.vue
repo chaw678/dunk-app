@@ -79,20 +79,22 @@ main {
 
 /* Topbar styling */
 .topbar {
-  
   position: fixed;
   left: calc(var(--sidebar-current-width, var(--sidebar-width)));
   right: 0;
   height: 72px;
   display: flex;
   align-items: center;
-  z-index: 70;
+  /* keep topbar above content but below sidebar when needed */
+  z-index: 210;
   padding: 0 32px;
-  background: linear-gradient(90deg, rgba(11, 11, 11, 0.9) 70%, rgba(0,0,0,0.4) 100%);
+  /* slightly translucent topbar that matches the dark theme but keeps some background visible */
+  background: linear-gradient(90deg, rgba(15,20,24,0.78) 0%, rgba(13,17,20,0.78) 100%);
   box-shadow: 0 2px 16px 0 rgba(12, 18, 28, 0.14);
-  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  backdrop-filter: blur(6px) saturate(120%);
   transition: left 0.25s cubic-bezier(0.4,0,0.2,1);
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 
 .topbar-inner {
