@@ -1446,10 +1446,28 @@ watch(animateBars, (v) => { if (v) animateCounts() })
         font-weight: 500;
         font-size: 1.1rem;
       }
-      .edit-profile-modal-content input, .edit-profile-modal-content select {
+      .edit-profile-modal-content input, 
+      .edit-profile-modal-content select, 
+      .edit-profile-modal-content textarea {
         background: #21242a;
         color: #FFD75C;
         border: 1px solid #31353A;
+      }
+      .edit-profile-modal-content input:focus,
+      .edit-profile-modal-content select:focus,
+      .edit-profile-modal-content textarea:focus {
+        background: #2a2d35;
+        color: #FFD75C;
+        border-color: #FFAD1D;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(255, 173, 29, 0.1);
+      }
+      .edit-profile-modal-content input::placeholder,
+      .edit-profile-modal-content textarea::placeholder {
+        color: rgba(255, 213, 92, 0.5);
+      }
+      .edit-profile-modal-content .form-text {
+        color: #9CA3AF;
       }
       .edit-profile-modal-content .btn-warning {
         background: #FFAD1D !important;

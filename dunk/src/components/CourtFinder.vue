@@ -82,7 +82,7 @@
               <div v-if="expandedCourts[courtKey(court)]" class="mini-matches">
                 <!-- outer header removed to avoid duplication with embedded Matches header -->
                 <div class="expanded-matches">
-                  <Matches :courtFilter="court.name" :embedded="true" />
+                  <Matches :courtFilter="court.name" :embedded="true" @close="toggleCourtExpand(court)" />
                 </div>
               </div>
             </div>
@@ -1616,19 +1616,37 @@ onMounted(() => {
 
 .page-bg {
   min-height: 100vh;
-  background: #000000;
+  position: relative;
+  overflow-x: hidden;
   display: flex;
   justify-content: center;
   align-items: flex-start;
   font-family: "Segoe UI", Arial, Helvetica, sans-serif;
   color: #e6eef8;
-  padding: 48px 8px 24px 8px;
+  padding: 48px 16px 24px 16px;
+}
+
+.page-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)),
+    url('../assets/matchBG.jpg') center / cover no-repeat;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.page-bg > * {
+  position: relative;
+  z-index: 1;
 }
 
 .content-wrapper {
   width: 100%;
-  max-width: 1200px;
-  padding: 0;
+  max-width: 1400px;
+  padding: 0 16px;
+  box-sizing: border-box;
 }
 
 /* Ensure the content wrapper stays centered regardless of sidebar state */
@@ -1637,15 +1655,24 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
+/* Adjust positioning when sidebar is collapsed - move right to center */
+.collapsed .content-wrapper {
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
 .card,
 .main-card {
-  background: #20242b;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.008));
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  backdrop-filter: blur(8px) saturate(120%);
+  border: 1px solid rgba(255,255,255,0.04);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
   border-radius: 14px;
-  border: 1.5px solid rgba(60, 66, 82, 0.47);
-  box-shadow: 0 2px 8px rgba(20, 20, 20, 0.1);
-  padding: 36px 40px;
+  padding: 32px 40px;
   margin-bottom: 30px;
   position: relative;
+  box-sizing: border-box;
 }
 
 /* Keep the card centered in its container even when global layout variables change */
@@ -1658,7 +1685,7 @@ onMounted(() => {
   align-items: center;
   margin-bottom: 14px;
   padding-bottom: 14px;
-  border-bottom: 1px solid rgba(120, 130, 140, 0.14);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
 .card-title {
@@ -1676,17 +1703,18 @@ onMounted(() => {
   font-size: 1rem;
   padding: 11px 22px;
   border: none;
-  border-radius: 7px;
+  border-radius: 8px;
   margin-left: 16px;
   cursor: pointer;
-  box-shadow: 0 2px 14px rgba(255, 167, 51, 0.14);
-  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(255, 167, 51, 0.3);
+  transition: all 0.2s ease;
 }
 
 .add-court-btn:not(:disabled):hover,
 .add-court-btn:not(:disabled):focus {
   background: #ffb751;
-  box-shadow: 0 4px 18px rgba(255, 183, 81, 0.32);
+  box-shadow: 0 6px 20px rgba(255, 183, 81, 0.4);
+  transform: translateY(-2px);
 }
 
 .add-court-btn:disabled {
@@ -1696,7 +1724,7 @@ onMounted(() => {
 
 .card-desc {
   font-size: 1.16rem;
-  color: #a7adba;
+  color: #cbd6df;
   margin: 18px 0 20px 0;
   font-weight: 500;
 }
@@ -1705,29 +1733,28 @@ onMounted(() => {
   flex: 1;
   padding: 12px 16px;
   border-radius: 10px 0 0 10px;
-  /* rounded left corners */
-  border: 1.5px solid #3b4252;
+  border: 1px solid rgba(255,255,255,0.08);
   border-right: none;
-  /* remove right border for seamless button */
-  background: #22262d;
+  background: rgba(255,255,255,0.03);
   color: #e6eef8;
   font-size: 1.08rem;
-  box-shadow: 0 1px 3px rgba(80, 80, 100, 0.07);
-  transition: border-color 0.2s;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  transition: all 0.2s;
   outline: none;
   box-sizing: border-box;
   height: 44px;
 }
 
 .search-input::placeholder {
-  color: #7e8899;
-  opacity: 0.72;
+  color: rgba(255,255,255,0.4);
+  opacity: 1;
 }
 
 .search-input:focus {
   outline: none;
   border-color: #ffa733;
-  background: #262b33;
+  background: rgba(255,255,255,0.05);
+  box-shadow: 0 0 0 3px rgba(255, 173, 29, 0.1);
 }
 
 /* Layout wrapper for input + button so they align like the Add Court button */
@@ -1746,24 +1773,26 @@ onMounted(() => {
   font-weight: 700;
   font-size: 1rem;
   padding: 0 18px;
-  border: 1.5px solid #3b4252;
-  border-left: none;
+  border: none;
   border-radius: 0 10px 10px 0;
   cursor: pointer;
-  box-shadow: 0 2px 14px rgba(255, 167, 51, 0.14);
+  box-shadow: 0 4px 12px rgba(255, 167, 51, 0.3);
   transition: all 0.18s ease;
   box-sizing: border-box;
   height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  /* overlap the input by the border width so there's no visible seam */
-  margin-left: -1.5px;
+  margin-left: -1px;
   margin-top: -12px;
   z-index: 2;
 }
 
-.search-btn:hover { background: #ffb751; box-shadow: 0 4px 18px rgba(255,183,81,0.28); }
+.search-btn:hover { 
+  background: #ffb751; 
+  box-shadow: 0 6px 20px rgba(255,183,81,0.4);
+  transform: translateY(-1px);
+}
 
 .search-btn:disabled { opacity: 0.6; cursor: not-allowed }
 
@@ -1870,9 +1899,12 @@ onMounted(() => {
 
 /* Selected Court Card */
 .court-card {
-  background-color: #232830;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.23);
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.008));
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  backdrop-filter: blur(8px) saturate(120%);
+  border: 1px solid rgba(255,255,255,0.04);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+  border-radius: 12px;
   color: #dde3ea;
   font-weight: 600;
   padding: 22px 32px;
@@ -1880,6 +1912,12 @@ onMounted(() => {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.court-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
 .court-name {

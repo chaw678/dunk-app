@@ -39,8 +39,11 @@
             <!-- Embedded compact header when rendered inside CourtFinder -->
             <div v-if="embedded" class="embedded-header">
                 <div class="embedded-title">Matches at {{ courtFilter || 'this court' }}</div>
-                <div>
+                <div class="embedded-header-actions">
                     <button class="btn-create-match small" :title="currentUser ? 'Create a match' : 'Sign in to create matches'" @click="handleCreateMatch"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
+                    <button class="embedded-close-btn" @click="$emit('close')" title="Close matches view">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
                 </div>
             </div>
 
@@ -111,7 +114,7 @@
                     <div class="card-body">
                                                 <DunkLogo />
                         <p class="lead mb-2">{{ emptyMessage }}</p>
-                        <p class="text-muted small">Try switching tabs or create a match for this court.</p>
+                        <p class="empty-subtitle">Try switching tabs or create a match for this court.</p>
                     </div>
                 </div>
             </div>
@@ -322,22 +325,14 @@
 
                                 <div class="mt-auto">
                                     <!-- Action buttons row -->
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div class="btn-group">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="d-flex flex-column align-items-start">
                                             <template v-if="isHost(match)">
-                                                <!-- Past match: no Invite/Leave actions -->
-                                                <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                                <button type="button" class="btn btn-danger btn-sm d-flex align-items-center mb-2" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                             </template>
-                                            <template v-else-if="isJoined(match)">
-                                                <!-- Past match: no Invite/Leave actions for joined players -->
-                                            </template>
-                                            <!-- Past match: hide Join button for non-participants -->
+                                            <button type="button" class="btn summary-btn btn-sm d-flex align-items-center" @click.prevent.stop="openMatchSummary(match)"><i class="bi bi-list-check me-2"></i>Match Summary</button>
                                         </div>
                                         <div></div>
-                                    </div>
-                                    <!-- Match Summary button row - shown for all past matches -->
-                                    <div class="mt-2">
-                                        <button type="button" class="btn summary-btn btn-sm d-flex align-items-center" @click.prevent.stop="openMatchSummary(match)"><i class="bi bi-list-check me-2"></i>Match Summary</button>
                                     </div>
                                 </div>
                             </div>
@@ -377,6 +372,11 @@
             :initialProfile="profileModalInitial" 
             @close="closeProfileModal" 
         />
+        <PopupMessage 
+            v-model="showAlertPopup"
+            :message="alertMessage"
+            :type="alertType"
+        />
     </Teleport>
     </div>
 </template>
@@ -403,10 +403,22 @@ import EndMatchSummary from './EndMatchSummary.vue'
 import { seededAvatar, avatarForUser } from '../utils/avatar.js'
 import FinalResultsModal from './FinalResultsModal.vue'
 import ProfileModal from './ProfileModal.vue'
+import PopupMessage from './PopupMessage.vue'
 
 const showPopup = ref(false)
 const isSigningIn = ref(false)
 const auth = getAuth()
+
+// Alert popup state
+const showAlertPopup = ref(false)
+const alertMessage = ref('')
+const alertType = ref('error')
+
+function showAlert(message, type = 'error') {
+    alertMessage.value = message
+    alertType.value = type
+    showAlertPopup.value = true
+}
 
 const showFinalResultsModal = ref(false)
 const finalResultsMatchPath = ref('')
@@ -1013,7 +1025,7 @@ async function acceptInvite(invitation) {
         
         if (!matchPath) {
             console.error('No match path in invitation and cannot construct one:', invitation)
-            alert('Cannot join this match - invitation data is incomplete')
+            showAlert('Cannot join this match - invitation data is incomplete')
             await declineInvite(invitation)
             return
         }
@@ -1021,7 +1033,7 @@ async function acceptInvite(invitation) {
         // Get the match data
         const matchData = await getDataFromFirebase(matchPath)
         if (!matchData) {
-            alert('Match no longer exists')
+            showAlert('Match no longer exists')
             await declineInvite(invitation)
             return
         }
@@ -1044,10 +1056,10 @@ async function acceptInvite(invitation) {
         await loadInvitations()
         await loadMatches()
         
-        alert('You have joined the match!')
+        showAlert('You have joined the match!', 'success')
     } catch (err) {
         console.error('Failed to accept invitation', err)
-        alert('Failed to join match')
+        showAlert('Failed to join match')
     }
 }
 
@@ -2240,9 +2252,9 @@ function joinDisabledReason(match) {
 }
 
 async function joinMatch(match) {
-    if (!currentUser.value) { alert('Please sign in to join'); return }
+    if (!currentUser.value) { showAlert('Please sign in to join'); return }
     const disabled = joinDisabledReason(match)
-    if (disabled) { alert(disabled); return }
+    if (disabled) { showAlert(disabled); return }
     const uid = currentUser.value.uid
     match.joinedBy = match.joinedBy || {}
     if (match.joinedBy[uid]) return // already joined
@@ -2259,15 +2271,15 @@ async function joinMatch(match) {
             await setChildData(`${path}/${id}/playersMap`, uid, displayName)
         } catch (e) {
             console.error('Failed to join match', e)
-            alert('Failed to join — try again')
+            showAlert('Failed to join — try again')
         }
     }
 }
 
 async function leaveMatch(match) {
-    if (!currentUser.value) { alert('Please sign in'); return }
-    if (isHost(match)) { alert('You are the host of this match and cannot leave it. You may delete it instead.'); return }
-    if (isPast(match)) { alert('This match is already over — you cannot leave past matches.'); return }
+    if (!currentUser.value) { showAlert('Please sign in'); return }
+    if (isHost(match)) { showAlert('You are the host of this match and cannot leave it. You may delete it instead.'); return }
+    if (isPast(match)) { showAlert('This match is already over — you cannot leave past matches.'); return }
     const uid = currentUser.value.uid
     match.joinedBy = match.joinedBy || {}
     if (!match.joinedBy[uid]) return
@@ -2284,7 +2296,7 @@ async function leaveMatch(match) {
             await deleteChildData(`${path}/${id}/playersMap`, uid)
         } catch (e) {
             console.error('Failed to leave match', e)
-            alert('Failed to leave — try again')
+            showAlert('Failed to leave — try again')
         }
     }
 }
@@ -2297,8 +2309,8 @@ function isJoined(match) {
 }
 
 async function deleteMatch(match) {
-    if (!currentUser.value) { alert('Please sign in'); return }
-    if (!isHost(match)) { alert('Only the host may delete this match'); return }
+    if (!currentUser.value) { showAlert('Please sign in'); return }
+    if (!isHost(match)) { showAlert('Only the host may delete this match'); return }
     // show themed confirm modal
     openConfirm('delete', match)
 }
@@ -2319,13 +2331,13 @@ async function deleteMatchConfirmed(match) {
         matches.value = matches.value.filter(m => m.id !== match.id)
     } catch (e) {
         console.error('Failed to delete match', e)
-        alert('Failed to delete — try again')
+        showAlert('Failed to delete — try again')
     }
 }
 
 async function startMatch(match) {
-    if (!currentUser.value) { alert('Please sign in'); return }
-    if (!isHost(match)) { alert('Only the host may start this match'); return }
+    if (!currentUser.value) { showAlert('Please sign in'); return }
+    if (!isHost(match)) { showAlert('Only the host may start this match'); return }
     openConfirm('start', match)
 }
 
@@ -2345,7 +2357,7 @@ async function startMatchConfirmed(match) {
             try { router.push({ name: 'MatchRoom', params: { id: match.id }, query }) } catch(e) { router.push({ path: `/match/${match.id}`, query }) }
         } catch (e) {
             console.error('Failed to set started flag', e)
-            alert('Failed to start match — try again')
+            showAlert('Failed to start match — try again')
             match._started = false
         }
     } else {
@@ -2355,8 +2367,8 @@ async function startMatchConfirmed(match) {
 }
 
 async function endMatch(match) {
-    if (!currentUser.value) { alert('Please sign in'); return }
-    if (!isHost(match)) { alert('Only the host may end this match'); return }
+    if (!currentUser.value) { showAlert('Please sign in'); return }
+    if (!isHost(match)) { showAlert('Only the host may end this match'); return }
     openConfirm('end', match)
 }
 
@@ -2376,7 +2388,7 @@ async function endMatchConfirmed(match) {
             await setChildData(`${path}/${id}`, 'endedAt', new Date().toISOString())
         } catch (e) {
             console.error('Failed to end match', e)
-            alert('Failed to end match — try again')
+            showAlert('Failed to end match — try again')
             // if the write failed, we may want to revert optimistic change
             try { match.started = true } catch(_){ }
         }
@@ -2401,7 +2413,7 @@ async function endMatchConfirmed(match) {
 
 function playMatch(match) {
     // only allowed when started
-    if (!(match.started || match._started)) { alert('Match has not been started by the host yet'); return }
+    if (!(match.started || match._started)) { showAlert('Match has not been started by the host yet'); return }
     if (!currentUser.value) { showPopup.value = true; return }
     // mark this match as playing in local transient state so the UI updates (card turns primary, Play button hidden)
     const id = String(match.id || match.key || match._id || (match.__dbPath ? String(match.__dbPath).split('/').pop() : ''))
@@ -2529,6 +2541,17 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     .page-bg { padding-left: 20px; padding-right: 20px; }
 }
 
+/* When layout is wide (including sidebar collapsed), center the main card horizontally */
+@media (min-width: 900px) {
+    .page-bg {
+        display: flex;
+        justify-content: center;
+    }
+    .page-bg > .large-card {
+        width: 100%;
+    }
+}
+
 .large-card {
     padding: 28px;
     border-radius: 14px;
@@ -2549,7 +2572,12 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 /* Adjust positioning based on parent container's collapsed state */
 /* App.vue already applies the correct left margin when the sidebar collapses.
    Avoid adding any extra offset here so the card remains centered. */
-.collapsed .large-card { margin-left: 0; }
+.collapsed .large-card { margin-left: -5px; margin-right: -35px; }
+
+/* Provide a little extra left gutter when the sidebar is collapsed so the card visually centers */
+@media (min-width: 900px) {
+        .collapsed .page-bg { padding-left: 0px; padding-right: 25px; }
+}
 
 .page-header {
     display: flex;
@@ -2575,8 +2603,26 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 }
 .btn-create-match .icon-circle { background: rgba(0,0,0,0.08); padding: 6px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center }
 
-.tabs-pill { display: inline-flex; gap: 0; background: rgba(255,255,255,0.02); padding: 6px; border-radius: 10px }
-.tab-pill { background: transparent; border: none; color: #9fb0bf; padding: 10px 18px; border-radius: 10px; cursor: pointer }
+/* Small-screen: stack header and make Create Match button full-width so it doesn't overlap */
+@media (max-width: 700px) {
+    .page-header.matches-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    .page-header.matches-header > div:last-child {
+        width: 100%;
+    }
+    .page-header.matches-header .btn-create-match {
+        width: 100%;
+        justify-content: center;
+    }
+    .matches-title { font-size: 36px; }
+    .matches-desc { font-size: 16px; }
+}
+
+.tabs-pill { display: inline-flex; gap: 6px; background: rgba(255,255,255,0.02); padding: 6px; border-radius: 10px; flex-wrap: wrap }
+.tab-pill { background: transparent; border: none; color: #9fb0bf; padding: 10px 18px; border-radius: 10px; cursor: pointer; white-space: nowrap; flex: 0 0 auto }
 .tab-pill.active { background: #0b1220; color: #fff }
 
 .tabs {
@@ -2816,6 +2862,25 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     }
 }
 
+/* Responsive behavior for tabs: prevent label wrapping and allow horizontal scroll on narrow screens */
+@media (max-width: 900px) {
+    .tabs { overflow: visible; }
+    .tabs-pill {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        max-width: 100%;
+        scroll-snap-type: x mandatory;
+        gap: 6px;
+    }
+    .tab-pill { scroll-snap-align: start; }
+}
+
+@media (max-width: 600px) {
+    .tab-pill { padding: 8px 12px; font-size: 0.95rem; }
+}
+
 /* Ensure bootstrap column wrappers become flex containers so children stretch to full height/width */
 .matches-grid [class*="col-"] {
     display: flex;
@@ -2870,6 +2935,39 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     border-bottom: 1px solid rgba(255,255,255,0.02);
 }
 .embedded-title { font-size: 1.25rem; font-weight: 800; color: #fff }
+
+.embedded-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.embedded-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: rgba(255,154,60,0.12);
+    border: 1px solid rgba(255,154,60,0.3);
+    border-radius: 8px;
+    color: #ffa733;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.embedded-close-btn:hover {
+    background: rgba(255,154,60,0.2);
+    border-color: #ffa733;
+    transform: scale(1.05);
+}
+
+.embedded-close-btn i {
+    font-weight: 700;
+}
+
 .btn-create-match.small { padding: 8px 12px; font-size: 0.95rem }
 .embedded-empty-state {
     display: flex;
@@ -2906,8 +3004,13 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     color: #ff9a3c;
     font-size: 26px;
 }
-.embedded-empty-state p { color: #9fb0bf; margin: 0 }
+.embedded-empty-state p { color: #e8edf2; margin: 0 }
 .embedded-empty-state p.lead { color: #ffffff; font-weight: 700; font-size: 1.05rem }
+.embedded-empty-state .empty-subtitle { 
+    color: #5b636b !important; 
+    margin: 0; 
+    font-size: 0.9rem;
+}
 
 /* Popup styles */
 .success-overlay {
@@ -3003,7 +3106,7 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 }
 
 .invitations-section {
-    padding: 24px;
+    padding: 16px;
     background: rgba(255, 154, 60, 0.05);
     border-radius: 12px;
     border: 1px solid rgba(255, 154, 60, 0.15);
@@ -3011,14 +3114,15 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 
 .invitations-section .section-heading {
     margin-top: 0;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     text-align: center;
+    font-size: 1.25rem;
 }
 
 .invitations-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
     width: 100%;
     align-items: stretch;
 }
@@ -3026,6 +3130,7 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 .invitation-card-wrapper {
     display: flex;
     justify-content: center;
+    width: 100%;
 }
 
 .invitation-card {
@@ -3034,14 +3139,17 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     border-radius: 10px;
     transition: transform 0.2s, box-shadow 0.2s;
     width: 100%;
-    max-width: 400px;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    min-width: 0; /* Allow card to shrink below content width */
 }
 
 .invitation-card .card-body {
-    padding: 20px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
 }
 
 .invitation-card:hover {
@@ -3052,9 +3160,14 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 .invitation-title {
     color: #ff9a3c;
     font-weight: 700;
-    font-size: 1.15rem;
+    font-size: 1.1rem;
     text-align: center;
     margin: 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
+    line-height: 1.3;
 }
 
 .invitation-details {
@@ -3066,10 +3179,21 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 .invitation-detail-item {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 8px;
     color: #9fb0bf;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+    min-width: 0; /* Allow items to shrink */
+}
+
+.invitation-detail-item span {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
+    min-width: 0; /* Allow text to shrink */
+    flex: 1;
 }
 
 .invitation-detail-item i {
@@ -3095,14 +3219,115 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 
 .invitation-actions {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     margin-top: 4px;
+    width: 100%;
 }
 
 .invitation-actions button {
     flex: 1;
-    padding: 10px 16px;
+    padding: 10px 12px;
     font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    min-width: 0; /* Allow buttons to shrink */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Responsive tweaks for invitation cards on narrow screens */
+@media (max-width: 600px) {
+    .invitations-section {
+        padding: 12px;
+    }
+    
+    .invitation-card .card-body {
+        padding: 14px;
+    }
+    
+    .invitation-title { 
+        font-size: 0.95rem;
+    }
+    
+    .invitation-detail-item { 
+        font-size: 0.8rem;
+    }
+    
+    .invitation-detail-item i {
+        font-size: 0.9rem;
+    }
+    
+    .invitation-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .invitation-actions button { 
+        width: 100%;
+        padding: 10px;
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .invitations-section { 
+        padding: 10px; 
+    }
+    
+    .invitation-card .card-body { 
+        padding: 12px; 
+    }
+    
+    .invitation-title { 
+        font-size: 0.9rem;
+        line-height: 1.2;
+    }
+    
+    .invitation-detail-item { 
+        font-size: 0.75rem; 
+        gap: 6px; 
+    }
+    
+    .invitation-detail-item i {
+        font-size: 0.85rem;
+    }
+    
+    .invitation-actions { 
+        gap: 8px; 
+    }
+    
+    .invitation-actions button { 
+        padding: 9px 12px; 
+        font-size: 0.8rem; 
+    }
+}
+
+@media (max-width: 360px) {
+    .invitations-section { 
+        padding: 8px; 
+    }
+    
+    .invitation-card .card-body { 
+        padding: 10px; 
+    }
+    
+    .invitation-title { 
+        font-size: 0.85rem;
+    }
+    
+    .invitation-detail-item { 
+        font-size: 0.7rem;
+        gap: 4px;
+    }
+    
+    .invitation-detail-item i {
+        font-size: 0.8rem;
+    }
+    
+    .invitation-actions button { 
+        padding: 8px 10px; 
+        font-size: 0.75rem; 
+    }
 }
 
 /* Responsive breakpoints: keep auto-fit behavior; no hard-coded column count */

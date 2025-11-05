@@ -52,20 +52,26 @@ const icon = computed(() => (props.destructive ? '!' : '✓'))
 </script>
 
 <style scoped>
-.confirm-overlay { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.6); z-index:1200 }
-.confirm-panel { background: #071021; padding: 36px 44px; border-radius: 12px; width: 720px; max-width: 94%; box-shadow: 0 12px 40px rgba(2,6,23,0.7); text-align: center; color: #fff }
+.confirm-overlay { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(24, 28, 35, 0.9); z-index:1200 }
+.confirm-panel { background: linear-gradient(180deg, #0f1418 0%, #0c0f12 100%); padding: 36px 44px; border-radius: 12px; width: 720px; max-width: 94%; box-shadow: 0 12px 40px rgba(0,0,0,0.6); text-align: center; color: #fff; border: 1px solid rgba(255,154,60,0.15) }
 .confirm-icon { width:86px; height:86px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; margin: 0 auto 12px; font-weight:700; font-size:36px }
-.confirm-icon .check { background: transparent; color: #10b981; width:86px; height:86px; display:flex; align-items:center; justify-content:center; border: 4px solid rgba(16,185,129,0.12); border-radius:50%; font-size:42px }
-.confirm-icon.destructive .warn { background: transparent; color: #f97373; width:86px; height:86px; display:flex; align-items:center; justify-content:center; border: 4px solid rgba(249,115,115,0.12); border-radius:50%; font-size:42px }
-.confirm-title { font-size:28px; margin: 8px 0; font-weight:700 }
-.confirm-sub { color: rgba(255,255,255,0.75); margin: 6px 0 18px; font-size:16px }
+.confirm-icon .check { background: rgba(255,154,60,0.12); color: #ff9a3c; width:86px; height:86px; display:flex; align-items:center; justify-content:center; border: 3px solid rgba(255,154,60,0.3); border-radius:50%; font-size:42px }
+.confirm-icon.destructive .warn { background: rgba(239,68,68,0.12); color: #ef4444; width:86px; height:86px; display:flex; align-items:center; justify-content:center; border: 3px solid rgba(239,68,68,0.3); border-radius:50%; font-size:42px }
+.confirm-title { font-size:28px; margin: 8px 0; font-weight:700; color: #ffffff }
+.confirm-sub { color: #cbd6df; margin: 6px 0 18px; font-size:16px }
 .confirm-actions { display:flex; gap:16px; justify-content:center; margin-top:16px }
-.btn-cancel { background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.06); padding: 12px 22px; border-radius:10px; min-width:120px }
-.btn-confirm { background: #10b981; color:#062018; border: none; padding: 12px 22px; border-radius:10px; min-width:120px; font-weight:600 }
+.btn-cancel { background: rgba(255,255,255,0.05); color: #cbd6df; border: 1px solid rgba(255,255,255,0.1); padding: 12px 22px; border-radius:10px; min-width:120px; font-weight:600; cursor: pointer; transition: all 0.2s }
+.btn-cancel:hover { background: rgba(255,255,255,0.08); color: #fff }
+.btn-confirm { background: #ff9a3c; color:#0b0f12; border: none; padding: 12px 22px; border-radius:10px; min-width:120px; font-weight:700; cursor: pointer; transition: all 0.2s }
+.btn-confirm:hover { background: #ffb366; transform: translateY(-1px) }
 .btn-confirm.destructive { background: #ef4444; color: #fff }
+.btn-confirm.destructive:hover { background: #f87171 }
 @media (max-width:640px) {
-  .confirm-panel { padding: 22px; width: 92% }
+  .confirm-panel { padding: 28px 20px; width: 92% }
   .confirm-icon, .confirm-icon .check, .confirm-icon .warn { width:68px; height:68px; font-size:32px }
-  .confirm-title { font-size:20px }
+  .confirm-title { font-size:22px }
+  .confirm-sub { font-size: 14px }
+  .confirm-actions { flex-direction: column; gap: 10px }
+  .btn-cancel, .btn-confirm { width: 100%; min-width: auto }
 }
 </style>

@@ -334,6 +334,14 @@
   <EndMatchSummary v-if="showStats" :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" :matchData="matchData" @close="showStats=false" />
   <EndMatchSummary v-if="showSummary" :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" :matchData="matchData" compact @close="showSummary=false" />
   <ProfileModal v-if="showProfileModal" :uid="profileModalUid" :initialProfile="profileModalInitial" @close="closeProfileModal" />
+  <ConfirmModal 
+    v-model="showEndConfirm"
+    title="End match"
+    message="End the match now?"
+    confirmLabel="OK"
+    cancelLabel="Cancel"
+    @confirm="confirmEndMatch"
+  />
   <!-- <StatisticsModal v-if="showStats" :stats="computedStats" @close="showStats=false" /> -->
   <!-- nested child route outlet for player-only view -->
   <router-view />
@@ -353,6 +361,7 @@ import { onUserStateChanged } from '../firebase/auth'
 import { getDataFromFirebase, setChildData, onDataChange } from '../firebase/firebase'
 import { avatarForUser } from '../utils/avatar.js'
 import ProfileModal from './ProfileModal.vue'
+import ConfirmModal from './ConfirmModal.vue'
 import EndMatchSummary from './EndMatchSummary.vue'
 // RoundsHistory inlined below; no external import
 
@@ -401,6 +410,10 @@ const profileModalUid = ref(null)
 // the modal view matches the pill the user clicked (avoids mismatch while
 // the modal subscribes to the users/<uid> node).
 const profileModalInitial = ref(null)
+
+// Confirm modal state for end match
+const showEndConfirm = ref(false)
+
 function openProfileModal(target) {
   if (!target) return
   // allow either a uid string or an enriched player object
@@ -1397,9 +1410,16 @@ function selectWinner(team) {
     alert(`Team ${team} wins! (implement real logic here)`)
   }
 }
-async function onEndMatch() {
-  // optionally confirm ending match
-  if (!confirm('End the match now?')) return
+
+function onEndMatch() {
+  // Show confirm modal instead of browser confirm
+  showEndConfirm.value = true
+}
+
+async function confirmEndMatch() {
+  // Close the modal
+  showEndConfirm.value = false
+  
   // persist match end state and ensure roundActive is false
   try {
     const dbPath = await resolveMatchDbPath()
