@@ -10,9 +10,11 @@
           type="text"
           ref="autocompleteInput"
           v-model="courtAddress"
-          placeholder="Search for court address"
+          placeholder="Start typing an address in Singapore..."
           class="search-input"
           autocomplete="off"
+          @focus="onAddressFocus"
+          @input="onAddressInput"
         />
 
         <label>Court Name</label>
@@ -57,6 +59,7 @@ const autocompleteInput = ref(null)
 const courtAddress = ref('')
 const selectedLat = ref(null)
 const selectedLon = ref(null)
+const autocompleteReady = ref(false)
 
 
 const regionKeywords = {
@@ -106,47 +109,6 @@ function matchRegion(address) {
 
 
 
-onMounted(() => {
-  // Google Autocomplete for user-typed address
-  if (autocompleteInput.value) {
-    const autocomplete = new google.maps.places.Autocomplete(autocompleteInput.value, {
-      types: ['geocode'],
-      componentRestrictions: { country: 'sg' }
-    })
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace()
-      if (!place.geometry) return
-      courtAddress.value = place.formatted_address || ''
-      region.value = matchRegion(courtAddress.value)
-      if (place.geometry && place.geometry.location) {
-        selectedLat.value = place.geometry.location.lat()
-        selectedLon.value = place.geometry.location.lng()
-        // if parent passed coordinates object, update it as well
-        if (props.coordinates) {
-          props.coordinates.lat = selectedLat.value
-          props.coordinates.lon = selectedLon.value
-        }
-      }
-    })
-  }
-
-  // Reverse-geocode only if coordinates exist
-  if (props.coordinates?.lat && props.coordinates?.lon) {
-    const geocoder = new google.maps.Geocoder()
-    const latlng = { lat: props.coordinates.lat, lng: props.coordinates.lon }
-    geocoder.geocode({ location: latlng }, (results, status) => {
-      if (status === 'OK' && results[0]) {
-        courtAddress.value = results[0].formatted_address
-        region.value = matchRegion(courtAddress.value)
-      } else {
-        courtAddress.value = 'Unknown address'
-        region.value = ''
-      }
-    })
-  }
-})
-
-
 const props = defineProps({
   coordinates: Object
 })
@@ -155,71 +117,159 @@ const emit = defineEmits(['close', 'refreshCourts'])
 const courtName = ref('')
 const isIndoor = ref(false)
 const region = ref('')
-const autocompleteSearchInput = ref(null)
 
-// Close modal function remains
+// Close modal function
 const closeModal = () => emit('close')
 
-// Reverse-geocode and Google Autocomplete setup
-onMounted(() => {
-  // Google Autocomplete
-  if (autocompleteSearchInput.value) {
-    const autocomplete = new google.maps.places.Autocomplete(autocompleteSearchInput.value, {
-      types: ['establishment','geocode'],
-      componentRestrictions: { country: 'sg' }
-    })
+const onAddressFocus = () => {
+  console.log('📍 Address input focused')
+  if (!autocompleteReady.value) {
+    console.warn('⚠️ Autocomplete not ready yet')
+  }
+}
 
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace()
-      if (place.formatted_address) {
-          courtAddress.value = place.formatted_address
-          // Optionally set coordinates based on place
-          if (place.geometry && place.geometry.location) {
-            selectedLat.value = place.geometry.location.lat()
-            selectedLon.value = place.geometry.location.lng()
-            if (!props.coordinates) {
-              // no parent coordinates object; keep selectedLat/selectedLon locally
-            } else {
-              props.coordinates.lat = selectedLat.value
-              props.coordinates.lon = selectedLon.value
-            }
+const onAddressInput = (e) => {
+  console.log('⌨️ User typing:', e.target.value)
+  // Check if pac-container exists
+  setTimeout(() => {
+    const pacContainer = document.querySelector('.pac-container')
+    if (pacContainer) {
+      console.log('✅ .pac-container found in DOM')
+      console.log('📏 Container display:', window.getComputedStyle(pacContainer).display)
+      console.log('📏 Container visibility:', window.getComputedStyle(pacContainer).visibility)
+      console.log('📏 Container z-index:', window.getComputedStyle(pacContainer).zIndex)
+      console.log('📏 Container position:', window.getComputedStyle(pacContainer).position)
+      console.log('📏 Container top:', window.getComputedStyle(pacContainer).top)
+      console.log('📏 Container left:', window.getComputedStyle(pacContainer).left)
+    } else {
+      console.warn('❌ .pac-container NOT found in DOM')
+    }
+  }, 500)
+}
+
+// Initialize Google Places Autocomplete and reverse geocoding
+onMounted(() => {
+  console.log('🔍 AddCourtModal2 mounted, initializing autocomplete...')
+  console.log('📍 Input element ref:', autocompleteInput.value)
+  console.log('🌍 Google Maps available?', !!window.google?.maps)
+  
+  // Wait for Google Maps API to load
+  const initAutocomplete = () => {
+    console.log('🚀 Attempting to initialize autocomplete...')
+    
+    if (!autocompleteInput.value) {
+      console.error('❌ Input element not found!')
+      return
+    }
+    
+    if (!window.google?.maps?.places) {
+      console.error('❌ Google Maps Places API not loaded!')
+      return
+    }
+
+    try {
+      console.log('✅ Creating Google Places Autocomplete...')
+      
+      // Create autocomplete with minimal options first
+      const autocomplete = new window.google.maps.places.Autocomplete(autocompleteInput.value, {
+        componentRestrictions: { country: 'sg' },
+        fields: ['formatted_address', 'geometry', 'name', 'address_components']
+      })
+
+      // Set bounds to Singapore for better results
+      const singaporeBounds = new window.google.maps.LatLngBounds(
+        new window.google.maps.LatLng(1.1304, 103.6920), // Southwest
+        new window.google.maps.LatLng(1.4504, 104.0120)  // Northeast
+      )
+      autocomplete.setBounds(singaporeBounds)
+      
+      // Enable strict bounds to force results within Singapore
+      autocomplete.setOptions({ strictBounds: true })
+
+      console.log('✅ Autocomplete created successfully!')
+      autocompleteReady.value = true
+
+      autocomplete.addListener('place_changed', () => {
+        console.log('📍 Place changed event triggered')
+        const place = autocomplete.getPlace()
+        console.log('📍 Selected place:', place)
+        
+        if (!place.geometry) {
+          console.warn('⚠️ No geometry found for the selected place')
+          return
+        }
+
+        // Update address and region
+        courtAddress.value = place.formatted_address || ''
+        region.value = matchRegion(courtAddress.value)
+
+        console.log('✅ Address updated:', courtAddress.value)
+        console.log('✅ Region updated:', region.value)
+
+        // Update coordinates
+        if (place.geometry.location) {
+          selectedLat.value = place.geometry.location.lat()
+          selectedLon.value = place.geometry.location.lng()
+          
+          console.log('✅ Coordinates:', selectedLat.value, selectedLon.value)
+          
+          // Update parent coordinates if provided
+          if (props.coordinates) {
+            props.coordinates.lat = selectedLat.value
+            props.coordinates.lon = selectedLon.value
           }
         }
-    })
+      })
+    } catch (error) {
+      console.error('❌ Error initializing autocomplete:', error)
+    }
   }
 
-  // Reverse geocode as before
-  if (props.coordinates?.lat && props.coordinates?.lon) {
-    selectedLat.value = props.coordinates.lat
-    selectedLon.value = props.coordinates.lon
-    const geocoder = new google.maps.Geocoder()
-    const latlng = { lat: props.coordinates.lat, lng: props.coordinates.lon }
-    geocoder.geocode({ location: latlng }, (results, status) => {
-      if (status === 'OK' && results[0]) {
-        courtAddress.value = results[0].formatted_address
-      } else {
-        courtAddress.value = 'Unknown address'
-      }
-    })
+  // Reverse geocode if coordinates are provided (from map pin drop)
+  const reverseGeocode = () => {
+    if (props.coordinates?.lat && props.coordinates?.lon && window.google?.maps) {
+      console.log('🔄 Reverse geocoding coordinates:', props.coordinates)
+      selectedLat.value = props.coordinates.lat
+      selectedLon.value = props.coordinates.lon
+      
+      const geocoder = new window.google.maps.Geocoder()
+      const latlng = { lat: props.coordinates.lat, lng: props.coordinates.lon }
+
+      geocoder.geocode({ location: latlng }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          courtAddress.value = results[0].formatted_address
+          region.value = matchRegion(courtAddress.value)
+          console.log('✅ Reverse geocoded address:', courtAddress.value)
+        } else {
+          courtAddress.value = 'Unknown address'
+          region.value = ''
+          console.warn('⚠️ Reverse geocoding failed:', status)
+        }
+      })
+    }
   }
-})
 
-
-onMounted(() => {
-  if (props.coordinates?.lat && props.coordinates?.lon) {
-    // ensure selected coords are set if parent supplied them
-    selectedLat.value = props.coordinates.lat
-    selectedLon.value = props.coordinates.lon
-    const geocoder = new google.maps.Geocoder()
-    const latlng = { lat: props.coordinates.lat, lng: props.coordinates.lon }
-
-    geocoder.geocode({ location: latlng }, (results, status) => {
-      if (status === 'OK' && results[0]) {
-        courtAddress.value = results[0].formatted_address
-      } else {
-        courtAddress.value = 'Unknown address'
+  // Check if Google Maps is loaded
+  if (window.google?.maps?.places) {
+    console.log('✅ Google Maps API already loaded, initializing immediately')
+    initAutocomplete()
+    reverseGeocode()
+  } else {
+    console.log('⏳ Waiting for Google Maps API to load...')
+    // Wait for Google Maps to load
+    let attempts = 0
+    const checkGoogleMaps = setInterval(() => {
+      attempts++
+      if (window.google?.maps?.places) {
+        console.log(`✅ Google Maps API loaded after ${attempts} attempts`)
+        clearInterval(checkGoogleMaps)
+        initAutocomplete()
+        reverseGeocode()
+      } else if (attempts > 100) {
+        console.error('❌ Google Maps API failed to load after 10 seconds')
+        clearInterval(checkGoogleMaps)
       }
-    })
+    }, 100)
   }
 })
 
@@ -346,6 +396,9 @@ const createCourt = async () => {
   max-width: 480px;
   color: #dde3ea;
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  position: relative;
+  z-index: 1001;
+  overflow: visible;
 }
 
 .modal-title {
@@ -394,5 +447,77 @@ select {
 
 .create-btn:hover {
   background-color: #ffa733;
+}
+
+/* Google Places Autocomplete dropdown styling */
+:global(body .pac-container) {
+  background-color: #2c323a !important;
+  border: 1px solid #3b4252 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  margin-top: 4px !important;
+  z-index: 99999 !important;
+  font-family: inherit !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: absolute !important;
+}
+
+:global(.pac-container) {
+  background-color: #2c323a !important;
+  border: 1px solid #3b4252 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  margin-top: 4px !important;
+  z-index: 99999 !important;
+  font-family: inherit !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: absolute !important;
+}
+
+:global(.pac-container:after) {
+  display: none !important;
+}
+
+:global(.pac-logo:after) {
+  display: none !important;
+}
+
+:global(.pac-item) {
+  background-color: #2c323a !important;
+  color: #dde3ea !important;
+  border-top: 1px solid #3b4252 !important;
+  padding: 10px 12px !important;
+  cursor: pointer !important;
+  font-size: 0.95rem !important;
+}
+
+:global(.pac-item:hover) {
+  background-color: #3a404a !important;
+}
+
+:global(.pac-item-selected) {
+  background-color: #3a404a !important;
+}
+
+:global(.pac-item-query) {
+  color: #ffa733 !important;
+  font-weight: 500 !important;
+}
+
+:global(.pac-matched) {
+  color: #ffa733 !important;
+  font-weight: bold !important;
+}
+
+:global(.pac-icon) {
+  display: none !important;
+}
+
+:global(.pac-icon-marker) {
+  display: none !important;
 }
 </style>

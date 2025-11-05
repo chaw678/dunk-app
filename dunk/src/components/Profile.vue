@@ -149,8 +149,8 @@
 
             <!-- Public: view-only chips -->
             <div v-else class="positions-wrap view-only">
-              <template v-if="(profile && Array.isArray(profile.preferredPositions) && profile.preferredPositions.length)">
-                <span v-for="(p, idx) in profile.preferredPositions" :key="p + '-' + idx" class="chip chip-filled">{{ p }}</span>
+              <template v-if="(profile && Array.isArray(viewPositions) && viewPositions.length)">
+                <span v-for="(p, idx) in viewPositions" :key="p + '-' + idx" class="chip chip-filled">{{ p }}</span>
               </template>
               <span v-else class="text-warning">—</span>
             </div>
@@ -344,9 +344,22 @@ const positionsDirty = ref(false)
 const commonPositions = ['PG', 'SG', 'SF', 'PF', 'C']
 const isOwner = computed(() => currentUser.value && currentUser.value.uid && String(currentUser.value.uid) === String(uid.value))
 
+// Read-only display positions: prefer flat array, fallback to nested skills
+const viewPositions = computed(() => {
+  const p = profile.value || {}
+  if (Array.isArray(p.preferredPositions)) return p.preferredPositions
+  const nested = p.skills && Array.isArray(p.skills.preferredPositions) ? p.skills.preferredPositions : []
+  return nested
+})
+
 function syncLocalPositionsFromProfile() {
   try {
-    const arr = (profile.value && Array.isArray(profile.value.preferredPositions)) ? profile.value.preferredPositions : []
+    // prefer flat preferredPositions, fallback to nested skills.preferredPositions
+    const arr = (profile.value && Array.isArray(profile.value.preferredPositions))
+      ? profile.value.preferredPositions
+      : (profile.value && profile.value.skills && Array.isArray(profile.value.skills.preferredPositions)
+          ? profile.value.skills.preferredPositions
+          : [])
     // normalize: trim strings, dedupe case-insensitively, keep short
     const norm = Array.from(new Set(arr.map(s => String(s || '').trim()).filter(Boolean).map(s => s.toUpperCase())))
     localPositions.value = norm.slice(0, 8)
@@ -393,14 +406,29 @@ async function savePositions() {
   try {
     if (!isOwner.value) return
     await setChildData(`users/${uid.value}`, 'preferredPositions', localPositions.value)
+    // also reflect under users/<uid>/skills/preferredPositions for compatibility
+    try { await setChildData(`users/${uid.value}/skills`, 'preferredPositions', localPositions.value) } catch (e) { /* non-fatal */ }
     // reflect immediately in local profile
-    profile.value = { ...(profile.value || {}), preferredPositions: localPositions.value.slice() }
+    const next = localPositions.value.slice()
+    const prevSkills = (profile.value && profile.value.skills) ? profile.value.skills : {}
+    profile.value = { ...(profile.value || {}), preferredPositions: next, skills: { ...prevSkills, preferredPositions: next } }
     positionsDirty.value = false
   } catch (e) {
     console.error('Failed to save preferred positions', e)
     alert('Failed to save positions — try again')
   }
 }
+
+// Autosave when owner edits positions (debounced)
+let _ppSaveT = null
+watch(localPositions, (nv, ov) => {
+  try {
+    if (!isOwner.value) return
+    positionsDirty.value = true
+    if (_ppSaveT) clearTimeout(_ppSaveT)
+    _ppSaveT = setTimeout(() => { savePositions().catch(()=>{}) }, 600)
+  } catch (e) {}
+}, { deep: true })
 
 watch(() => route.params.uid, async (newUid, oldUid) => {
   if (newUid && newUid !== oldUid) await fetchProfile(newUid)

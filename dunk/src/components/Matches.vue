@@ -61,13 +61,13 @@
             </div>
 
             <!-- Invitations Section - Show when user has pending invitations -->
-            <div v-if="invitations.length > 0 && selectedTab === 'invites'" class="invitations-wrapper mb-4">
+            <div v-if="activeInvitations.length > 0 && selectedTab === 'invites'" class="invitations-wrapper mb-4">
                 <div class="invitations-section">
                     <h3 class="section-heading">
                         <i class="bi bi-bell-fill me-2"></i>Match Invitations
                     </h3>
                     <div class="invitations-grid">
-                        <div class="invitation-card-wrapper" v-for="inv in invitations" :key="inv.id">
+                        <div class="invitation-card-wrapper" v-for="inv in activeInvitations" :key="inv.id">
                             <div class="card invitation-card">
                                 <div class="card-body">
                                     <h5 class="invitation-title">{{ inv.title }}</h5>
@@ -79,6 +79,14 @@
                                         <div class="invitation-detail-item">
                                             <i class="bi bi-calendar-fill"></i>
                                             <span>{{ formatInvitationDate(inv.date) }}</span>
+                                        </div>
+                                        <div class="invitation-detail-item" v-if="inv.startTime || inv.endTime">
+                                            <i class="bi bi-clock-fill"></i>
+                                            <span>{{ formatInvitationTime(inv.startTime, inv.endTime) }}</span>
+                                        </div>
+                                        <div class="invitation-detail-item inviter-info" v-if="inv.inviterUid" @click="openProfileModal(inv.inviterUid)" style="cursor: pointer;">
+                                            <img :src="inv.inviterAvatar" :alt="inv.inviterName" class="inviter-avatar" />
+                                            <span>Invited by <strong>{{ inv.inviterName }}</strong></span>
                                         </div>
                                     </div>
                                     <div class="invitation-actions">
@@ -171,7 +179,7 @@
                               <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
                             </template>
                           <template v-else>
-                              <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                              <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
                               <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                           </template>
             </template>
@@ -356,6 +364,12 @@
             :matchPath="finalResultsMatchPath" 
             @close="showFinalResultsModal = false" 
         />
+        <ProfileModal 
+            v-if="showProfileModal" 
+            :uid="profileModalUid" 
+            :initialProfile="profileModalInitial" 
+            @close="closeProfileModal" 
+        />
     </Teleport>
     </div>
 </template>
@@ -381,6 +395,7 @@ import DunkLogo from './DunkLogo.vue'
 import EndMatchSummary from './EndMatchSummary.vue'
 import { seededAvatar, avatarForUser } from '../utils/avatar.js'
 import FinalResultsModal from './FinalResultsModal.vue'
+import ProfileModal from './ProfileModal.vue'
 
 const showPopup = ref(false)
 const isSigningIn = ref(false)
@@ -428,6 +443,11 @@ const showCreatedPopup = ref(false)
 const showConfirm = ref(false)
 const pendingConfirm = ref(null) // { action: 'delete'|'start'|'end', match, title, message, destructive }
 
+// ProfileModal state
+const showProfileModal = ref(false)
+const profileModalUid = ref(null)
+const profileModalInitial = ref(null)
+
 function openConfirm(action, match) {
     const titleMap = { delete: 'Delete match', start: 'Start match', end: 'End match' }
     const messageMap = {
@@ -452,6 +472,30 @@ async function onConfirmModal() {
 
 function closeCreatedPopup() {
     showCreatedPopup.value = false
+}
+
+function openProfileModal(target) {
+    if (!target) return
+    // allow either a uid string or an enriched inviter object
+    if (typeof target === 'string') {
+        profileModalUid.value = target
+        profileModalInitial.value = null
+    } else if (typeof target === 'object' && target) {
+        const uid = target.uid || target.id || target.key || null
+        if (!uid) return
+        profileModalUid.value = uid
+        // keep the enriched object (name/avatar) so modal can render immediately
+        profileModalInitial.value = target
+    } else {
+        return
+    }
+    showProfileModal.value = true
+}
+
+function closeProfileModal() {
+    showProfileModal.value = false
+    profileModalUid.value = null
+    profileModalInitial.value = null
 }
 
 const router = useRouter()
@@ -727,7 +771,52 @@ const currentUserProfile = ref({ ranking: 'Open', skill: 'Open', gender: 'All' }
 const showInviteModal = ref(false)
 const inviteMatch = ref(null)
 const invitations = ref([])
-const invitationsCount = computed(() => invitations.value.length)
+
+// Filter out invitations for past matches
+const activeInvitations = computed(() => {
+    if (!invitations.value || invitations.value.length === 0) return []
+    
+    const now = new Date()
+    return invitations.value.filter(inv => {
+        // Filter out invalid/incomplete invitations (missing title)
+        if (!inv.title) {
+            console.warn('Filtering out incomplete invitation (no title):', inv)
+            return false
+        }
+        
+        // Check if invitation has an end time
+        if (inv.end) {
+            try {
+                const endDate = new Date(inv.end)
+                if (!isNaN(endDate.getTime()) && endDate < now) {
+                    return false // Match has ended
+                }
+            } catch (e) {
+                console.warn('Invalid end date for invitation:', inv)
+            }
+        }
+        
+        // Check if invitation has a date and no end (use date as reference)
+        if (inv.date && !inv.end) {
+            try {
+                const matchDate = new Date(inv.date)
+                if (!isNaN(matchDate.getTime())) {
+                    // Consider a match past if it was more than 3 hours ago
+                    const threeHoursAgo = new Date(now.getTime() - (3 * 60 * 60 * 1000))
+                    if (matchDate < threeHoursAgo) {
+                        return false // Match started more than 3 hours ago, likely over
+                    }
+                }
+            } catch (e) {
+                console.warn('Invalid date for invitation:', inv)
+            }
+        }
+        
+        return true // Keep invitation if not past
+    })
+})
+
+const invitationsCount = computed(() => activeInvitations.value.length)
 
 // Match Summary modal state
 const showMatchSummary = ref(false)
@@ -794,12 +883,45 @@ function subscribeInvitationsRealtime(uid) {
         invitations.value = []
         return
     }
-    invitesUnsub = onDataChange(`users/${uid}/invitations`, (invData) => {
+    invitesUnsub = onDataChange(`users/${uid}/invitations`, async (invData) => {
         if (!invData) {
             invitations.value = []
             return
         }
         const arr = Object.keys(invData).map(id => ({ id, ...invData[id] }))
+        
+        // Enrich invitations with current match status and inviter profile
+        for (const inv of arr) {
+            if (inv.matchPath) {
+                try {
+                    const matchData = await getDataFromFirebase(inv.matchPath)
+                    if (matchData) {
+                        // Update the started flag from the actual match
+                        inv.started = matchData.started || matchData._started || false
+                    }
+                } catch (e) {
+                    // If we can't fetch match data, keep the invitation as-is
+                    console.warn('Failed to enrich invitation with match data:', e)
+                }
+            }
+            
+            // Fetch inviter profile data
+            if (inv.invitedBy) {
+                try {
+                    const inviterData = await getDataFromFirebase(`users/${inv.invitedBy}`)
+                    if (inviterData) {
+                        inv.inviterName = inviterData.name || inviterData.displayName || inviterData.username || 'Unknown'
+                        inv.inviterAvatar = avatarForUser(inviterData)
+                        inv.inviterUid = inv.invitedBy
+                    }
+                } catch (e) {
+                    console.warn('Failed to fetch inviter profile:', e)
+                    inv.inviterName = 'Unknown'
+                    inv.inviterAvatar = seededAvatar('unknown')
+                }
+            }
+        }
+        
         invitations.value = arr
     })
 }
@@ -852,9 +974,18 @@ async function acceptInvite(invitation) {
     
     try {
         // Find the match using the matchPath or construct it from the invitation data
-        const matchPath = invitation.matchPath
+        let matchPath = invitation.matchPath
+        
+        // If matchPath is missing, try to construct it from invitation data
+        if (!matchPath && invitation.court && invitation.date && invitation.id) {
+            matchPath = `matches/${invitation.court}/${invitation.date}/${invitation.id}`
+            console.log('Constructed matchPath from invitation data:', matchPath)
+        }
+        
         if (!matchPath) {
-            console.error('No match path in invitation')
+            console.error('No match path in invitation and cannot construct one:', invitation)
+            alert('Cannot join this match - invitation data is incomplete')
+            await declineInvite(invitation)
             return
         }
         
@@ -911,9 +1042,7 @@ function formatInvitationDate(dateStr) {
         return date.toLocaleDateString('en-US', { 
             weekday: 'short', 
             month: 'short', 
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit'
+            day: 'numeric'
         })
     } catch (err) {
         return dateStr
@@ -923,8 +1052,21 @@ function formatInvitationDate(dateStr) {
 // Format time display for invitations
 function formatInvitationTime(startTime, endTime) {
     if (!startTime && !endTime) return 'Time TBD'
-    if (startTime && endTime) return `${startTime} — ${endTime}`
-    if (startTime) return `${startTime}`
+    
+    // Helper function to convert 24h to 12h format
+    const to12Hour = (time24) => {
+        if (!time24) return ''
+        const [hours, minutes] = time24.split(':')
+        let hour = parseInt(hours)
+        const ampm = hour >= 12 ? 'pm' : 'am'
+        hour = hour % 12 || 12
+        return `${hour}:${minutes} ${ampm}`
+    }
+    
+    if (startTime && endTime) {
+        return `${to12Hour(startTime)} - ${to12Hour(endTime)}`
+    }
+    if (startTime) return to12Hour(startTime)
     return 'Time TBD'
 }
 
@@ -1838,9 +1980,9 @@ const groupedMatches = computed(() => {
 })
 
 const isTabEmpty = computed(() => {
-    // For the invites tab, emptiness depends on invitations, not matches
+    // For the invites tab, emptiness depends on active invitations (excluding past matches)
     if (selectedTab.value === 'invites') {
-        return !(invitations.value && invitations.value.length)
+        return !(activeInvitations.value && activeInvitations.value.length)
     }
     // matchesForTab already applies the selectedTab logic and excludes past where appropriate
     try {
@@ -2889,6 +3031,22 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 .invitation-detail-item i {
     color: #ff9a3c;
     font-size: 1rem;
+}
+
+.inviter-info {
+    transition: color 0.2s;
+}
+
+.inviter-info:hover {
+    color: #ff9a3c !important;
+}
+
+.inviter-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #ff9a3c;
 }
 
 .invitation-actions {

@@ -44,11 +44,7 @@
             <h2 class="section-title">Map</h2>
             <button class="pin-btn" :title="currentUser ? 'Add a new court location' : 'Sign in to add courts'"
               @click="handlePinClick">
-              <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-                <circle cx="16" cy="16" r="12" fill="#ffa733" stroke="#333" stroke-width="2" />
-                <rect x="13" y="8" width="6" height="11" rx="3" fill="#ff9500" />
-                <circle cx="16" cy="23" r="2.6" fill="#fff" stroke="#ff9100" stroke-width="1" />
-              </svg>
+               <img src="/src/assets/pin-png-24.png" alt="Add court pin" width="24" height="24" />
             </button>
           </div>
           <p class="section-desc">Interactive map of basketball courts in Singapore.</p>

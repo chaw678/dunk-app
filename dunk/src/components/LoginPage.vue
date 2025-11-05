@@ -72,6 +72,7 @@ const dobDay = ref('');
 const editBio = ref(''); 
 // Preferred positions (comma-separated string in edit modal)
 const editPositionsText = ref('');
+let _ppAutoSaveTimer = null
 
 
 
@@ -417,10 +418,10 @@ async function saveProfileEdits() {
       ranking: updates.ranking
     };
 
-    await saveUserToDatabase(userDbUpdate);
+  await saveUserToDatabase(userDbUpdate);
 
     // change 22: Update the reactive user.value fields manually
-    Object.assign(user.value, updates);
+  Object.assign(user.value, updates);
     showEditProfile.value = false;
 
   // console.log('Saving gender:', editGender.value)
@@ -429,6 +430,27 @@ async function saveProfileEdits() {
   // Object.assign(user.value, updates); // Update reactive profile
   // showEditProfile.value = false;
 }
+
+// Autosave preferred positions whenever the input changes (debounced), so switching tabs won't lose it
+watch(editPositionsText, (nv, ov) => {
+  try {
+    if (!user.value || !user.value.uid) return
+    if (_ppAutoSaveTimer) clearTimeout(_ppAutoSaveTimer)
+    _ppAutoSaveTimer = setTimeout(async () => {
+      try {
+        const arr = String(editPositionsText.value || '')
+          .split(',').map(s => s.trim()).filter(Boolean).map(s => s.toUpperCase())
+          .filter((v, i, a) => a.findIndex(x => x.toUpperCase() === v.toUpperCase()) === i)
+          .slice(0, 8)
+        await setChildData(`users/${user.value.uid}`, 'preferredPositions', arr)
+        try { await setChildData(`users/${user.value.uid}/skills`, 'preferredPositions', arr) } catch (e) {}
+        // keep reactive user in sync
+        const prevSkills = (user.value && user.value.skills) ? user.value.skills : {}
+        user.value = { ...(user.value || {}), preferredPositions: arr, skills: { ...prevSkills, preferredPositions: arr } }
+      } catch (e) { /* ignore soft-fail */ }
+    }, 600)
+  } catch (e) {}
+})
 
 
 
@@ -506,7 +528,13 @@ onMounted(() => {
           dobDay.value     = val.dobDay  ?? '';
           editBio.value    = val.bio ?? '';      
           // hydrate preferred positions into comma-separated input for modal
-          editPositionsText.value = Array.isArray(val.preferredPositions) ? val.preferredPositions.join(', ') : '';
+          if (Array.isArray(val.preferredPositions)) {
+            editPositionsText.value = val.preferredPositions.join(', ')
+          } else if (val.skills && Array.isArray(val.skills.preferredPositions)) {
+            editPositionsText.value = val.skills.preferredPositions.join(', ')
+          } else {
+            editPositionsText.value = ''
+          }
 
           
           followingCount.value = val.following ? Object.keys(val.following).length : 0
