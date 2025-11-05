@@ -65,11 +65,9 @@ const navigateToHomePage = () => {
 }
 
 .main-content.collapsed {
-  /* When sidebar is collapsed, avoid reserving a left-margin which visually shifts
-     the whole content; instead keep the content area flush and add left padding so
-     the topbar alignment remains correct while cards can be centered. */
-  margin-left: -160px;
-  padding-left: var(--sidebar-collapsed-width);
+  /* When sidebar is collapsed, reduce the margin-left to match the collapsed sidebar width */
+  margin-left: var(--sidebar-collapsed-width);
+  padding-left: 24px; /* Keep consistent padding */
 }
 
 /* Ensure the router-view content stacks properly */

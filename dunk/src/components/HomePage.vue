@@ -1169,16 +1169,29 @@ onUnmounted(() => {
 <style scoped>
 .homepage {
   min-height: 100vh;
-  background: linear-gradient(rgba(26, 31, 46, 0.7), rgba(44, 50, 58, 0.7)), url('../assets/basketball-court-with-flooring.avif');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  position: relative; /* establish a containing block for the fixed bg layer */
   color: #dde3ea;
+  overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
-/* Hero Section */
+/* Pin the background image + gradient to the viewport so it fills the whole page
+   and doesn’t move with inner content. */
+.homepage::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(rgba(26, 31, 46, 0.7), rgba(44, 50, 58, 0.7)),
+    url('../assets/basketball-court-with-flooring.avif') center / cover no-repeat;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Ensure page content renders above the fixed background */
+.homepage > * { position: relative; z-index: 1; }
+
 .hero-section {
-  padding: 20px 20px;
+  padding: 20px 16px;
   min-height: 10vh;
   display: flex;
   align-items: flex-start;
@@ -1188,35 +1201,47 @@ onUnmounted(() => {
 
 .hero-content {
   max-width: 1200px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   /* gap:15px; */
   align-items: center;
+  padding: 0 16px;
+  box-sizing: border-box;
 }
 
 .hero-title {
-  font-size: 5rem;
+  font-size: clamp(2rem, 8vw, 5rem); /* Responsive font size */
   font-weight: bold;
   /* margin-bottom: 20px; */
   line-height: 1.2;
   text-align: center;
   width: 100%;
   color: #dde3ea;
+  word-wrap: break-word;
 }
 
 .hero-main {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 50px;
+  display: flex !important;
+  flex-direction: column !important; /* Stack by default for better centering */
+  gap: 30px;
   align-items: center;
+  justify-content: center;
   width: 100%;
-  align-content: center;
+  max-width: 100%;
+  box-sizing: border-box;
+  text-align: center;
 }
 
 .hero-text {
   text-align: center;
-  padding-left: 24px; /* remove heavy left indent */
-  padding-right: 24px;
+  padding-left: 16px;
+  padding-right: 16px;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .brand-highlight {
@@ -1230,12 +1255,15 @@ onUnmounted(() => {
 }
 
 .hero-subtitle {
-  font-size: 1.25rem;
+  font-size: clamp(1rem, 3vw, 1.25rem); /* Responsive font size */
   color: #a2aec3;
   margin-bottom: 30px;
   line-height: 1.6;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
   animation: fadeInUp 1s ease-out 0.5s both;
+  max-width: 100%;
+  word-wrap: break-word;
+  text-align: center;
 }
 
 .hero-actions {
@@ -1244,6 +1272,7 @@ onUnmounted(() => {
   flex-wrap: wrap;
   justify-content: center;
   animation: fadeInUp 1s ease-out 0.8s both;
+  width: 100%;
 }
 
 .cta-button {
@@ -1256,6 +1285,7 @@ onUnmounted(() => {
   transition: all 0.3s ease;
   text-decoration: none;
   display: inline-block;
+  min-width: 200px;
 }
 
 .cta-button.primary {
@@ -1329,23 +1359,31 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
+  width: 100%;
 }
 
 .basketball-icon {
-  font-size: 20rem;
+  font-size: 10rem;
   animation: bounce 1.5s infinite ease-in-out;
+  margin: 0 auto;
 }
 
 /* Standard container for consistent horizontal padding/centering */
 .container {
   max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
   padding: 0 16px;
   box-sizing: border-box;
 }
 
 /* Normalize section spacing for visual consistency */
-section { padding-top: 40px; padding-bottom: 40px; }
+section { 
+  padding-top: 40px; 
+  padding-bottom: 40px; 
+  max-width: 100%;
+  overflow-x: hidden;
+}
 
 @keyframes bounce {
   0%, 20%, 50%, 80%, 100% {
@@ -1365,6 +1403,19 @@ section { padding-top: 40px; padding-bottom: 40px; }
   }
   100% {
     text-shadow: 0 0 30px rgba(255, 149, 0, 0.8), 0 0 50px rgba(255, 149, 0, 0.6), 0 0 70px rgba(255, 149, 0, 0.4);
+  }
+}
+
+/* Two-column layout for very large screens only */
+@media (min-width: 1400px) {
+  .hero-main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+  }
+  
+  .basketball-icon {
+    font-size: 16rem;
   }
 }
 
@@ -1422,11 +1473,13 @@ section { padding-top: 40px; padding-bottom: 40px; }
 
 .invitations-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr); /* Fixed 3 columns */
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Responsive columns */
   gap: 20px;
   width: 100%;
+  max-width: 100%;
   align-items: start;
   justify-items: stretch; /* allow cards to align consistently */
+  box-sizing: border-box;
 }
 
 /* Carousel styles */
@@ -1527,12 +1580,16 @@ section { padding-top: 40px; padding-bottom: 40px; }
     background: linear-gradient(135deg, #FF9A3C 0%, #FF8C1A 100%);
     border-radius: 16px;
     overflow: hidden;
-    width: 320px; /* Fixed width for consistency */
-    height: 380px; /* Fixed height for consistency */
+    width: 100%; /* Responsive width */
+    max-width: 380px; /* Max width for larger screens */
+    min-width: 280px; /* Min width to maintain readability */
+    height: auto; /* Auto height for flexibility */
+    min-height: 380px; /* Minimum height for consistency */
     display: flex;
     flex-direction: column;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     transition: transform 0.2s;
+    margin: 0 auto; /* Center card in grid cell */
 }
 
 .invitation-card:hover {
@@ -2170,17 +2227,22 @@ section { padding-top: 40px; padding-bottom: 40px; }
 /* Responsive Design */
 @media (max-width: 768px) {
   .hero-main {
-    grid-template-columns: 1fr;
     gap: 40px;
-    text-align: center;
   }
   
   .hero-title {
-    font-size: 2.5rem;
+    font-size: clamp(2rem, 5vw, 2.5rem);
   }
   
   .hero-actions {
     justify-content: center;
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .cta-button {
+    width: 100%;
+    max-width: 300px;
   }
   
   .basketball-icon {
@@ -2202,24 +2264,17 @@ section { padding-top: 40px; padding-bottom: 40px; }
   .cta-content h2 {
     font-size: 2rem;
   }
-}
-
-/* Stack hero text and image earlier for medium-large screens to avoid side-by-side overlap */
-@media (max-width: 1100px) {
-  .hero-main {
-    grid-template-columns: 1fr;
-    gap: 28px;
-    align-items: center;
-    text-align: center;
+  
+  /* Ensure invitations grid is responsive */
+  .invitations-grid {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 16px;
   }
-  .hero-text { padding-left: 16px; padding-right: 16px; }
-  .hero-image { justify-content: center; }
-  .basketball-icon { margin: 0 auto; }
 }
 
 @media (max-width: 480px) {
   .hero-title {
-    font-size: 2rem;
+    font-size: clamp(1.5rem, 8vw, 2rem);
   }
   
   .hero-subtitle {
@@ -2229,6 +2284,7 @@ section { padding-top: 40px; padding-bottom: 40px; }
   .cta-button {
     padding: 12px 24px;
     font-size: 0.9rem;
+    width: 100%;
   }
   
   .basketball-icon {
@@ -2245,21 +2301,24 @@ section { padding-top: 40px; padding-bottom: 40px; }
   
   /* Responsive invitation cards */
   .invitations-grid {
-    grid-template-columns: repeat(2, 1fr); /* 2 columns on small screens */
+    grid-template-columns: 1fr; /* Single column on very small screens */
     gap: 15px;
   }
   
   .invitation-card {
-    width: 280px; /* Fixed width for mobile */
-    height: 350px; /* Fixed height for mobile */
+    width: 100%; /* Full width for mobile */
+    max-width: 350px;
+    margin: 0 auto;
+    height: auto; /* Auto height for mobile */
+    min-height: 320px;
   }
   
   .invitation-card-wrapper {
-    min-height: 350px; /* Match card height */
+    min-height: auto; /* Auto height */
   }
   
   .carousel-slide {
-    min-height: 350px; /* Match card height */
+    min-height: auto; /* Auto height */
     flex: 0 0 100%; /* Show 1 card per view on mobile */
   }
   
@@ -2270,27 +2329,55 @@ section { padding-top: 40px; padding-bottom: 40px; }
   .carousel-btn.next {
     right: -15px;
   }
+  
+  /* Reduce hero padding */
+  .hero-section {
+    padding: 20px 12px;
+    padding-top: 40px;
+  }
+  
+  .hero-content {
+    padding: 0 8px;
+  }
+  
+  .hero-text {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
 }
 
 /* Tablet responsive styles */
 @media (max-width: 768px) {
   .invitations-grid {
-    grid-template-columns: repeat(2, 1fr); /* Two columns on tablet */
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Responsive columns on tablet */
     gap: 16px;
   }
   
   .invitation-card {
-    width: 300px; /* Fixed width for tablet */
-    height: 365px; /* Fixed height for tablet */
+    width: 100%; /* Full width within grid cell */
+    max-width: 100%;
+    min-height: 365px; /* Fixed height for tablet */
   }
   
   .invitation-card-wrapper {
-    min-height: 365px; /* Match card height */
+    min-height: auto; /* Auto height */
   }
   
   .carousel-slide {
-    min-height: 365px; /* Match card height */
+    min-height: auto; /* Auto height */
     flex: 0 0 calc(50% - 10px); /* Show 2 cards per view on tablet */
+  }
+}
+
+/* Medium screen adjustments */
+@media (max-width: 900px) {
+  .invitations-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px;
+  }
+  
+  .container {
+    padding: 0 20px;
   }
 }
 </style>

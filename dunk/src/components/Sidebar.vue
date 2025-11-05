@@ -300,6 +300,8 @@ function hideTooltip() {
   font-size: 20px;
   backdrop-filter: blur(4px);
   margin-left: 0;
+  position: relative;
+  z-index: 230;
 }
 
 /* nav items */

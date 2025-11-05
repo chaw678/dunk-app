@@ -2327,27 +2327,34 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 <style scoped>
 .page-bg {
     min-height: 100vh;
-    background-image: url('../assets/matchBG.jpg');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
     position: relative;
+    overflow-x: hidden; /* guard against any accidental horizontal scroll */
 }
 
 .page-bg::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7));
-    z-index: 1;
+        content: '';
+        position: fixed; /* pin to the viewport, independent of content height */
+        inset: 0;
+        background:
+            linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)),
+            url('../assets/matchBG.jpg') center / cover no-repeat;
+        z-index: 0; /* keep it beneath the content */
+        pointer-events: none;
 }
 
 .page-bg > * {
     position: relative;
-    z-index: 2;
+    z-index: 1;
+}
+
+/* Provide a consistent outer gutter so content isn’t flush to the viewport
+     when the sidebar is collapsed. Keep it subtle to match other pages. */
+.page-bg {
+        padding-left: 16px;
+        padding-right: 16px;
+}
+@media (min-width: 768px) {
+    .page-bg { padding-left: 20px; padding-right: 20px; }
 }
 
 .large-card {
@@ -2360,8 +2367,17 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     border: 1px solid rgba(255,255,255,0.04);
     box-shadow: 0 8px 30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
     color: inherit;
-    margin-left: 150px;
+    /* Center the card within the main-content and avoid extra horizontal offsets */
+    margin: 0 auto;
+    max-width: 1400px;
+    width: 100%;
+    box-sizing: border-box;
 }
+
+/* Adjust positioning based on parent container's collapsed state */
+/* App.vue already applies the correct left margin when the sidebar collapses.
+   Avoid adding any extra offset here so the card remains centered. */
+.collapsed .large-card { margin-left: 0; }
 
 .page-header {
     display: flex;
@@ -2652,10 +2668,9 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 
 .section-heading { color: #ff9a3c; font-weight: 800; margin-top: 18px; margin-bottom: 12px }
 
-/* Prevent container overflow from accidental wide children */
-.large-card, .matches-grid {
-    overflow: hidden;
-}
+/* Allow cards to render edge shadows without clipping while preventing x-overflow globally */
+.large-card { overflow: visible; }
+.matches-grid { overflow: visible; }
 
 /* Embedded compact header & empty state */
 .embedded-header {
@@ -2815,9 +2830,10 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 
 .invitations-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
     width: 100%;
+    align-items: stretch;
 }
 
 .invitation-card-wrapper {
@@ -2886,18 +2902,7 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     font-weight: 600;
 }
 
-/* Responsive breakpoints */
-@media (min-width: 768px) {
-    .invitations-grid {
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    }
-}
-
-@media (min-width: 1200px) {
-    .invitations-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
+/* Responsive breakpoints: keep auto-fit behavior; no hard-coded column count */
 
 /* Notification Badge */
 .notification-badge {
