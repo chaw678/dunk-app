@@ -151,36 +151,43 @@
         </div>
       </div>
 
-      <div class="mt-auto d-flex justify-content-between align-items-center">
-        <div class="btn-group">
-          <template v-if="isHost(match)">
-            <template v-if="match.started || match._started">
-              <!-- Host can still invite even after the match has started -->
-              <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-              <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="endMatch(match)"><i class="bi bi-stop-fill me-2"></i>End Match</button>
+      <div class="mt-auto">
+        <!-- Action buttons row -->
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="btn-group">
+            <template v-if="isHost(match)">
+              <template v-if="match.started || match._started">
+                <!-- Host can still invite even after the match has started -->
+                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="endMatch(match)"><i class="bi bi-stop-fill me-2"></i>End Match</button>
+              </template>
+              <template v-else>
+                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+              </template>
             </template>
-            <template v-else>
-              <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-              <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
+            <template v-else-if="isJoined(match)">
+                          <template v-if="match.started || match._started">
+                              <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                              <button type="button" class="btn btn-primary btn-sm d-flex align-items-center ms-2" @click.prevent.stop="playMatch(match)"><i class="bi bi-controller me-2"></i>Play</button>
+                          </template>
+                          <template v-else>
+                              <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                              <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                          </template>
             </template>
-          </template>
-          <template v-else-if="isJoined(match)">
-                        <template v-if="match.started || match._started">
-                            <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                            <button type="button" class="btn btn-primary btn-sm d-flex align-items-center ms-2" @click.prevent.stop="playMatch(match)"><i class="bi bi-controller me-2"></i>Play</button>
-                        </template>
-                        <template v-else>
-                            <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                            <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
-                        </template>
-          </template>
-                    <template v-else>
-                        <span class="join-wrapper" :title="joinDisabledReason(match) || 'Join match'" @click.stop>
-                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" @click.prevent.stop="joinMatch(match)">Join</button>
-                        </span>
-                    </template>
+                      <template v-else>
+                          <span class="join-wrapper" :title="joinDisabledReason(match) || 'Join match'" @click.stop>
+                              <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" @click.prevent.stop="joinMatch(match)">Join</button>
+                          </span>
+                      </template>
+          </div>
+          <div></div>
         </div>
-        <div></div>
+        <!-- Match Summary button row - only shown if match has started -->
+        <div v-if="match.started || match._started" class="mt-2">
+          <button type="button" class="btn summary-btn btn-sm d-flex align-items-center" @click.prevent.stop="openMatchSummary(match)"><i class="bi bi-list-check me-2"></i>Match Summary</button>
+        </div>
       </div>
     </div>
   </div>
@@ -289,21 +296,28 @@
                                     </div>
                                 </div>
 
-                                <div class="mt-auto d-flex justify-content-between align-items-center">
-                                    <div class="btn-group">
-                                        <template v-if="isHost(match)">
-                                            <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                            <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
-                                        </template>
-                                        <template v-else-if="isJoined(match)">
-                                            <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                            <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
-                                        </template>
-                                        <template v-else>
-                                            <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
-                                        </template>
+                                <div class="mt-auto">
+                                    <!-- Action buttons row -->
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="btn-group">
+                                            <template v-if="isHost(match)">
+                                                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                                <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                            </template>
+                                            <template v-else-if="isJoined(match)">
+                                                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                                                <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                            </template>
+                                            <template v-else>
+                                                <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
+                                            </template>
+                                        </div>
+                                        <div></div>
                                     </div>
-                                    <div></div>
+                                    <!-- Match Summary button row - shown for past matches that were started -->
+                                    <div v-if="match.started || match._started" class="mt-2">
+                                        <button type="button" class="btn summary-btn btn-sm d-flex align-items-center" @click.prevent.stop="openMatchSummary(match)"><i class="bi bi-list-check me-2"></i>Match Summary</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -320,6 +334,7 @@
         <AddMatchModal v-if="showAddMatchModal" :courtList="courts" :courtName="courtFilter || ''" @close="showAddMatchModal = false" @created="onMatchCreated" />
         <InviteModal v-if="showInviteModal" :match="inviteMatch" :users="usersCache.value" :me="currentUser" @close="showInviteModal = false" @sent="onInvitesSent" />
         <JoinedPlayersModal v-if="showPlayersModal" :players="activePlayers" :title="activeTitle" @close="closePlayersModal" />
+        <EndMatchSummary v-if="showMatchSummary" :dbPath="(summaryMatch && summaryMatch.__dbPath) || (summaryMatch && summaryMatch.id ? `matches/${summaryMatch.id}` : null)" :matchData="summaryMatch" compact @close="showMatchSummary = false" />
         <ConfirmModal
             v-if="showConfirm"
             v-model="showConfirm"
@@ -352,6 +367,7 @@ import JoinedPlayersModal from './JoinedPlayersModal.vue'
 import InviteModal from './InviteModal.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import DunkLogo from './DunkLogo.vue'
+import EndMatchSummary from './EndMatchSummary.vue'
 import { seededAvatar, avatarForUser } from '../utils/avatar.js'
 
 const showPopup = ref(false)
@@ -467,6 +483,13 @@ async function openMatch(match) {
     } catch (e) {
         // ignore and continue
     }
+    
+    // Only allow navigation if match has been started
+    if (!match.started && !match._started) {
+      console.log('Match has not been started yet')
+      return
+    }
+    
     // If joining is disabled for this match (e.g., wrong gender, full, or not signed in),
     // prevent card-level navigation so users don't get taken to the MatchRoom unintentionally.
     try {
@@ -678,6 +701,10 @@ const inviteMatch = ref(null)
 const invitations = ref([])
 const invitationsCount = computed(() => invitations.value.length)
 
+// Match Summary modal state
+const showMatchSummary = ref(false)
+const summaryMatch = ref(null)
+
 // Location and recommendation data
 const userLocation = ref(null)
 const locationPermissionGranted = ref(false)
@@ -714,6 +741,11 @@ function openInvite(match) {
     }
     inviteMatch.value = match
     showInviteModal.value = true
+}
+
+function openMatchSummary(match) {
+    summaryMatch.value = match
+    showMatchSummary.value = true
 }
 
 function onInvitesSent(uids) {
@@ -2267,7 +2299,6 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 .match-card .card-body { box-sizing: border-box }
 .match-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.45); transform: translateY(-6px); transition: all 180ms ease }
 
-
 .match-left {
     margin-bottom: 14px
 }
@@ -2414,6 +2445,23 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     color: #111;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(255, 154, 60, 0.3);
+}
+
+.summary-btn {
+    border: none;
+    background: #2b6baf;
+    color: #fff;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.summary-btn:hover {
+    background: #3a7bc8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(43, 107, 175, 0.3);
 }
 
 @media (min-width: 768px) {
