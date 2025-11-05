@@ -6,9 +6,9 @@
         <div class="modal-match-title">{{ matchTitle }}</div>
 
         <header class="summary-header">
-          <!-- LIVE / Match Ended indicator -->
+          <!-- LIVE / Match Complete indicator -->
           <span v-if="isMatchLive" class="match-status-badge live-badge">LIVE</span>
-          <span v-else-if="isMatchEnded" class="match-status-badge ended-badge">Match Ended</span>
+          <span v-else-if="isMatchEnded" class="match-status-badge ended-badge">MATCH COMPLETE</span>
           <button class="close-btn" @click="close">✕</button>
         </header>
 
