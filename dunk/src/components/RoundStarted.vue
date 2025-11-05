@@ -1,68 +1,16 @@
 <template>
   <div class="matchroom-container">
-    <!-- Final Match Results View (shown when match is ended) -->
-    <div v-if="isMatchEnded" class="final-results-view">
-      <header class="final-results-header">
-        <h1>Final Match Results</h1>
-        <button @click="closeFinalResults" class="close-btn" aria-label="Close">✕</button>
-      </header>
+    <!-- Show EndMatchSummary modal when match is ended (for players) -->
+    <EndMatchSummary 
+      v-if="isMatchEnded && !isHost" 
+      :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" 
+      :matchData="matchData" 
+      @close="closePlayerView"
+      @post-to-forum="onPostMatchToForum"
+      @cancel-navigate="closePlayerView"
+    />
 
-      <!-- Rounds History -->
-      <section class="rounds-history">
-        <h2 class="rounds-history-header">Rounds History</h2>
-        <div v-if="!rounds || rounds.length === 0" class="rounds-empty">
-          No rounds played yet.
-        </div>
-        <div v-else class="round-list">
-          <div v-for="(r, idx) in rounds" :key="r.key || idx" class="round-card">
-            <div class="round-card-header">
-              <span class="round-index">Round {{ rounds.length - idx }}</span>
-              <span class="round-time">{{ formatDate(r.endedAt) }}</span>
-              <span class="round-duration">{{ formatDuration(r.duration) }}</span>
-            </div>
-            <div class="round-teams">
-              <div class="round-team">
-                <div class="round-team-label">Team A</div>
-                <div class="round-team-roster">
-                  <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player">
-                    <div class="round-avatar">
-                      <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
-                      <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
-                    </div>
-                    <div class="round-player-name">{{ displayNameFor(uid) }}</div>
-                    <div class="round-player-stats">
-                      <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
-                      <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="round-team">
-                <div class="round-team-label">Team B</div>
-                <div class="round-team-roster">
-                  <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player">
-                    <div class="round-avatar">
-                      <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
-                      <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
-                    </div>
-                    <div class="round-player-name">{{ displayNameFor(uid) }}</div>
-                    <div class="round-player-stats">
-                      <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
-                      <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div v-if="r.winningTeam" class="round-winner">
-              Winner: Team {{ r.winningTeam }} ({{ winnersLabel(r) }})
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-
-    <!-- Normal Round View (shown when match is active) -->
+    <!-- Normal Round View (shown when match is active or for host) -->
     <div v-else>
     <header>
       <button v-if="isHost" @click="goBack" class="back-btn">← Back</button>
@@ -1540,6 +1488,7 @@ function syncTimerFromServer() {
 .matchroom-container { background: #10121A; color: #fff; min-height: 100vh; padding: 32px; }
 header { display:flex; align-items:center; justify-content:center; gap:12px; position:relative; }
 .back-btn { border:none; background:#B23B3B; color:#fff; border-radius:8px; padding:9px 18px; font-weight:700; position:absolute; left:12px; top:12px; }
+.close-btn { border:none; background:#B23B3B; color:#fff; border-radius:8px; padding:9px 18px; font-weight:700; position:absolute; left:12px; top:12px; cursor:pointer; font-size:1.2rem; width:40px; height:40px; display:flex; align-items:center; justify-content:center; }
 
 .players-row { display:flex; gap:18px; padding-top:12px; flex-wrap:wrap; align-items:center; }
 .player-tile { display:flex; align-items:center; gap:14px; padding:10px 0; }

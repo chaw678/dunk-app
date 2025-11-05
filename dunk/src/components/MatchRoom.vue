@@ -1531,6 +1531,12 @@ onBeforeUnmount(() => {
   justify-content: center;
   padding: 8px 16px;
 }
+.matchroom-container > header h1 {
+  margin: 0;
+  text-align: center;
+  flex: 1;
+  padding: 0 60px; /* Add padding to ensure centering even with buttons */
+}
 .matchroom-container > header .back-btn {
   position: absolute;
   left: 12px;

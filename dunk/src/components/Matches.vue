@@ -368,10 +368,14 @@
             :destructive="pendingConfirm && pendingConfirm.destructive"
             @confirm="onConfirmModal"
         />
-        <FinalResultsModal 
+        <EndMatchSummary 
             v-if="showFinalResultsModal" 
-            :matchPath="finalResultsMatchPath" 
+            :dbPath="finalResultsMatchPath" 
+            :matchData="finalResultsMatchData"
+            :hideActions="true"
             @close="showFinalResultsModal = false" 
+            @post-to-forum="onPostMatchToForum"
+            @cancel-navigate="showFinalResultsModal = false"
         />
         <ProfileModal 
             v-if="showProfileModal" 
@@ -408,7 +412,6 @@ import ConfirmModal from './ConfirmModal.vue'
 import DunkLogo from './DunkLogo.vue'
 import EndMatchSummary from './EndMatchSummary.vue'
 import { seededAvatar, avatarForUser } from '../utils/avatar.js'
-import FinalResultsModal from './FinalResultsModal.vue'
 import ProfileModal from './ProfileModal.vue'
 import PopupMessage from './PopupMessage.vue'
 
@@ -429,6 +432,7 @@ function showAlert(message, type = 'error') {
 
 const showFinalResultsModal = ref(false)
 const finalResultsMatchPath = ref('')
+const finalResultsMatchData = ref(null)
 
 const maxAvatars = 6
 const usersCache = ref({})
@@ -574,6 +578,7 @@ async function openMatch(match, event) {
             const matchPath = match.__dbPath || `matches/${match.id || match.key}`
             showFinalResultsModal.value = true
             finalResultsMatchPath.value = matchPath
+            finalResultsMatchData.value = match
             return
         }
         
@@ -1880,10 +1885,18 @@ const matchesForTab = computed(() => {
         
         // Filter out user's own matches, past matches, gender-incompatible matches, and skill-inappropriate matches
         const availableMatches = base.filter(m => {
+            // First check: Absolutely no past matches in recommended
+            if (isPast(m)) return false
+            
             // Basic filters
-            if (isPast(m) || isHost(m) || (m.joinedBy && m.joinedBy[uid])) {
+            if (isHost(m) || (m.joinedBy && m.joinedBy[uid])) {
                 return false
             }
+            
+            // Additional time-based check: exclude matches where end time has passed
+            const { start, end } = getMatchStartEnd(m)
+            const now = new Date()
+            if (end && end < now) return false
             
             // Gender compatibility: exclude if match has specific gender requirement that doesn't match user
             if (m.gender && m.gender !== 'All' && currentUserProfile.value?.gender) {
@@ -3137,25 +3150,35 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     border: 1px solid rgba(255, 154, 60, 0.15);
 }
 
+/* Invitations Section */
+.invitations-wrapper {
+    width: 100%;
+}
+
+.invitations-section {
+    padding: 24px;
+    background: rgba(255, 154, 60, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 154, 60, 0.15);
+}
+
 .invitations-section .section-heading {
     margin-top: 0;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
     text-align: center;
-    font-size: 1.25rem;
 }
 
 .invitations-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
     width: 100%;
     align-items: stretch;
 }
 
 .invitation-card-wrapper {
     display: flex;
-    justify-content: center;
-    width: 100%;
+    justify-content: flex-start;
 }
 
 .invitation-card {
@@ -3164,17 +3187,14 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     border-radius: 10px;
     transition: transform 0.2s, box-shadow 0.2s;
     width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    overflow: hidden;
-    min-width: 0; /* Allow card to shrink below content width */
+    max-width: 400px;
 }
 
 .invitation-card .card-body {
-    padding: 16px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
 }
 
 .invitation-card:hover {
@@ -3185,14 +3205,9 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 .invitation-title {
     color: #ff9a3c;
     font-weight: 700;
-    font-size: 1.1rem;
-    text-align: center;
+    font-size: 1.15rem;
+    text-align: left;
     margin: 0;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    word-break: break-word;
-    hyphens: auto;
-    line-height: 1.3;
 }
 
 .invitation-details {
@@ -3207,18 +3222,7 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     justify-content: flex-start;
     gap: 8px;
     color: #9fb0bf;
-    font-size: 0.85rem;
-    flex-wrap: wrap;
-    min-width: 0; /* Allow items to shrink */
-}
-
-.invitation-detail-item span {
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    word-break: break-word;
-    max-width: 100%;
-    min-width: 0; /* Allow text to shrink */
-    flex: 1;
+    font-size: 0.9rem;
 }
 
 .invitation-detail-item i {
@@ -3244,20 +3248,14 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 
 .invitation-actions {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     margin-top: 4px;
-    width: 100%;
 }
 
 .invitation-actions button {
     flex: 1;
-    padding: 10px 12px;
+    padding: 10px 16px;
     font-weight: 600;
-    font-size: 0.9rem;
-    white-space: nowrap;
-    min-width: 0; /* Allow buttons to shrink */
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 /* Responsive tweaks for invitation cards on narrow screens */

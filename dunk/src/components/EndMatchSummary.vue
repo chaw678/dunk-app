@@ -2,12 +2,11 @@
   <Teleport to="body">
     <div class="end-summary-overlay" @click.self="close">
       <div :class="['end-summary-modal', { compact: props.compact }]">
-        <!-- Large centered match title (matches Rounds Completed font but bigger) -->
-        <div class="modal-match-title">{{ matchTitle }}</div>
-
         <header class="summary-header">
           <!-- LIVE / Match Complete indicator -->
           <span v-if="isMatchLive" class="match-status-badge live-badge">LIVE</span>
+          <!-- Large centered match title -->
+          <div class="modal-match-title">{{ matchTitle }}</div>
           <button class="close-btn" @click="close">✕</button>
         </header>
 
@@ -58,7 +57,7 @@
         <!-- Scrollable area: player rankings and rounds history will scroll while the header/details/round-summary remain fixed -->
         <div class="summary-scroll">
           <section class="players-ranking">
-            <h3>Player rankings (by match wins)</h3>
+            <h3 class="section-title">Player rankings (by match wins)</h3>
             <ul class="ranking-list">
               <li v-for="(p, idx) in sortedPlayers" :key="p.uid" :class="['ranking-item', { 'rank-1': idx === 0, 'rank-2': idx === 1, 'rank-3': idx === 2 }]" @click="openProfileModal(p.uid)">
                 <div class="rank-number">#{{ idx + 1 }}</div>
@@ -80,7 +79,7 @@
           </section>
 
           <section class="rounds-history">
-            <h3>Rounds history</h3>
+            <h3 class="section-title">Rounds history</h3>
             <div v-if="!rounds || rounds.length === 0" class="rounds-empty">
               {{ isMatchEnded ? 'No rounds played' : 'No rounds history yet...' }}
             </div>
@@ -361,7 +360,15 @@ function onCancelAndNavigate() {
 .end-summary-modal { position: relative; box-sizing: border-box; width:880px; max-width:96%; max-height:calc(92vh - 36px); /* modal will be a flex column; inner area will scroll */ display:flex; flex-direction:column; background: linear-gradient(180deg,#0f1114,#151617); border-radius:14px; padding:18px; border:2px solid #FFAD1D; box-shadow: 0 22px 64px rgba(0,0,0,0.7); transform-origin:center center; animation: modalPop 220ms cubic-bezier(.2,.9,.2,1) both }
 .end-summary-modal.compact { width:92%; max-width:680px; padding:14px }
 
-.summary-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px }
+.summary-header { 
+  display:flex; 
+  align-items:center; 
+  justify-content:center; 
+  gap:12px; 
+  margin-bottom:16px;
+  position: relative;
+  min-height: 60px;
+}
 .summary-header h2 { color:#ffad1d; margin:0; font-size:1.6rem; letter-spacing:0.6px }
 .summary-meta { color:#d3c7a3; font-weight:700; font-size:0.9rem; margin-top:4px }
 .close-btn { position: absolute; right: 12px; top: 12px; background: transparent; border: none; color: #fff; font-size: 20px; cursor: pointer }
@@ -410,7 +417,45 @@ function onCancelAndNavigate() {
 .round-summary h3 { color:#ffd98a; font-weight:900; margin:0 0 8px 0; font-size:2.2rem }
 
 /* Large centered match title in modal */
-.modal-match-title { color:#fff; font-weight:900; font-size:3rem; text-align:center; margin:6px 0 12px; line-height:1; }
+.modal-match-title { 
+  color:#fff; 
+  font-weight:900; 
+  font-size:3rem; 
+  text-align:center; 
+  margin:0; 
+  line-height:1; 
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Section title styling for better typography */
+.section-title {
+  color: #111;
+  font-weight: 900;
+  font-size: 1.5rem;
+  margin: 0 0 16px 0;
+  letter-spacing: 0.02em;
+  text-transform: capitalize;
+  background: linear-gradient(135deg, #ff9a3c, #ffb76a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  position: relative;
+  padding-bottom: 12px;
+}
+
+.section-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(90deg, #ff9a3c, transparent);
+  border-radius: 2px;
+}
 
 .players-ranking { margin-top:8px }
 .ranking-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px }

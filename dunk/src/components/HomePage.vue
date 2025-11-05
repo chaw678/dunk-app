@@ -157,7 +157,7 @@
               <div class="empty-icon">📨</div>
               <h4>No pending invitations</h4>
               <p>Create a match and invite your friends to play basketball together!</p>
-              <button class="btn-create-match" @click="navigateToMatches">
+              <button class="btn-create-match" @click="openCreateMatchModal">
                 <i class="bi bi-plus-lg"></i> Create Match
               </button>
             </div>
@@ -352,6 +352,15 @@
     :initialProfile="profileModalInitial" 
     @close="closeProfileModal" 
   />
+  
+  <!-- AddMatchModal -->
+  <AddMatchModal 
+    v-if="showAddMatchModal" 
+    :courtList="courts" 
+    :courtName="''" 
+    @close="showAddMatchModal = false" 
+    @created="onMatchCreated" 
+  />
 </template>
 
 <script setup>
@@ -361,6 +370,7 @@ import { getDataFromFirebase, setChildData, deleteChildData, onDataChange } from
 import { onUserStateChanged } from '../firebase/auth'
 import { seededAvatar, avatarForUser } from '../utils/avatar.js'
 import ProfileModal from './ProfileModal.vue'
+import AddMatchModal from './AddMatchModal.vue'
 
 const router = useRouter()
 
@@ -372,6 +382,10 @@ const currentUserProfile = ref(null)
 const showProfileModal = ref(false)
 const profileModalUid = ref(null)
 const profileModalInitial = ref(null)
+
+// AddMatchModal state
+const showAddMatchModal = ref(false)
+const courts = ref([])
 
 // Invitations state
 const invitations = ref([])
@@ -578,9 +592,6 @@ async function acceptInvite(invitation) {
         await loadInvitations()
         
         alert('You have joined the match!')
-        
-        // Navigate to matches page to see the joined match
-        router.push('/matches')
     } catch (err) {
         console.error('Failed to accept invitation', err)
         alert('Failed to join match')
@@ -1371,6 +1382,43 @@ const getStarted = () => {
   router.push('/matches')
 }
 
+// Create match modal functions
+const openCreateMatchModal = () => {
+  if (!currentUser.value) {
+    // If not signed in, navigate to matches page which will handle sign-in
+    router.push('/matches')
+    return
+  }
+  showAddMatchModal.value = true
+}
+
+const onMatchCreated = async () => {
+  showAddMatchModal.value = false
+  // Reload matches to show the new match
+  await loadMatches()
+}
+
+// Load courts for the create match modal
+const loadCourts = async () => {
+  try {
+    const data = await getDataFromFirebase('courts')
+    if (!data) {
+      courts.value = []
+      return
+    }
+    if (Array.isArray(data)) {
+      courts.value = data
+    } else if (typeof data === 'object') {
+      courts.value = Object.keys(data).map(k => ({ ...data[k], key: k, id: k }))
+    } else {
+      courts.value = []
+    }
+  } catch (err) {
+    console.error('Failed to load courts', err)
+    courts.value = []
+  }
+}
+
 // Watch for invitations changes to restart auto-play
 watch(invitations, () => {
   startAutoPlay()
@@ -1381,6 +1429,7 @@ onMounted(async () => {
     // Load initial data
     await loadMatches()
     await loadCourtsData()
+    await loadCourts()
     await loadUsers()
     
     // Try to get user location
@@ -1840,7 +1889,7 @@ section {
 
 .invitation-card-wrapper {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     width: 100%;
     min-height: 380px; /* Consistent wrapper height */
 }
@@ -1858,7 +1907,6 @@ section {
     flex-direction: column;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     transition: transform 0.2s;
-    margin: 0 auto; /* Center card in grid cell */
 }
 
 .invitation-card:hover {
