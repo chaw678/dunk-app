@@ -67,7 +67,7 @@
     <header>
       <button v-if="isHost" @click="goBack" class="back-btn">← Back</button>
       <button v-else @click="closePlayerView" class="close-btn" aria-label="Close">✕</button>
-  <h1>Round #{{ displayTitle }}</h1>
+      <h1 class="matchroom-title">Round #{{ displayTitle }}</h1>
       <div></div>
     </header>
 
@@ -1540,6 +1540,26 @@ function syncTimerFromServer() {
 .matchroom-container { background: #10121A; color: #fff; min-height: 100vh; padding: 32px; }
 header { display:flex; align-items:center; justify-content:center; gap:12px; position:relative; }
 .back-btn { border:none; background:#B23B3B; color:#fff; border-radius:8px; padding:9px 18px; font-weight:700; position:absolute; left:12px; top:12px; }
+.close-btn {
+  border: none;
+  background: transparent;
+  color: #fff;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease;
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.close-btn:hover { background: rgba(255,255,255,0.03); transform: translateY(-50%) scale(1.03); }
 
 .players-row { display:flex; gap:18px; padding-top:12px; flex-wrap:wrap; align-items:center; }
 .player-tile { display:flex; align-items:center; gap:14px; padding:10px 0; }

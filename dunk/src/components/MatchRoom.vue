@@ -68,9 +68,8 @@
     <!-- Normal Match Room View (shown when match is active) -->
     <div v-else>
     <header>
-      <button @click="goBack" class="close-btn" aria-label="Close">✕</button>
-      <h1 v-if="teamsLocked">Round #{{ roundsCount + 1 }}</h1>
-      <h1 v-else>{{ displayTitle }}</h1>
+      <button @click="goBack" class="back-btn">← Back</button>
+      <h1 class="matchroom-title" style="text-align: center;">{{ displayTitle }}</h1>
       <button v-if="!isPlayerView && isHost" @click="onEndMatch" class="end-match-btn">End Match</button>
     </header>
     <div class="title-actions" style="text-align: center;">

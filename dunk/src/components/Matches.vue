@@ -577,6 +577,23 @@ async function openMatch(match, event) {
             return
         }
         
+        // NEW: Prevent opening match if it hasn't been started yet
+        // EVERYONE (including host) must wait until "Start Match" is clicked
+        if (!match.started && !match._started) {
+            if (isHost(match)) {
+                showAlert('Please click "Start Match" to begin the match.')
+            } else {
+                showAlert('Match has not started yet. Wait for the host to start the match.')
+            }
+            return
+        }
+        
+        // NEW: Prevent opening match if user hasn't joined (unless they're the host)
+        if (!isJoined(match) && !isHost(match)) {
+            showAlert('You must join this match to view it.')
+            return
+        }
+        
         // If joining is disabled for this match (e.g., wrong gender, full, or not signed in),
         // prevent card-level navigation so users don't get taken to the MatchRoom unintentionally.
         try {
