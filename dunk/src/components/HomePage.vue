@@ -36,33 +36,45 @@
             </h3>
             
             <!-- Show invitations if they exist -->
-            <div v-if="invitations.length > 0" class="invitations-container">
+            <div v-if="activeInvitations.length > 0" class="invitations-container">
               <!-- Carousel wrapper for more than 3 invitations -->
-              <div v-if="invitations.length > 3" class="carousel-wrapper" 
+              <div v-if="activeInvitations.length > 3" class="carousel-wrapper" 
                    @mouseenter="pauseAutoPlay" 
                    @mouseleave="resumeAutoPlay">
                 <button class="carousel-btn prev" @click="scrollCarousel(-1)">
                   <i class="bi bi-chevron-left"></i>
                 </button>
                 <div class="carousel-track" ref="carouselTrack">
-                  <div class="carousel-slide" v-for="inv in invitations" :key="inv.id">
+                  <div class="carousel-slide" v-for="inv in activeInvitations" :key="inv.id">
                     <div class="invitation-card-wrapper">
                       <div class="invitation-card">
                         <div class="invitation-header">
                           <h3 class="invitation-match-title">{{ inv.title }}</h3>
+                          <span v-if="getMatchStatus(inv) === 'Live'" class="match-status-badge live">
+                            LIVE
+                          </span>
                         </div>
                         <div class="invitation-body">
                           <div class="invitation-content">
-                            <div class="invitation-court-name">{{ inv.court || 'Unknown court' }}</div>
-                            <div class="invitation-date">{{ formatInvitationDate(inv.date) }}</div>
-                            <div class="invitation-time">{{ formatInvitationTime(inv.startTime, inv.endTime) }}</div>
+                            <div class="invitation-court-name">
+                              <i class="bi bi-geo-alt-fill"></i>
+                              {{ inv.court || 'Unknown court' }}
+                            </div>
+                            <div class="invitation-date">
+                              <i class="bi bi-calendar-fill"></i>
+                              {{ formatInvitationDate(inv.date) }}
+                            </div>
+                            <div class="invitation-time">
+                              <i class="bi bi-clock-fill"></i>
+                              {{ formatInvitationTime(inv.startTime, inv.endTime) }}
+                            </div>
                             <div class="invitation-tags">
                               <span class="invitation-tag">{{ inv.gender || 'All' }}</span>
                               <span class="invitation-tag">{{ inv.type || 'Open' }}</span>
                             </div>
-                            <div class="invitation-inviter">
-                              <i class="bi bi-person-circle"></i>
-                              <span>Invited by {{ inv.inviterName || 'Unknown' }}</span>
+                            <div class="invitation-inviter" v-if="inv.inviterUid" @click="openProfileModal(inv.inviterUid)" style="cursor: pointer;">
+                              <img :src="inv.inviterAvatar" :alt="inv.inviterName" class="inviter-avatar" />
+                              <span>Invited by <strong>{{ inv.inviterName }}</strong></span>
                             </div>
                           </div>
                           <div class="invitation-actions">
@@ -95,23 +107,35 @@
               
               <!-- Regular grid for 3 or fewer invitations -->
               <div v-else class="invitations-grid">
-                <div class="invitation-card-wrapper" v-for="inv in invitations" :key="inv.id">
+                <div class="invitation-card-wrapper" v-for="inv in activeInvitations" :key="inv.id">
                   <div class="invitation-card">
                     <div class="invitation-header">
                       <h3 class="invitation-match-title">{{ inv.title }}</h3>
+                      <span v-if="getMatchStatus(inv) === 'Live'" class="match-status-badge live">
+                        LIVE
+                      </span>
                     </div>
                     <div class="invitation-body">
                       <div class="invitation-content">
-                        <div class="invitation-court-name">{{ inv.court || 'Unknown court' }}</div>
-                        <div class="invitation-date">{{ formatInvitationDate(inv.date) }}</div>
-                        <div class="invitation-time">{{ formatInvitationTime(inv.startTime, inv.endTime) }}</div>
+                        <div class="invitation-court-name">
+                          <i class="bi bi-geo-alt-fill"></i>
+                          {{ inv.court || 'Unknown court' }}
+                        </div>
+                        <div class="invitation-date">
+                          <i class="bi bi-calendar-fill"></i>
+                          {{ formatInvitationDate(inv.date) }}
+                        </div>
+                        <div class="invitation-time">
+                          <i class="bi bi-clock-fill"></i>
+                          {{ formatInvitationTime(inv.startTime, inv.endTime) }}
+                        </div>
                         <div class="invitation-tags">
                           <span class="invitation-tag">{{ inv.gender || 'All' }}</span>
                           <span class="invitation-tag">{{ inv.type || 'Open' }}</span>
                         </div>
-                        <div class="invitation-inviter">
-                          <i class="bi bi-person-circle"></i>
-                          <span>Invited by {{ inv.inviterName || 'Unknown' }}</span>
+                        <div class="invitation-inviter" v-if="inv.inviterUid" @click="openProfileModal(inv.inviterUid)" style="cursor: pointer;">
+                          <img :src="inv.inviterAvatar" :alt="inv.inviterName" class="inviter-avatar" />
+                          <span>Invited by <strong>{{ inv.inviterName }}</strong></span>
                         </div>
                       </div>
                       <div class="invitation-actions">
@@ -320,6 +344,14 @@
       </div>
     </section>
   </div>
+  
+  <!-- ProfileModal -->
+  <ProfileModal 
+    v-if="showProfileModal" 
+    :uid="profileModalUid" 
+    :initialProfile="profileModalInitial" 
+    @close="closeProfileModal" 
+  />
 </template>
 
 <script setup>
@@ -327,6 +359,8 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getDataFromFirebase, setChildData, deleteChildData, onDataChange } from '../firebase/firebase'
 import { onUserStateChanged } from '../firebase/auth'
+import { seededAvatar, avatarForUser } from '../utils/avatar.js'
+import ProfileModal from './ProfileModal.vue'
 
 const router = useRouter()
 
@@ -334,9 +368,59 @@ const router = useRouter()
 const currentUser = ref(null)
 const currentUserProfile = ref(null)
 
+// ProfileModal state
+const showProfileModal = ref(false)
+const profileModalUid = ref(null)
+const profileModalInitial = ref(null)
+
 // Invitations state
 const invitations = ref([])
-const invitationsCount = computed(() => invitations.value.length)
+
+// Filter out invitations for past matches
+const activeInvitations = computed(() => {
+    if (!invitations.value || invitations.value.length === 0) return []
+    
+    const now = new Date()
+    return invitations.value.filter(inv => {
+        // Filter out invalid/incomplete invitations (missing title)
+        if (!inv.title) {
+            console.warn('Filtering out incomplete invitation (no title):', inv)
+            return false
+        }
+        
+        // Check if invitation has an end time
+        if (inv.end) {
+            try {
+                const endDate = new Date(inv.end)
+                if (!isNaN(endDate.getTime()) && endDate < now) {
+                    return false // Match has ended
+                }
+            } catch (e) {
+                console.warn('Invalid end date for invitation:', inv)
+            }
+        }
+        
+        // Check if invitation has a date and no end (use date as reference)
+        if (inv.date && !inv.end) {
+            try {
+                const matchDate = new Date(inv.date)
+                if (!isNaN(matchDate.getTime())) {
+                    // Consider a match past if it was more than 3 hours ago
+                    const threeHoursAgo = new Date(now.getTime() - (3 * 60 * 60 * 1000))
+                    if (matchDate < threeHoursAgo) {
+                        return false // Match started more than 3 hours ago, likely over
+                    }
+                }
+            } catch (e) {
+                console.warn('Invalid date for invitation:', inv)
+            }
+        }
+        
+        return true // Keep invitation if not past
+    })
+})
+
+const invitationsCount = computed(() => activeInvitations.value.length)
 
 // Recommendations state
 const matches = ref([])
@@ -355,11 +439,11 @@ const isAutoPlayPaused = ref(false)
 
 // Carousel computed properties
 const maxSlides = computed(() => {
-  return Math.ceil(invitations.value.length / 3) - 1
+  return Math.ceil(activeInvitations.value.length / 3) - 1
 })
 
 const totalSlides = computed(() => {
-  return Math.ceil(invitations.value.length / 3)
+  return Math.ceil(activeInvitations.value.length / 3)
 })
 
 // Auto-scroll condition for conveyor belt
@@ -380,12 +464,45 @@ function subscribeInvitationsRealtime(uid) {
         invitations.value = []
         return
     }
-    invitesUnsub = onDataChange(`users/${uid}/invitations`, (invData) => {
+    invitesUnsub = onDataChange(`users/${uid}/invitations`, async (invData) => {
         if (!invData) {
             invitations.value = []
             return
         }
         const arr = Object.keys(invData).map(id => ({ id, ...invData[id] }))
+        
+        // Enrich invitations with current match status and inviter profile
+        for (const inv of arr) {
+            if (inv.matchPath) {
+                try {
+                    const matchData = await getDataFromFirebase(inv.matchPath)
+                    if (matchData) {
+                        // Update the started flag from the actual match
+                        inv.started = matchData.started || matchData._started || false
+                    }
+                } catch (e) {
+                    // If we can't fetch match data, keep the invitation as-is
+                    console.warn('Failed to enrich invitation with match data:', e)
+                }
+            }
+            
+            // Fetch inviter profile data
+            if (inv.invitedBy) {
+                try {
+                    const inviterData = await getDataFromFirebase(`users/${inv.invitedBy}`)
+                    if (inviterData) {
+                        inv.inviterName = inviterData.name || inviterData.displayName || inviterData.username || 'Unknown'
+                        inv.inviterAvatar = avatarForUser(inviterData)
+                        inv.inviterUid = inv.invitedBy
+                    }
+                } catch (e) {
+                    console.warn('Failed to fetch inviter profile:', e)
+                    inv.inviterName = 'Unknown'
+                    inv.inviterAvatar = seededAvatar('unknown')
+                }
+            }
+        }
+        
         invitations.value = arr
     })
 }
@@ -420,9 +537,18 @@ async function acceptInvite(invitation) {
     
     try {
         // Find the match using the matchPath or construct it from the invitation data
-        const matchPath = invitation.matchPath
+        let matchPath = invitation.matchPath
+        
+        // If matchPath is missing, try to construct it from invitation data
+        if (!matchPath && invitation.court && invitation.date && invitation.id) {
+            matchPath = `matches/${invitation.court}/${invitation.date}/${invitation.id}`
+            console.log('Constructed matchPath from invitation data:', matchPath)
+        }
+        
         if (!matchPath) {
-            console.error('No match path in invitation')
+            console.error('No match path in invitation and cannot construct one:', invitation)
+            alert('Cannot join this match - invitation data is incomplete')
+            await declineInvite(invitation)
             return
         }
         
@@ -471,6 +597,30 @@ async function declineInvite(invitation) {
     } catch (err) {
         console.error('Failed to decline invitation', err)
     }
+}
+
+function openProfileModal(target) {
+    if (!target) return
+    // allow either a uid string or an enriched inviter object
+    if (typeof target === 'string') {
+        profileModalUid.value = target
+        profileModalInitial.value = null
+    } else if (typeof target === 'object' && target) {
+        const uid = target.uid || target.id || target.key || null
+        if (!uid) return
+        profileModalUid.value = uid
+        // keep the enriched object (name/avatar) so modal can render immediately
+        profileModalInitial.value = target
+    } else {
+        return
+    }
+    showProfileModal.value = true
+}
+
+function closeProfileModal() {
+    showProfileModal.value = false
+    profileModalUid.value = null
+    profileModalInitial.value = null
 }
 
 // Recommendation helper functions (copied from Matches.vue)
@@ -892,10 +1042,44 @@ async function joinMatch(match) {
         return
     }
     
+    const uid = currentUser.value.uid
+    
+    // Check if already joined
+    if (match.joinedBy && match.joinedBy[uid]) {
+        alert('You have already joined this match')
+        return
+    }
+    
     try {
-        // Simple join logic - in a real app you'd want more validation
-        const matchPath = `matches/${match.court}/${match.date}/${match.id || match.title}`
-        await setChildData(`${matchPath}/joinedBy`, currentUser.value.uid, true)
+        // Use the match's database path if available
+        let matchPath = match.__dbPath
+        
+        // If no __dbPath, construct it from match data
+        if (!matchPath) {
+            const matchId = match.id || match.title
+            if (match.court && match.date && matchId) {
+                matchPath = `matches/${match.court}/${match.date}/${matchId}`
+            } else {
+                // Fallback: try to find the match in Firebase
+                console.warn('Match missing required fields for path construction:', match)
+                alert('Unable to join match - invalid match data')
+                return
+            }
+        }
+        
+        // Optimistically update local state
+        if (!match.joinedBy) match.joinedBy = {}
+        match.joinedBy = { ...match.joinedBy, [uid]: true }
+        
+        // Persist to Firebase - update joinedBy and playersMap
+        await setChildData(`${matchPath}/joinedBy`, uid, true)
+        
+        // Add player name to playersMap for display
+        const displayName = (currentUserProfile.value && currentUserProfile.value.name) || 
+                           currentUser.value.displayName || 
+                           (currentUser.value.email && currentUser.value.email.split('@')[0]) || 
+                           uid
+        await setChildData(`${matchPath}/playersMap`, uid, displayName)
         
         // Refresh matches
         await loadMatches()
@@ -930,6 +1114,7 @@ async function loadMatches() {
                         id: matchId,
                         court: court,
                         date: date,
+                        __dbPath: `matches/${court}/${date}/${matchId}`,
                         ...matchData
                     })
                 }
@@ -996,11 +1181,41 @@ function getUserLocation() {
     }
 }
 
-// Format invitation date for display
+// Format invitation date for display with relative timing
 function formatInvitationDate(dateStr) {
     if (!dateStr) return 'Unknown date'
     try {
         const date = new Date(dateStr)
+        const now = new Date()
+        const diffMs = date - now
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+        
+        // If today
+        if (diffDays === 0) {
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+            const diffMins = Math.floor(diffMs / (1000 * 60))
+            
+            if (diffMins < 0) {
+                // Match is happening now or recently started
+                return 'Today (Ongoing)'
+            } else if (diffMins < 60) {
+                return `Today (in ${diffMins} min)`
+            } else if (diffHours < 12) {
+                return `Today (in ${diffHours}h)`
+            } else {
+                return 'Today'
+            }
+        }
+        
+        // If tomorrow
+        if (diffDays === 1) return 'Tomorrow'
+        
+        // If within a week
+        if (diffDays > 0 && diffDays < 7) {
+            return date.toLocaleDateString('en-US', { weekday: 'long' })
+        }
+        
+        // Otherwise show full date
         return date.toLocaleDateString('en-US', { 
             weekday: 'short', 
             month: 'short', 
@@ -1011,12 +1226,66 @@ function formatInvitationDate(dateStr) {
     }
 }
 
+// Get match status badge text
+function getMatchStatus(inv) {
+    if (!inv.date) return 'Scheduled'
+    
+    try {
+        const now = new Date()
+        const startDate = new Date(inv.date)
+        const endDate = inv.end ? new Date(inv.end) : null
+        
+        // If match has ended
+        if (endDate && endDate < now) {
+            return 'Ended'
+        }
+        
+        // Check if match is actually started by the host
+        // Only show "Live" if the match has been explicitly started
+        const isStarted = inv.started || inv._started || false
+        
+        // If match is ongoing (time-wise) AND has been started by host
+        if (startDate <= now && (!endDate || endDate >= now)) {
+            // Only return "Live" if the host has started the match
+            if (isStarted) {
+                return 'Live'
+            }
+            // If scheduled time has arrived but host hasn't started, show "Scheduled"
+            return 'Scheduled'
+        }
+        
+        // If match is starting soon (within 30 minutes)
+        const diffMins = Math.floor((startDate - now) / (1000 * 60))
+        if (diffMins > 0 && diffMins <= 30) {
+            return 'Starting Soon'
+        }
+        
+        // Otherwise it's scheduled
+        return 'Scheduled'
+    } catch (err) {
+        return 'Scheduled'
+    }
+}
+
 // Format time display for invitations
 function formatInvitationTime(startTime, endTime) {
     if (!startTime && !endTime) return 'Time TBD'
-    if (startTime && endTime) return `${startTime} - ${endTime}`
-    if (startTime) return `From ${startTime}`
-    if (endTime) return `Until ${endTime}`
+    
+    // Helper function to convert 24h to 12h format
+    const to12Hour = (time24) => {
+        if (!time24) return ''
+        const [hours, minutes] = time24.split(':')
+        let hour = parseInt(hours)
+        const ampm = hour >= 12 ? 'pm' : 'am'
+        hour = hour % 12 || 12
+        return `${hour}:${minutes} ${ampm}`
+    }
+    
+    if (startTime && endTime) {
+        return `${to12Hour(startTime)} - ${to12Hour(endTime)}`
+    }
+    if (startTime) return `From ${to12Hour(startTime)}`
+    if (endTime) return `Until ${to12Hour(endTime)}`
     return 'Time TBD'
 }
 
@@ -1545,6 +1814,7 @@ section { padding-top: 40px; padding-bottom: 40px; }
     justify-content: space-between;
     align-items: flex-start;
     flex-shrink: 0; /* Prevent header from shrinking */
+    gap: 12px;
 }
 
 .invitation-match-title {
@@ -1560,6 +1830,38 @@ section { padding-top: 40px; padding-bottom: 40px; }
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.match-status-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
+    letter-spacing: 0.5px;
+}
+
+.match-status-badge.scheduled {
+    background: rgba(59, 130, 246, 0.2);
+    color: #3b82f6;
+}
+
+.match-status-badge.live {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    animation: pulse-badge 2s ease-in-out infinite;
+}
+
+.match-status-badge.starting {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+}
+
+@keyframes pulse-badge {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
 }
 
 .invitation-body {
@@ -1586,6 +1888,14 @@ section { padding-top: 40px; padding-bottom: 40px; }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis; /* Handle long court names */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.invitation-court-name i {
+    color: #ff9a3c;
+    flex-shrink: 0;
 }
 
 .invitation-date {
@@ -1593,6 +1903,14 @@ section { padding-top: 40px; padding-bottom: 40px; }
     font-size: 1rem;
     font-weight: 700;
     margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.invitation-date i {
+    color: #ff9a3c;
+    flex-shrink: 0;
 }
 
 .invitation-time {
@@ -1600,6 +1918,14 @@ section { padding-top: 40px; padding-bottom: 40px; }
     font-size: 0.95rem;
     font-weight: 600;
     margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.invitation-time i {
+    color: #ff9a3c;
+    flex-shrink: 0;
 }
 
 .invitation-tags {
@@ -1626,10 +1952,23 @@ section { padding-top: 40px; padding-bottom: 40px; }
     margin-bottom: 12px;
     padding-bottom: 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    transition: color 0.2s;
+}
+
+.invitation-inviter:hover {
+    color: #ff9a3c !important;
 }
 
 .invitation-inviter i {
     font-size: 1.2rem;
+}
+
+.inviter-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #ff9a3c;
 }
 
 .invitation-actions {

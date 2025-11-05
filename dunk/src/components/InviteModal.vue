@@ -271,18 +271,34 @@ async function sendInvites() {
   sending.value = true
   try {
     const matchId = props.match.id || (props.match.__dbPath ? props.match.__dbPath.split('/').pop() : (`m_${Date.now()}`))
+    
+    // Ensure we have a valid matchPath
+    let matchPath = props.match.__dbPath
+    if (!matchPath && props.match.court && props.match.date && matchId) {
+      // Construct the path if missing: matches/{court}/{date}/{id}
+      matchPath = `matches/${props.match.court}/${props.match.date}/${matchId}`
+    }
+    
     const summary = {
       id: matchId,
       title: props.match.title || props.match.name || 'Match',
       court: props.match.court || props.match.location || '',
-      date: props.match.date || props.match.startAtISO || new Date().toISOString(),
+      date: props.match.startAtISO || props.match.date || new Date().toISOString(),
+      startTime: props.match.startTime || '',
+      endTime: props.match.endTime || '',
+      end: props.match.endAtISO || props.match.endAt || null,
+      started: props.match.started || props.match._started || false,
       invitedBy: props.me.uid,
       invitedAt: Date.now(),
-      matchPath: props.match.__dbPath || null
+      matchPath: matchPath
     }
+    
+    console.log('Sending invitation with data:', summary)
+    
     for (const uid of list) {
       try {
         await setChildData(`users/${uid}/invitations`, matchId, summary)
+        console.log('Successfully sent invitation to:', uid)
       } catch (err) {
         console.warn('Invite failed for', uid, err)
       }
