@@ -69,7 +69,7 @@
 
       <!-- Leaderboard Table -->
       <div class="leaderboard-card rounded-3">
-        <div class="lb-header small text-muted d-flex py-2 px-3">
+        <div class="lb-header small text-secondary d-flex py-2 px-3">
           <div class="col-rank">Rank</div>
           <div class="flex-grow-1">Player</div>
           <div class="col-score text-end">Score</div>
@@ -87,8 +87,8 @@
             <div class="flex-grow-1 d-flex align-items-center gap-3 py-2">
               <img :src="p.photoURL || avatarFor(p)" class="avatar" alt="avatar" />
               <div>
-                <div class="fw-semibold">{{ p.name || p.username || 'Anonymous' }}</div>
-                <div class="text-muted small">{{ p.email || '—' }}</div>
+                <div class="fw-semibold text-warning">{{ p.name || p.username || 'Anonymous' }}</div>
+                <div class="text-secondary small">{{ p.email || '—' }}</div>
               </div>
             </div>
             <div class="col-score text-end fw-bold text-warning">{{ Number(p.tabWins||0) }}</div>

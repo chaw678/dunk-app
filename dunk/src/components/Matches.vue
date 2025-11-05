@@ -1805,6 +1805,10 @@ function getMatchStartEnd(match) {
                     if (mbe.length) {
                         const be = new Date(base)
                         be.setHours(Number(mbe[1]), Number(mbe[2]) || 0, Number(mbe[3]) || 0, 0)
+                        // If end time is earlier than start time, it crosses midnight - add 24 hours
+                        if (be <= s) {
+                            be.setDate(be.getDate() + 1)
+                        }
                         e = be
                     }
                 }
@@ -1989,9 +1993,16 @@ const groupedMatches = computed(() => {
         
         const { start, end } = getMatchStartEnd(m)
         if (start && end) {
-            if (now >= start && now <= end) out.ongoing.push(m)
-            else if (start > now) out.scheduled.push(m)
-            else out.past.push(m)
+            // Additional check: if end time has passed, it's a past match
+            if (end < now) {
+                out.past.push(m)
+            } else if (now >= start && now <= end) {
+                out.ongoing.push(m)
+            } else if (start > now) {
+                out.scheduled.push(m)
+            } else {
+                out.past.push(m)
+            }
         } else if (start && !end) {
             if (start > now) out.scheduled.push(m)
             else out.ongoing.push(m)
@@ -2002,9 +2013,13 @@ const groupedMatches = computed(() => {
     }
     
     // For recommended tab, limit to top 6 matches (3 ongoing, 3 scheduled)
+    // Also ensure no past matches leak through
     if (selectedTab.value === 'recommended') {
-        out.ongoing = out.ongoing.slice(0, 3)
-        out.scheduled = out.scheduled.slice(0, 3)
+        // Double-check to filter out any matches that became past since initial filtering
+        out.ongoing = out.ongoing.filter(m => !isPast(m)).slice(0, 3)
+        out.scheduled = out.scheduled.filter(m => !isPast(m)).slice(0, 3)
+        // Don't show past matches in recommended tab at all
+        out.past = []
     }
     
     // Sort past matches by most recent first (reverse chronological order)
@@ -2404,8 +2419,9 @@ async function endMatchConfirmed(match) {
             const courtName = (match && (match.court || match.location)) ? encodeURIComponent((match.court || match.location)) : ''
             const matchId = match && match.id ? String(match.id) : ''
             const matchTitle = (match && match.title) ? encodeURIComponent(match.title) : ''
+            const matchPath = match && match.__dbPath ? encodeURIComponent(match.__dbPath) : ''
             // use query params `openCreate=1`, `tag=Matches`, and pass court/match info so forum can prefill and attach metadata
-            await router.push({ path: '/forum', query: { openCreate: '1', court: courtName, tag: 'Matches', matchId, matchTitle } })
+            await router.push({ path: '/forum', query: { openCreate: '1', court: courtName, tag: 'Matches', matchId, matchTitle, matchPath } })
         } catch (e) {
         // ignore navigation failures
     }

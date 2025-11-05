@@ -257,7 +257,13 @@ async function isTimingOverlap() {
   }
   
   const newStart = parseDateTime(matchDate.value, startTime.value)
-  const newEnd = parseDateTime(matchDate.value, endTime.value)
+  let newEnd = parseDateTime(matchDate.value, endTime.value)
+  
+  // If end time is earlier than start time, the match crosses midnight
+  if (newEnd <= newStart) {
+    newEnd = new Date(newEnd.getTime() + 24 * 60 * 60 * 1000) // Add 24 hours
+  }
+  
   if (!newStart || !newEnd || newEnd <= newStart) {
     timingError.value = 'Please provide a valid start and end time'
     checkingOverlap.value = false
@@ -281,6 +287,11 @@ async function isTimingOverlap() {
       if (m.startTime && m.endTime) {
         existStart = parseDateTime(m.date, m.startTime)
         existEnd = parseDateTime(m.date, m.endTime)
+        
+        // If existing match crosses midnight, add 24 hours to end time
+        if (existEnd <= existStart) {
+          existEnd = new Date(existEnd.getTime() + 24 * 60 * 60 * 1000)
+        }
         
         // If the match ended early, use the actual end time instead of scheduled end time
         if (m.endedAt) {
@@ -332,8 +343,12 @@ const canSubmit = computed(() => {
   if (minDate.value && matchDate.value < minDate.value) return false
   if (!startTime.value || !endTime.value) return false
   const s = parseDateTime(matchDate.value, startTime.value)
-  const e = parseDateTime(matchDate.value, endTime.value)
+  let e = parseDateTime(matchDate.value, endTime.value)
   if (!s || !e) return false
+  // If end time is earlier than start time (crosses midnight), add 24 hours
+  if (e <= s) {
+    e = new Date(e.getTime() + 24 * 60 * 60 * 1000)
+  }
   if (e <= s) return false
   return true
 })
@@ -409,7 +424,14 @@ const submitDisabledReason = computed(() => {
   const s = parseDateTime(matchDate.value, startTime.value)
   const e = parseDateTime(matchDate.value, endTime.value)
   if (!s || !e) return 'Invalid start or end time.'
-  if (e <= s) return 'End time must be after start time.'
+  // If end time is earlier than start time, it means the match crosses midnight (next day)
+  // So we should add 24 hours to the end time for validation
+  let endDateTime = e
+  if (e <= s) {
+    endDateTime = new Date(e.getTime() + 24 * 60 * 60 * 1000) // Add 24 hours
+  }
+  // Now check if it's still invalid (shouldn't be unless times are exactly equal)
+  if (endDateTime <= s) return 'End time must be after start time.'
   return ''
 })
 
@@ -465,7 +487,23 @@ const createMatch = async () => {
       startTime: startTime.value,
       endTime: endTime.value,
       startAtISO: toSingaporeDateTimeISO(matchDate.value, startTime.value),
-      endAtISO: toSingaporeDateTimeISO(matchDate.value, endTime.value),
+      // If end time is earlier than start time (crosses midnight), use next day
+      endAtISO: (() => {
+        const start = parseDateTime(matchDate.value, startTime.value)
+        const end = parseDateTime(matchDate.value, endTime.value)
+        if (end <= start) {
+          // Match crosses midnight - use next day for end time
+          const [y, m, d] = matchDate.value.split('-').map(Number)
+          // Use string manipulation to avoid timezone issues
+          const nextDayDate = new Date(y, m - 1, d + 1)
+          const yyyy = nextDayDate.getFullYear()
+          const mm = String(nextDayDate.getMonth() + 1).padStart(2, '0')
+          const dd = String(nextDayDate.getDate()).padStart(2, '0')
+          const nextDayStr = `${yyyy}-${mm}-${dd}`
+          return toSingaporeDateTimeISO(nextDayStr, endTime.value)
+        }
+        return toSingaporeDateTimeISO(matchDate.value, endTime.value)
+      })(),
       type: matchType.value,
       gender: gender.value,
       maxPlayers: maxPlayers.value || 10,
