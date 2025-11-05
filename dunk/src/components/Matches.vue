@@ -166,20 +166,28 @@
             <template v-if="isHost(match)">
               <template v-if="match.started || match._started">
                 <!-- Host can still invite even after the match has started -->
-                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                <button :disabled="isPast(match) || hasInvitedForMatch(match)" :title="isPast(match) ? 'Match is over' : (hasInvitedForMatch(match) ? 'Already invited' : '')" type="button" class="btn btn-invite btn-sm d-flex align-items-center" :class="{ 'btn-invited': hasInvitedForMatch(match) }" @click.prevent.stop="!isPast(match) && !hasInvitedForMatch(match) && openInvite(match)">
+                  <i class="bi bi-person-plus me-2"></i>{{ hasInvitedForMatch(match) ? 'Invited' : 'Invite' }}
+                </button>
                 <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="endMatch(match)"><i class="bi bi-stop-fill me-2"></i>End Match</button>
               </template>
               <template v-else>
-                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                <button :disabled="isPast(match) || hasInvitedForMatch(match)" :title="isPast(match) ? 'Match is over' : (hasInvitedForMatch(match) ? 'Already invited' : '')" type="button" class="btn btn-invite btn-sm d-flex align-items-center" :class="{ 'btn-invited': hasInvitedForMatch(match) }" @click.prevent.stop="!isPast(match) && !hasInvitedForMatch(match) && openInvite(match)">
+                  <i class="bi bi-person-plus me-2"></i>{{ hasInvitedForMatch(match) ? 'Invited' : 'Invite' }}
+                </button>
                 <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
               </template>
             </template>
             <template v-else-if="isJoined(match)">
                           <template v-if="match.started || match._started">
-                              <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                              <button :disabled="isPast(match) || hasInvitedForMatch(match)" :title="isPast(match) ? 'Match is over' : (hasInvitedForMatch(match) ? 'Already invited' : '')" type="button" class="btn btn-invite btn-sm d-flex align-items-center" :class="{ 'btn-invited': hasInvitedForMatch(match) }" @click.prevent.stop="!isPast(match) && !hasInvitedForMatch(match) && openInvite(match)">
+                                <i class="bi bi-person-plus me-2"></i>{{ hasInvitedForMatch(match) ? 'Invited' : 'Invite' }}
+                              </button>
                             </template>
                           <template v-else>
-                              <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                              <button :disabled="isPast(match) || hasInvitedForMatch(match)" :title="isPast(match) ? 'Match is over' : (hasInvitedForMatch(match) ? 'Already invited' : '')" type="button" class="btn btn-invite btn-sm d-flex align-items-center" :class="{ 'btn-invited': hasInvitedForMatch(match) }" @click.prevent.stop="!isPast(match) && !hasInvitedForMatch(match) && openInvite(match)">
+                                <i class="bi bi-person-plus me-2"></i>{{ hasInvitedForMatch(match) ? 'Invited' : 'Invite' }}
+                              </button>
                               <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                           </template>
             </template>
@@ -317,19 +325,18 @@
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="btn-group">
                                             <template v-if="isHost(match)">
-                                                <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                                <!-- Past match: no Invite/Leave actions -->
+                                                <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                             </template>
                                             <template v-else-if="isJoined(match)">
-                                                <!-- No actions for joined users on past matches -->
+                                                <!-- Past match: no Invite/Leave actions for joined players -->
                                             </template>
-                                            <template v-else>
-                                                <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
-                                            </template>
+                                            <!-- Past match: hide Join button for non-participants -->
                                         </div>
                                         <div></div>
                                     </div>
-                                    <!-- Match Summary button row - shown for past matches that were started -->
-                                    <div v-if="match.started || match._started" class="mt-2">
+                                    <!-- Match Summary button row - shown for all past matches -->
+                                    <div class="mt-2">
                                         <button type="button" class="btn summary-btn btn-sm d-flex align-items-center" @click.prevent.stop="openMatchSummary(match)"><i class="bi bi-list-check me-2"></i>Match Summary</button>
                                     </div>
                                 </div>
@@ -818,6 +825,10 @@ const activeInvitations = computed(() => {
 
 const invitationsCount = computed(() => activeInvitations.value.length)
 
+// Track who the current user has invited for each match
+// Structure: { matchId: Set(['uid1', 'uid2', ...]) }
+const invitedUsersPerMatch = ref({})
+
 // Match Summary modal state
 const showMatchSummary = ref(false)
 const summaryMatch = ref(null)
@@ -942,7 +953,25 @@ function openMatchSummary(match) {
 
 function onInvitesSent(uids) {
     console.log('Invites sent to', uids)
+    // Track invited users for this match
+    if (inviteMatch.value && inviteMatch.value.id) {
+        const matchId = inviteMatch.value.id
+        if (!invitedUsersPerMatch.value[matchId]) {
+            invitedUsersPerMatch.value[matchId] = new Set()
+        }
+        uids.forEach(uid => invitedUsersPerMatch.value[matchId].add(uid))
+        // Trigger reactivity
+        invitedUsersPerMatch.value = { ...invitedUsersPerMatch.value }
+    }
 }
+
+// Check if current user has invited anyone for a specific match
+function hasInvitedForMatch(match) {
+    if (!match || !match.id) return false
+    const invited = invitedUsersPerMatch.value[match.id]
+    return invited && invited.size > 0
+}
+
 
 // Load invitations for the current user
 async function loadInvitations() {
@@ -2743,6 +2772,21 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     color: #111;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(255, 154, 60, 0.3);
+}
+
+.btn-invite.btn-invited,
+.btn-invite.btn-invited:disabled {
+    background: #3a8a3a;
+    border-color: #2d6b2d;
+    color: #fff;
+    opacity: 0.8;
+    cursor: not-allowed;
+}
+
+.btn-invite.btn-invited:hover {
+    background: #3a8a3a;
+    transform: none;
+    box-shadow: none;
 }
 
 .summary-btn {

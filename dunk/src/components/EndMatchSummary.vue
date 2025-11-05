@@ -81,47 +81,50 @@
 
           <section class="rounds-history">
             <h3>Rounds history</h3>
-            <ul class="round-list">
+            <div v-if="!rounds || rounds.length === 0" class="rounds-empty">
+              {{ isMatchEnded ? 'No rounds played' : 'No rounds history yet...' }}
+            </div>
+            <ul v-else class="round-list">
               <li v-for="(r, idx) in rounds" :key="r.ts || idx" class="round-card">
-                <div class="card-left">
-                  <div class="round-index">#{{ rounds.length ? (rounds.length - idx) : (idx + 1) }}</div>
-                  <div class="round-time">{{ formatDate(r.endedAt) }}</div>
-                  <div class="round-duration">⏱ {{ formatDuration(r.duration) }}</div>
+                <div class="round-card-header">
+                  <span class="round-index">Round {{ rounds.length ? (rounds.length - idx) : (idx + 1) }}</span>
+                  <span class="round-time">{{ formatDate(r.endedAt) }}</span>
+                  <span class="round-duration">⏱ {{ formatDuration(r.duration) }}</span>
                 </div>
-                <div class="card-main">
-                  <div class="teams-row">
-                    <div class="team-block team-a">
-                      <div class="team-title">Team A</div>
-                      <div class="team-members">
-                        <template v-for="uid in (r.teamA || [])" :key="uid">
-                          <div class="member-pill" @click.stop="openProfileModal(uid)">
-                            <div class="member-avatar-small"><img :src="avatarForUid(uid)" :alt="displayNameFor(uid) + ' avatar'"/></div>
-                            <div class="member-name">{{ displayNameFor(uid) }}</div>
-                            <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
-                            <div class="member-wins">🏆 {{ displayMatchWinsForUid(uid) }}</div>
-                          </div>
-                        </template>
-                      </div>
-                    </div>
-
-                    <div class="team-block team-b">
-                      <div class="team-title">Team B</div>
-                      <div class="team-members">
-                        <template v-for="uid in (r.teamB || [])" :key="uid">
-                          <div class="member-pill" @click.stop="openProfileModal(uid)">
-                            <div class="member-avatar-small"><img :src="avatarForUid(uid)" :alt="displayNameFor(uid) + ' avatar'"/></div>
-                            <div class="member-name">{{ displayNameFor(uid) }}</div>
-                            <div class="member-sub">Total: {{ displayTotalWinsForUid(uid) }}</div>
-                            <div class="member-wins">🏆 {{ displayMatchWinsForUid(uid) }}</div>
-                          </div>
-                        </template>
+                <div class="round-teams">
+                  <div class="round-team">
+                    <div class="round-team-label">Team A</div>
+                    <div class="round-team-roster">
+                      <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player" @click.stop="openProfileModal(uid)">
+                        <div class="round-avatar">
+                          <img :src="avatarForUid(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
+                        </div>
+                        <div class="round-player-name">{{ displayNameFor(uid) }}</div>
+                        <div class="round-player-stats">
+                          <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
+                          <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-
-                  <div class="round-footer">
-                    <div class="winner-pill">Winner: <strong>{{ r.winningTeam }} — {{ winnersLabel(r) }}</strong></div>
+                  <div class="round-team">
+                    <div class="round-team-label">Team B</div>
+                    <div class="round-team-roster">
+                      <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player" @click.stop="openProfileModal(uid)">
+                        <div class="round-avatar">
+                          <img :src="avatarForUid(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
+                        </div>
+                        <div class="round-player-name">{{ displayNameFor(uid) }}</div>
+                        <div class="round-player-stats">
+                          <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
+                          <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
+                </div>
+                <div v-if="r.winningTeam" class="round-winner">
+                  Winner: Team {{ r.winningTeam }}  — {{ winnersLabel(r) }}
                 </div>
               </li>
             </ul>
@@ -283,18 +286,44 @@ const genderDisplay = computed(() => { try { return match.value && match.value.g
 // Some legacy entries may lack endedAt/endedAtISO but set matchEnded=true; guard for that as well.
 const isMatchLive = computed(() => {
   try {
-    const m = match.value || {}
-    const started = !!(m.started || m._started)
-    const explicitlyEnded = !!(m.endedAt || m.endedAtISO || m.endAtISO || m.matchEnded === true || m.ended === true)
-    return started && !explicitlyEnded
+    // Match is LIVE if it's started but NOT actually ended
+    const started = match.value.started || match.value._started
+    if (!started) return false
+    
+    // Check for ACTUAL end fields (match was manually ended)
+    const actuallyEnded = match.value.endedAt || match.value.endedAtISO || match.value.ended || match.value._ended
+    if (actuallyEnded) return false
+    
+    // Check if scheduled end time has passed (match expired)
+    if (match.value.endAtISO) {
+      try {
+        const endTime = new Date(match.value.endAtISO)
+        const now = new Date()
+        if (endTime < now) return false // Match scheduled time has passed
+      } catch (e) {}
+    }
+    
+    return true // Started and not ended
   } catch (e) {
     return false
   }
 })
 const isMatchEnded = computed(() => {
   try {
-    const m = match.value || {}
-    return !!(m.endedAt || m.endedAtISO || m.endAtISO || m.matchEnded === true || m.ended === true)
+    // Match is ended if:
+    // 1. Has actual completion timestamp or ended flag
+    if (match.value.endedAt || match.value.endedAtISO || match.value.ended || match.value._ended) return true
+    
+    // 2. OR scheduled end time has passed
+    if (match.value.endAtISO) {
+      try {
+        const endTime = new Date(match.value.endAtISO)
+        const now = new Date()
+        if (endTime < now) return true
+      } catch (e) {}
+    }
+    
+    return false
   } catch (e) {
     return false
   }
@@ -379,21 +408,27 @@ const isMatchEnded = computed(() => {
 .member-wins { color:#ffd98a; font-weight:900 }
 
 .rounds-history { margin-top:16px }
-.round-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:12px }
-.round-card { display:flex; gap:12px; align-items:flex-start; background: linear-gradient(90deg,#0f1114,#151617); padding:14px; border-radius:14px; border:1px solid rgba(255,255,255,0.03); transition: transform 180ms ease, box-shadow 180ms ease }
-.round-card:hover { transform: translateY(-6px); box-shadow: 0 22px 60px rgba(0,0,0,0.6) }
-.card-left { width:140px; display:flex; flex-direction:column; gap:6px }
-.round-index { font-weight:900; color:#fff; font-size:1.05rem }
+.rounds-empty { color:#cfc9b0; text-align:center; padding:32px; font-size:0.95rem; font-style:italic; }
+.round-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:16px }
+.round-card { background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02)); padding:16px; border-radius:12px; border:1px solid rgba(255,255,255,0.03); transition: transform 180ms ease, box-shadow 180ms ease }
+.round-card:hover { transform: translateY(-4px); box-shadow: 0 18px 40px rgba(0,0,0,0.6) }
+.round-card-header { display:flex; gap:16px; align-items:center; margin-bottom:12px; flex-wrap:wrap }
+.round-index { font-weight:900; color:#fff; font-size:1.1rem }
 .round-time { color:#d3c7a3; font-size:0.85rem }
 .round-duration { color:#ffd98a; font-weight:800; font-size:0.85rem }
-.card-main { flex:1; display:flex; flex-direction:column; gap:10px }
-.teams-row { display:flex; flex-direction:column; gap:12px }
-.team-block { flex:1; background: rgba(255,255,255,0.02); padding:10px; border-radius:10px }
-.team-title { font-weight:900; color:#fff4d1; margin-bottom:8px }
-.team-members { display:flex; gap:8px; flex-wrap:wrap }
-.member-pill { display:flex; gap:8px; align-items:center; background: linear-gradient(180deg, #0f1114, #141516); padding:8px; border-radius:10px; border:1px solid rgba(255,255,255,0.03); cursor:pointer }
-.member-pill:hover { box-shadow: 0 12px 36px rgba(0,0,0,0.55) }
-.member-avatar-small img { display:block }
+.round-teams { display:flex; gap:16px; margin-bottom:12px }
+.round-team { flex:1; background: rgba(255,255,255,0.02); padding:12px; border-radius:10px }
+.round-team-label { font-weight:900; color:#fff4d1; margin-bottom:10px; font-size:0.95rem }
+.round-team-roster { display:flex; flex-direction:column; gap:8px }
+.round-player { display:flex; gap:10px; align-items:center; background: linear-gradient(180deg, #0f1114, #141516); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); cursor:pointer; transition: box-shadow 120ms ease }
+.round-player:hover { box-shadow: 0 12px 36px rgba(0,0,0,0.55) }
+.round-avatar { flex-shrink:0 }
+.round-avatar-img { width:36px; height:36px; border-radius:50%; border:2px solid #ffad1d; object-fit:cover; display:block }
+.round-player-name { color:#fff; font-weight:800; font-size:0.9rem; flex:1 }
+.round-player-stats { display:flex; gap:6px }
+.stat-total { color:#cfc9b0; font-weight:700; font-size:0.72rem }
+.stat-trophy { color:#ffd98a; font-weight:900; font-size:0.82rem }
+.round-winner { background: linear-gradient(90deg,#1f262b,#23272b); color:#ffd98a; padding:10px 14px; border-radius:10px; font-weight:800; text-align:center; font-size:0.95rem }
 
 /* scrollbar for modal body */
 .summary-scroll { overflow:auto; flex:1; padding-top:8px; display:flex; flex-direction:column; gap:12px }
