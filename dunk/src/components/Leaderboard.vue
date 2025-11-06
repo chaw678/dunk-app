@@ -1,13 +1,15 @@
 <template>
-  <div class="lb-wrap container text-white py-3" style="max-width: 1040px;">
-    <div class="d-flex align-items-center mb-1">
-      <Crown :size="22" class="me-2 text-warning" />
-      <h2 class="mb-0 fw-bold text-warning">Leaderboard</h2>
-    </div>
-    <p class="text-light mb-3 small">See who's at the top of their game.</p>
+  <div class="page-bg">
+    <div class="content-wrapper">
+      <div class="card container-fluid">
+        <div class="d-flex align-items-center mb-2">
+          <Crown :size="32" class="me-2 text-warning" />
+          <h1 class="card-title mb-0">Leaderboard</h1>
+        </div>
+        <p class="card-desc mb-4">See who's at the top of their game.</p>
 
     <!-- Segmented tabs -->
-    <div class="segmented mb-3" role="tablist" aria-label="Leaderboard filter">
+    <div class="segmented mb-4" role="tablist" aria-label="Leaderboard filter">
       <button
         v-for="tab in tabs"
         :key="tab.key"
@@ -99,6 +101,8 @@
         </div>
       </div>
     </div>
+      </div>
+    </div>
   </div>
   
 </template>
@@ -163,57 +167,356 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.lb-wrap { background: transparent; }
-.segmented { display:flex; gap:8px; background:#12161b; padding:6px; border:1px solid rgba(255,255,255,0.06); border-radius:10px; }
-.seg-btn { flex:1; background:#1c2229; color:#cbd5e1; border:1px solid transparent; padding:10px 14px; border-radius:8px; font-weight:600; }
-.seg-btn.active { background:#0f1318; color:#ffd27a; border-color:#ffad1d; box-shadow: 0 0 0 2px rgba(255,173,29,0.15) inset; }
+/* Page background with fixed image */
+.page-bg {
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+  color: #e6eef8;
+  padding: 48px 16px 24px 16px;
+}
 
-.leaderboard-card { border:1px solid rgba(255,255,255,0.06); background:#0b1015; overflow:hidden; }
-.lb-header { border-bottom:1px solid rgba(255,255,255,0.06); letter-spacing:.02em; }
-.lb-rows { display:block; }
-.lb-row { padding-top:10px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.06); }
-.lb-row:hover { background: rgba(255,255,255,0.02); }
-.col-rank { width:60px; text-align:center; }
-.col-score { width:140px; }
-.rank-num { color:#94a3b8; font-weight:700; display:inline-block; }
-.avatar { width:36px; height:36px; border-radius:50%; object-fit:cover; border:2px solid #FFAD1D; }
+.page-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75)),
+    url('https://images.unsplash.com/photo-1546519638-68e109498ffc?w=1920&q=80') center / cover no-repeat;
+  z-index: 0;
+  pointer-events: none;
+}
 
-/* medals */
-.medal { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; color:#0b1015; vertical-align:middle; }
-.m-1 { background: linear-gradient(180deg,#ffd27a,#ffad1d); color:#0b1015; }
-.m-2 { background: linear-gradient(180deg,#e5e7eb,#c9cdd6); color:#0b1015; }
-.m-3 { background: linear-gradient(180deg,#eab58e,#b87333); color:#0b1015; }
+.page-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
+.content-wrapper {
+  width: 100%;
+  max-width: 1200px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  margin: 0 auto;
+}
+
+/* Glass card container */
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.008));
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  backdrop-filter: blur(8px) saturate(120%);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+
+.card-title {
+  font-size: 48px;
+  font-weight: 800;
+  color: #ffa733;
+  margin: 0;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+}
+
+.card-desc {
+  color: #9fb0bf;
+  font-size: 18px;
+  margin: 8px 0 0 0;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+}
+
+/* Segmented control */
+.segmented { 
+  display: flex; 
+  gap: 8px; 
+  background: rgba(18,22,27,0.95); 
+  padding: 6px; 
+  border: 1px solid rgba(255,255,255,0.1); 
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.seg-btn { 
+  flex: 1; 
+  background: rgba(28,34,41,0.9); 
+  color: #cbd5e1; 
+  border: 1px solid transparent; 
+  padding: 12px 16px; 
+  border-radius: 8px; 
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.seg-btn:hover {
+  background: rgba(28,34,41,1);
+}
+
+.seg-btn.active { 
+  background: rgba(15,19,24,1); 
+  color: #ffd27a; 
+  border-color: #ffad1d; 
+  box-shadow: 0 0 0 2px rgba(255,173,29,0.15) inset;
+}
+
+/* Leaderboard table card */
+.leaderboard-card { 
+  border: 1px solid rgba(255,255,255,0.1); 
+  background: rgba(11,16,21,0.95);
+  backdrop-filter: blur(8px);
+  overflow: hidden; 
+  border-radius: 12px;
+}
+
+.lb-header { 
+  border-bottom: 1px solid rgba(255,255,255,0.1); 
+  letter-spacing: 0.02em;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+.lb-rows { 
+  display: block; 
+}
+
+.lb-row { 
+  padding-top: 12px; 
+  padding-bottom: 12px; 
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  transition: background 0.2s ease;
+}
+
+.lb-row:hover { 
+  background: rgba(255,255,255,0.05);
+  cursor: pointer;
+}
+
+.col-rank { 
+  width: 60px; 
+  text-align: center; 
+}
+
+.col-score { 
+  width: 140px; 
+}
+
+.rank-num { 
+  color: #94a3b8; 
+  font-weight: 700; 
+  display: inline-block; 
+}
+
+.avatar { 
+  width: 40px; 
+  height: 40px; 
+  border-radius: 50%; 
+  object-fit: cover; 
+  border: 2px solid #FFAD1D; 
+}
+
+/* Medals */
+.medal { 
+  display: inline-flex; 
+  align-items: center; 
+  justify-content: center; 
+  width: 26px; 
+  height: 26px; 
+  border-radius: 50%; 
+  color: #0b1015; 
+  vertical-align: middle; 
+}
+
+.m-1 { 
+  background: linear-gradient(180deg, #ffd27a, #ffad1d); 
+  color: #0b1015; 
+}
+
+.m-2 { 
+  background: linear-gradient(180deg, #e5e7eb, #c9cdd6); 
+  color: #0b1015; 
+}
+
+.m-3 { 
+  background: linear-gradient(180deg, #eab58e, #b87333); 
+  color: #0b1015; 
+}
 
 /* Podium styles */
-.podium-container { padding: 20px 0; }
-.podium { display:flex; justify-content:center; align-items:flex-end; gap:16px; max-width:600px; margin:0 auto; }
-.podium-place { display:flex; flex-direction:column; align-items:center; flex:1; max-width:180px; }
-.podium-player { display:flex; flex-direction:column; align-items:center; margin-bottom:12px; }
-.podium-avatar { width:64px; height:64px; border-radius:50%; object-fit:cover; border:3px solid; margin-bottom:8px; }
-.first .podium-avatar { border-color:#ffad1d; width:72px; height:72px; }
-.second .podium-avatar { border-color:#c9cdd6; }
-.third .podium-avatar { border-color:#b87333; }
-.podium-medal { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; margin-bottom:6px; }
-.first .podium-medal { width:36px; height:36px; }
-.podium-name { font-weight:700; font-size:0.95rem; text-align:center; margin-bottom:4px; color:#fff; }
-.podium-score { font-weight:700; font-size:1.1rem; color:#ffad1d; }
-.first .podium-score { font-size:1.3rem; }
-.podium-bar { width:100%; border-radius:8px 8px 0 0; display:flex; align-items:center; justify-content:center; padding:12px 0; position:relative; }
-.first-bar { height:140px; background:linear-gradient(180deg,rgba(255,210,122,0.15),rgba(255,173,29,0.08)); border:2px solid rgba(255,173,29,0.3); }
-.second-bar { height:110px; background:linear-gradient(180deg,rgba(229,231,235,0.12),rgba(201,205,214,0.06)); border:2px solid rgba(201,205,214,0.25); }
-.third-bar { height:90px; background:linear-gradient(180deg,rgba(234,181,142,0.12),rgba(184,115,51,0.06)); border:2px solid rgba(184,115,51,0.25); }
-.podium-rank { position:absolute; top:12px; font-size:1.5rem; font-weight:800; color:rgba(255,255,255,0.15); }
+.podium-container { 
+  padding: 20px 0; 
+}
+
+.podium { 
+  display: flex; 
+  justify-content: center; 
+  align-items: flex-end; 
+  gap: 16px; 
+  max-width: 600px; 
+  margin: 0 auto; 
+}
+
+.podium-place { 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  flex: 1; 
+  max-width: 180px; 
+}
+
+.podium-player { 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  margin-bottom: 12px; 
+}
+
+.podium-avatar { 
+  width: 64px; 
+  height: 64px; 
+  border-radius: 50%; 
+  object-fit: cover; 
+  border: 3px solid; 
+  margin-bottom: 8px; 
+}
+
+.first .podium-avatar { 
+  border-color: #ffad1d; 
+  width: 72px; 
+  height: 72px; 
+}
+
+.second .podium-avatar { 
+  border-color: #c9cdd6; 
+}
+
+.third .podium-avatar { 
+  border-color: #b87333; 
+}
+
+.podium-medal { 
+  display: inline-flex; 
+  align-items: center; 
+  justify-content: center; 
+  width: 32px; 
+  height: 32px; 
+  border-radius: 50%; 
+  margin-bottom: 6px; 
+}
+
+.first .podium-medal { 
+  width: 36px; 
+  height: 36px; 
+}
+
+.podium-name { 
+  font-weight: 700; 
+  font-size: 1rem; 
+  text-align: center; 
+  margin-bottom: 4px; 
+  color: #fff; 
+}
+
+.podium-score { 
+  font-weight: 700; 
+  font-size: 1.25rem; 
+  color: #ffad1d; 
+}
+
+.first .podium-score { 
+  font-size: 1.5rem; 
+}
+
+.podium-bar { 
+  width: 100%; 
+  border-radius: 8px 8px 0 0; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  padding: 12px 0; 
+  position: relative; 
+}
+
+.first-bar { 
+  height: 140px; 
+  background: linear-gradient(180deg, rgba(255,210,122,0.15), rgba(255,173,29,0.08)); 
+  border: 2px solid rgba(255,173,29,0.3); 
+}
+
+.second-bar { 
+  height: 110px; 
+  background: linear-gradient(180deg, rgba(229,231,235,0.12), rgba(201,205,214,0.06)); 
+  border: 2px solid rgba(201,205,214,0.25); 
+}
+
+.third-bar { 
+  height: 90px; 
+  background: linear-gradient(180deg, rgba(234,181,142,0.12), rgba(184,115,51,0.06)); 
+  border: 2px solid rgba(184,115,51,0.25); 
+}
+
+.podium-rank { 
+  position: absolute; 
+  top: 12px; 
+  font-size: 1.5rem; 
+  font-weight: 800; 
+  color: rgba(255,255,255,0.15); 
+}
+
+.clickable {
+  cursor: pointer;
+}
 
 @media (max-width: 640px) {
-  .podium { gap:8px; }
-  .podium-place { max-width:140px; }
-  .podium-avatar { width:48px; height:48px; }
-  .first .podium-avatar { width:56px; height:56px; }
-  .podium-name { font-size:0.85rem; }
-  .podium-score { font-size:0.95rem; }
-  .first .podium-score { font-size:1.1rem; }
-  .first-bar { height:120px; }
-  .second-bar { height:95px; }
-  .third-bar { height:75px; }
+  .podium { 
+    gap: 8px; 
+  }
+  
+  .podium-place { 
+    max-width: 140px; 
+  }
+  
+  .podium-avatar { 
+    width: 48px; 
+    height: 48px; 
+  }
+  
+  .first .podium-avatar { 
+    width: 56px; 
+    height: 56px; 
+  }
+  
+  .podium-name { 
+    font-size: 0.85rem; 
+  }
+  
+  .podium-score { 
+    font-size: 0.95rem; 
+  }
+  
+  .first .podium-score { 
+    font-size: 1.1rem; 
+  }
+  
+  .first-bar { 
+    height: 120px; 
+  }
+  
+  .second-bar { 
+    height: 95px; 
+  }
+  
+  .third-bar { 
+    height: 75px; 
+  }
+  
+  .card {
+    padding: 20px;
+  }
 }
 </style>

@@ -2645,8 +2645,8 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 }
 
 .matches-header { align-items: flex-start }
-.matches-title { color: #ff9a3c; font-size: 48px; margin: 0; font-weight: 800 }
-.matches-desc { color: #9fb0bf; margin-top: 8px; font-size: 18px }
+.matches-title { color: #ffa733; font-size: 48px; margin: 0; font-weight: 800; font-family: "Segoe UI", Arial, Helvetica, sans-serif; }
+.matches-desc { color: #9fb0bf; margin-top: 8px; font-size: 18px; font-family: "Segoe UI", Arial, Helvetica, sans-serif; }
 
 .btn-create-match {
     background: #ff9a3c;

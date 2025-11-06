@@ -1632,7 +1632,7 @@ onMounted(() => {
   inset: 0;
   background:
     linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)),
-    url('../assets/matchBG.jpg') center / cover no-repeat;
+    url('https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1920&q=80') center / cover no-repeat;
   z-index: 0;
   pointer-events: none;
 }
@@ -1689,11 +1689,12 @@ onMounted(() => {
 }
 
 .card-title {
-  font-size: 2.5rem;
-  font-weight: 900;
+  font-size: 48px;
+  font-weight: 800;
   color: #ffa733;
   letter-spacing: -1px;
   margin: 0;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
 }
 
 .add-court-btn {
@@ -1723,10 +1724,11 @@ onMounted(() => {
 }
 
 .card-desc {
-  font-size: 1.16rem;
-  color: #cbd6df;
-  margin: 18px 0 20px 0;
-  font-weight: 500;
+  font-size: 18px;
+  color: #9fb0bf;
+  margin: 8px 0 20px 0;
+  font-weight: 400;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
 }
 
 .search-input {
@@ -1763,7 +1765,7 @@ onMounted(() => {
   align-items: center;
   gap: 0;
   max-width: 720px;
-  position: relative; /* anchors suggestions */
+  position: relative; 
   margin-bottom: 18px;
 }
 

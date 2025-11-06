@@ -1,6 +1,9 @@
 <template>
   <ModalPortal @overlay="closeModal">
     <div class="modal-content">
+      <button class="close-btn" @click="closeModal" type="button">
+        <i class="bi bi-x-lg"></i>
+      </button>
       <h2 class="modal-title">Add a New Court</h2>
       <p class="modal-desc">Enter the name of the court at the selected location.</p>
 
@@ -70,19 +73,63 @@ function getRegionByLatLng(lat, lng) {
 
 // Reverse geocode to get address from coordinates
 onMounted(() => {
+  console.log('AddCourtModal mounted with coordinates:', props.coordinates);
   if (props.coordinates?.lat && props.coordinates?.lon) {
     const lat = props.coordinates.lat;
     const lng = props.coordinates.lon;
+    console.log('Starting reverse geocode for:', lat, lng);
     // Set region automatically!
     region.value = getRegionByLatLng(lat, lng);
     // ... existing reverse geocode logic ...
+    
+    // Wait for Google Maps API to be ready
+    if (typeof google === 'undefined' || !google.maps) {
+      console.error('Google Maps API not loaded yet');
+      return;
+    }
+    
     const geocoder = new google.maps.Geocoder();
     const latlng = { lat, lng };
     geocoder.geocode({ location: latlng }, (results, status) => {
+      console.log('Geocode response:', status, results);
       if (status === 'OK' && results[0]) {
         courtAddress.value = results[0].formatted_address;
+        
+        // Autofill court name from address components
+        const result = results[0];
+        let suggestedName = '';
+        
+        // Try to get a meaningful name from address components
+        const components = result.address_components;
+        
+        // Look for establishment, park, or point of interest
+        const establishment = components.find(c => c.types.includes('establishment') || c.types.includes('point_of_interest'));
+        if (establishment) {
+          suggestedName = establishment.long_name;
+        } else {
+          // Fall back to route/street name + neighborhood
+          const route = components.find(c => c.types.includes('route'));
+          const neighborhood = components.find(c => c.types.includes('neighborhood') || c.types.includes('sublocality'));
+          
+          if (route && neighborhood) {
+            suggestedName = `${route.long_name} (${neighborhood.long_name})`;
+          } else if (route) {
+            suggestedName = route.long_name;
+          } else if (neighborhood) {
+            suggestedName = neighborhood.long_name;
+          }
+        }
+        
+        console.log('Suggested name:', suggestedName);
+        
+        // Set the court name if we found something meaningful
+        if (suggestedName) {
+          courtName.value = suggestedName + ' Basketball Court';
+          console.log('Court name set to:', courtName.value);
+        }
       } else {
         courtAddress.value = 'Unknown address';
+        console.error('Geocoding failed:', status);
       }
     });
   }
@@ -139,6 +186,28 @@ const createCourt = async () => {
   max-width: 480px;
   color: #dde3ea;
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+
+.close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: #a2aec3;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+  z-index: 10;
+}
+
+.close-btn:hover {
+  color: #fff;
 }
 
 .modal-title {

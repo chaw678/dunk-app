@@ -1,43 +1,44 @@
 <template>
-  <div class="page">
-        <!-- Sign in popup -->
-    <div v-if="showPopup" class="success-overlay" @click.self="handlePopupClose">
-      <div class="success-popup">
-        <div class="success-icon" style="background:#e04747">✕</div>
-        <h3>Sign-in Required</h3>
-        <p>Please sign in to perform this action.</p>
-        <div class="popup-buttons">
-          <button class="sign-in-btn" @click.stop="handleSignIn">Sign In with Google</button>
-          <button class="close-btn" @click.stop="handlePopupClose">Close</button>
-        </div>
-      </div>
-      </div>
-    <div class="forum-header mb-4">
-      <div class="forum-header-inner">
-        <div>
-          <h1 class="forum-title">Community Forum</h1>
-          <div class="forum-sub">Discuss all things basketball with fellow enthusiasts.</div>
-        </div>
-        <div class="forum-actions d-flex align-items-center gap-2">
-          <div class="dropdown">
-            <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-              {{ selectedFilter }}
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="filterDropdown">
-              <li><a class="dropdown-item" href="#" @click.prevent="setFilter('All')">All</a></li>
-              <li v-for="t in tags" :key="t"><a class="dropdown-item" href="#" @click.prevent="setFilter(t)">{{ t }}</a></li>
-            </ul>
+  <div class="page-bg">
+    <div class="glass-card">
+      <!-- Sign in popup -->
+      <div v-if="showPopup" class="success-overlay" @click.self="handlePopupClose">
+        <div class="success-popup">
+          <div class="success-icon" style="background:#e04747">✕</div>
+          <h3>Sign-in Required</h3>
+          <p>Please sign in to perform this action.</p>
+          <div class="popup-buttons">
+            <button class="sign-in-btn" @click.stop="handleSignIn">Sign In with Google</button>
+            <button class="close-btn" @click.stop="handlePopupClose">Close</button>
           </div>
         </div>
       </div>
-      <div class="forum-tabs mt-3">
-        <div class="tabs-container">
-          <button :class="['tab-btn', activeTab === 'all' ? 'active' : '']" @click="activeTab = 'all'">All Posts</button>
-          <button :class="['tab-btn', activeTab === 'mine' ? 'active' : '']" @click="activeTab = 'mine'">My Posts</button>
-          <button :class="['tab-btn', activeTab === 'liked' ? 'active' : '']" @click="activeTab = 'liked'">Liked Posts</button>
+      <div class="forum-header mb-4">
+        <div class="forum-header-inner">
+          <div>
+            <h1 class="forum-title">Community Forum</h1>
+            <div class="forum-sub">Discuss all things basketball with fellow enthusiasts.</div>
+          </div>
+            <div class="forum-actions d-flex align-items-center gap-2">
+              <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                  {{ selectedFilter }}
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="filterDropdown">
+                  <li><a class="dropdown-item" href="#" @click.prevent="setFilter('All')">All</a></li>
+                  <li v-for="t in tags" :key="t"><a class="dropdown-item" href="#" @click.prevent="setFilter(t)">{{ t }}</a></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="forum-tabs mt-3">
+            <div class="tabs-container">
+              <button :class="['tab-btn', activeTab === 'all' ? 'active' : '']" @click="activeTab = 'all'">All Posts</button>
+              <button :class="['tab-btn', activeTab === 'mine' ? 'active' : '']" @click="activeTab = 'mine'">My Posts</button>
+              <button :class="['tab-btn', activeTab === 'liked' ? 'active' : '']" @click="activeTab = 'liked'">Liked Posts</button>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
     <!-- Upload modal (themed) -->
     <div v-if="showUploadModal" class="modal-backdrop">
@@ -392,7 +393,7 @@
     <!-- Delete confirmation modal -->
     <div v-if="showDeleteModal" class="modal-backdrop">
       <div class="delete-modal">
-        <h5>Delete file</h5>
+        <h5>Delete post</h5>
         <p>Are you sure you want to delete <strong class="delete-label" :title="deleteLabel(deleteTarget)">{{ truncate(deleteLabel(deleteTarget), 70) }}</strong>? This action cannot be undone.</p>
         <div class="d-flex justify-content-end gap-2">
           <button class="btn btn-cancel" @click="cancelDelete">Cancel</button>
@@ -405,10 +406,6 @@
       <div class="delete-modal">
         <h5>Edit post</h5>
         <div class="mb-2">
-          <label class="form-label">Title</label>
-          <input v-model="editTitle" class="form-control" placeholder="Post title (optional)" />
-        </div>
-        <div class="mb-2">
           <label class="form-label">Caption</label>
           <textarea v-model="editCaption" class="form-control" rows="4" placeholder="Caption"></textarea>
         </div>
@@ -417,6 +414,7 @@
           <button class="btn btn-primary" :disabled="editSaving" @click="saveEdit">Save</button>
         </div>
       </div>
+    </div>
     </div>
   </div>
 
@@ -1464,26 +1462,77 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.page {
-  padding: 32px;
-  background: #181c23;
-  color: #eaf0f6;
-  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+/* Page background with fixed image */
+.page-bg {
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  padding-left: 16px;
+  padding-right: 16px;
   /* fixed column reserved for avatar + gap; used to align right edges of reply bubbles */
-  --reply-avatar-col: 72px; /* avatar(44) + gap/margins ~72px works well on most breakpoints */
-  --reply-indent-base: 12px; /* base padding for first nested replies */
-  --reply-indent-step: 36px; /* additional indent per nested level */
+  --reply-avatar-col: 72px;
+  --reply-indent-base: 12px;
+  --reply-indent-step: 36px;
+}
+
+@media (min-width: 768px) {
+  .page-bg { 
+    padding-left: 20px; 
+    padding-right: 20px; 
+  }
+}
+
+@media (min-width: 900px) {
+  .page-bg {
+    display: flex;
+    justify-content: center;
+  }
+}
+
+.page-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75)),
+    url('https://images.pexels.com/photos/8693808/pexels-photo-8693808.jpeg?auto=compress&cs=tinysrgb&w=1920') center / cover no-repeat;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.page-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Glass card container */
+.glass-card {
+  padding: 32px;
+  border-radius: 16px;
+  /* glass effect: subtle translucent gradient */
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.008));
+  border: 1px solid rgba(255,255,255,0.04);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+  color: #e6eef8;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+  margin: 0 auto;
+  max-width: 1400px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Card and message containers */
 .forum-item .card {
-  background: #232830;
+  background: rgba(35, 40, 48, 0.95) !important;
   border-radius: 10px;
   box-shadow: 0 2px 12px rgba(18,24,34,0.11);
   padding: 18px;
   margin-bottom: 22px;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.05);
   transition: box-shadow 0.18s;
+}
+.forum-item .card.bg-dark {
+  background: rgba(35, 40, 48, 0.95) !important;
 }
 .forum-item .card:hover {
   box-shadow: 0 4px 16px rgba(33, 33, 33, 0.14);
@@ -1498,22 +1547,26 @@ onUnmounted(() => {
   align-items: center;
 }
 .forum-title {
-  color: #ff9a3c;
+  color: #ffa733;
   font-weight: 800;
-  font-size: 1.6rem;
+  font-size: 48px;
   margin: 0;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
 }
 .forum-sub {
   color: #9fb0bf;
-  margin-top: 6px;
+  font-size: 18px;
+  margin-top: 8px;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
 }
 
 /* Tabs container */
 .forum-tabs .tabs-container {
-  display: inline-flex;
+  display: flex;
   gap: 8px;
-  background: rgba(255,255,255,0.02);
+  background: rgba(18,22,27,0.95);
   padding: 6px;
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 12px;
 }
 
@@ -1527,25 +1580,51 @@ onUnmounted(() => {
 }
 
 .tab-btn {
-  background: transparent;
-  border: none;
-  color: #9fb0bf;
-  padding: 8px 12px;
+  flex: 1;
+  background: rgba(28,34,41,0.9);
+  color: #cbd5e1;
+  border: 1px solid transparent;
+  padding: 12px 16px;
   border-radius: 8px;
-  transition: background-color 200ms cubic-bezier(.2,.8,.2,1), color 200ms ease, box-shadow 220ms ease, transform 180ms ease;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 .tab-btn:hover {
-  background: rgba(255,255,255,0.02);
-  color: #dfe9f0;
-  transform: translateY(-1px);
+  background: rgba(28,34,41,1);
 }
 .tab-btn.active {
-  background: #0b1220;
-  color: #fff;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.24);
-  transform: translateY(-2px);
+  background: rgba(15,19,24,1);
+  color: #ffd27a;
+  border-color: #ffad1d;
+  box-shadow: 0 0 0 2px rgba(255,173,29,0.15) inset;
 }
 .tab-btn:focus { outline: none }
+
+/* Dropdown menu styling */
+.dropdown-menu {
+  background: rgba(25, 30, 35, 0.98);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  min-width: 160px;
+}
+.dropdown-item {
+  color: #e6eef8;
+  padding: 10px 14px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+.dropdown-item:hover {
+  background: rgba(255,167,51,0.15);
+  color: #ffa733;
+}
+.dropdown-item:active {
+  background: rgba(255,167,51,0.25);
+  color: #ffa733;
+}
 
 /* File image styling */
 .file-thumb {
@@ -1651,6 +1730,8 @@ onUnmounted(() => {
 .forum-item .card {
   padding: 14px;
   border-radius: 10px;
+  background: rgba(35, 40, 48, 0.95) !important;
+  border: 1px solid rgba(255,255,255,0.05);
 }
 .post-media {
   margin-top: 8px;
@@ -1818,6 +1899,8 @@ input.comment-edit-input:-webkit-autofill:focus {
   border-radius: 10px;
   position: relative;
   z-index: 1;
+  background: rgba(35, 40, 48, 0.95) !important;
+  border: 1px solid rgba(255,255,255,0.05);
 }
 
 .forum-uploads .col {
@@ -1852,13 +1935,97 @@ input.comment-edit-input:-webkit-autofill:focus {
   z-index: 2000;
 }
 .delete-modal {
-  background: #111214;
-  padding: 20px;
-  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(20, 25, 30, 0.98), rgba(15, 18, 22, 0.98));
+  padding: 32px;
+  border-radius: 16px;
   color: #fff;
   width: 90%;
-  max-width: 420px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  max-width: 500px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.delete-modal h5 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: #ffa733;
+}
+
+.delete-modal .form-label {
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.delete-modal .form-control {
+  background: rgba(30, 35, 40, 0.8);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 15px;
+  transition: all 0.2s ease;
+}
+
+.delete-modal .form-control:focus {
+  background: rgba(35, 40, 45, 0.9);
+  border-color: #ffa733;
+  box-shadow: 0 0 0 3px rgba(255,167,51,0.1);
+  outline: none;
+}
+
+.delete-modal .form-control::placeholder {
+  color: rgba(255,255,255,0.4);
+}
+
+.delete-modal textarea.form-control {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.delete-modal .btn {
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  transition: all 0.2s ease;
+}
+
+.delete-modal .btn-secondary {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #cbd5e1;
+}
+
+.delete-modal .btn-secondary:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.25);
+  transform: translateY(-1px);
+}
+
+.delete-modal .btn-primary {
+  background: #ffa733;
+  border: none;
+  color: #000;
+}
+
+.delete-modal .btn-primary:hover {
+  background: #ffb84d;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255,167,51,0.3);
+}
+
+.delete-modal .btn-primary:disabled {
+  background: rgba(255,167,51,0.5);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.delete-modal .mb-2 {
+  margin-bottom: 20px;
 }
 
 .upload-modal {
@@ -2108,6 +2275,8 @@ input.comment-edit-input:-webkit-autofill:focus {
   border-radius: 10px;
   position: relative;
   z-index: 1;
+  background: rgba(35, 40, 48, 0.95) !important;
+  border: 1px solid rgba(255,255,255,0.05);
 }
 
 .forum-uploads .col {
@@ -2816,6 +2985,8 @@ input.comment-edit-input:-webkit-autofill:focus {
   border-radius: 10px;
   position: relative;
   z-index: 1;
+  background: rgba(35, 40, 48, 0.95) !important;
+  border: 1px solid rgba(255,255,255,0.05);
 }
 .forum-uploads .col {
   display: flex;
@@ -2829,21 +3000,49 @@ input.comment-edit-input:-webkit-autofill:focus {
   right: 12px;
   bottom: 12px;
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  flex-direction: row;
+  gap: 8px;
   z-index: 20;
 }
 .forum-uploads .icon-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.forum-uploads .icon-btn:hover {
+  background: rgba(0,0,0,0.7);
+  border-color: rgba(255,255,255,0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.forum-uploads .icon-btn.btn-danger {
+  background: rgba(220, 53, 69, 0.2);
+  border-color: rgba(220, 53, 69, 0.3);
+}
+.forum-uploads .icon-btn.btn-danger:hover {
+  background: rgba(220, 53, 69, 0.4);
+  border-color: rgba(220, 53, 69, 0.5);
+}
+.forum-uploads .icon-btn.btn-primary {
+  background: rgba(13, 110, 253, 0.2);
+  border-color: rgba(13, 110, 253, 0.3);
+}
+.forum-uploads .icon-btn.btn-primary:hover {
+  background: rgba(13, 110, 253, 0.4);
+  border-color: rgba(13, 110, 253, 0.5);
 }
 .forum-uploads .icon-btn .bi {
-  font-size: 1.05rem;
+  font-size: 1.1rem;
+  color: #fff;
 }
 .upload-card .fw-bold {
   font-size: 1rem;

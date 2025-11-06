@@ -2752,5 +2752,22 @@ section {
   .container {
     padding: 0 20px;
   }
+  
+  /* Align hero elements consistently on medium screens */
+  .hero-main {
+    align-items: flex-start;
+  }
+  
+  .hero-text {
+    align-items: flex-start;
+  }
+  
+  .hero-actions {
+    justify-content: flex-start;
+  }
+  
+  .hero-image {
+    justify-content: flex-start;
+  }
 }
 </style>

@@ -1,6 +1,9 @@
 <template>
   <ModalPortal @overlay="closeModal">
     <div class="modal-content">
+      <button class="close-btn" @click="closeModal" type="button">
+        <i class="bi bi-x-lg"></i>
+      </button>
       <h2 class="modal-title">Add a New Court</h2>
       <p class="modal-desc">Enter the name of the court at the selected location.</p>
 
@@ -399,6 +402,27 @@ const createCourt = async () => {
   position: relative;
   z-index: 1001;
   overflow: visible;
+}
+
+.close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: #a2aec3;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+  z-index: 10;
+}
+
+.close-btn:hover {
+  color: #fff;
 }
 
 .modal-title {
