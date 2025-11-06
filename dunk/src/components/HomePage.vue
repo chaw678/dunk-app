@@ -361,6 +361,7 @@ import { getDataFromFirebase, setChildData, deleteChildData, onDataChange } from
 import { onUserStateChanged } from '../firebase/auth'
 import { seededAvatar, avatarForUser } from '../utils/avatar.js'
 import ProfileModal from './ProfileModal.vue'
+import popupBus from '../utils/popupBus.js'
 
 const router = useRouter()
 
@@ -547,7 +548,7 @@ async function acceptInvite(invitation) {
         
         if (!matchPath) {
             console.error('No match path in invitation and cannot construct one:', invitation)
-            alert('Cannot join this match - invitation data is incomplete')
+            popupBus.show('Cannot join this match - invitation data is incomplete', 'error')
             await declineInvite(invitation)
             return
         }
@@ -555,7 +556,7 @@ async function acceptInvite(invitation) {
         // Get the match data
         const matchData = await getDataFromFirebase(matchPath)
         if (!matchData) {
-            alert('Match no longer exists')
+            popupBus.show('Match no longer exists', 'error')
             await declineInvite(invitation)
             return
         }
@@ -577,13 +578,13 @@ async function acceptInvite(invitation) {
         // Reload invitations
         await loadInvitations()
         
-        alert('You have joined the match!')
+        popupBus.show('You have joined the match!', 'success')
         
         // Navigate to matches page to see the joined match
         router.push('/matches')
     } catch (err) {
         console.error('Failed to accept invitation', err)
-        alert('Failed to join match')
+        popupBus.show('Failed to join match', 'error')
     }
 }
 
@@ -1038,7 +1039,7 @@ function formatMatchDate(dateStr) {
 // Join a match
 async function joinMatch(match) {
     if (!currentUser.value) {
-        alert('Please sign in to join matches')
+        popupBus.show('Please sign in to join matches', 'error')
         return
     }
     
@@ -1046,7 +1047,7 @@ async function joinMatch(match) {
     
     // Check if already joined
     if (match.joinedBy && match.joinedBy[uid]) {
-        alert('You have already joined this match')
+        popupBus.show('You have already joined this match', 'info')
         return
     }
     
@@ -1062,7 +1063,7 @@ async function joinMatch(match) {
             } else {
                 // Fallback: try to find the match in Firebase
                 console.warn('Match missing required fields for path construction:', match)
-                alert('Unable to join match - invalid match data')
+                popupBus.show('Unable to join match - invalid match data', 'error')
                 return
             }
         }
@@ -1084,10 +1085,10 @@ async function joinMatch(match) {
         // Refresh matches
         await loadMatches()
         
-        alert('Successfully joined the match!')
+        popupBus.show('Successfully joined the match!', 'success')
     } catch (error) {
         console.error('Failed to join match:', error)
-        alert('Failed to join match. Please try again.')
+        popupBus.show('Failed to join match. Please try again.', 'error')
     }
 }
 
@@ -1514,9 +1515,9 @@ onUnmounted(() => {
 }
 
 .brand-highlight {
-  color: #ff9500;
-  text-shadow: 0 0 20px rgba(255, 149, 0, 0.6), 0 0 40px rgba(255, 149, 0, 0.4), 0 0 60px rgba(255, 149, 0, 0.2);
-  background: linear-gradient(135deg, #ff9500 0%, #ffb347 50%, #ff6b35 100%);
+  color: #ffa733;
+  text-shadow: 0 0 20px rgba(255, 167, 51, 0.6), 0 0 40px rgba(255, 167, 51, 0.4), 0 0 60px rgba(255, 167, 51, 0.2);
+  background: linear-gradient(135deg, #ffa733 0%, #ffb347 50%, #ff6b35 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1558,9 +1559,9 @@ onUnmounted(() => {
 }
 
 .cta-button.primary {
-  background: linear-gradient(135deg, #ff9500 0%, #ffb347 100%);
+  background: linear-gradient(135deg, #ffa733 0%, #ffb347 100%);
   color: #1a1f2e;
-  box-shadow: 0 4px 15px rgba(255, 149, 0, 0.3);
+  box-shadow: 0 4px 15px rgba(255, 167, 51, 0.3);
   position: relative;
   overflow: hidden;
 }
@@ -1581,16 +1582,16 @@ onUnmounted(() => {
 }
 
 .cta-button.primary:hover {
-  background: linear-gradient(135deg, #ffb347 0%, #ff9500 100%);
+  background: linear-gradient(135deg, #ffb347 0%, #ffa733 100%);
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(255, 149, 0, 0.3);
+  box-shadow: 0 8px 25px rgba(255, 167, 51, 0.3);
 }
 
 .cta-button.secondary {
   background: transparent;
-  color: #ff9500;
-  border: 2px solid #ff9500;
-  box-shadow: 0 0 15px rgba(255, 149, 0, 0.2);
+  color: #ffa733;
+  border: 2px solid #ffa733;
+  box-shadow: 0 0 15px rgba(255, 167, 51, 0.2);
   position: relative;
   overflow: hidden;
 }
@@ -1602,7 +1603,7 @@ onUnmounted(() => {
   left: 0;
   width: 0;
   height: 100%;
-  background: linear-gradient(135deg, #ff9500, #ffb347);
+  background: linear-gradient(135deg, #ffa733, #ffb347);
   transition: width 0.3s ease;
   z-index: -1;
 }
@@ -1721,7 +1722,7 @@ section {
     margin-top: 0;
     margin-bottom: 20px;
     text-align: left;
-    color: #ff9500;
+    color: #ffa733;
     font-size: 2rem;
     display: flex;
     align-items: center;
@@ -1730,7 +1731,7 @@ section {
 }
 
 .notification-badge {
-    background: #ff9500;
+    background: #ffa733;
     color: #1a1f2e;
     padding: 4px 8px;
     border-radius: 12px;
@@ -1810,7 +1811,7 @@ section {
 
 .carousel-btn i {
     font-size: 18px;
-    color: #FF8C1A;
+    color: #ffa733;
 }
 
 .carousel-indicators {
@@ -1825,17 +1826,17 @@ section {
     height: 10px;
     border-radius: 50%;
     border: none;
-    background: rgba(255, 140, 26, 0.3);
+    background: rgba(255, 167, 51, 0.3);
     cursor: pointer;
     transition: background 0.2s;
 }
 
 .indicator-dot.active {
-    background: #FF8C1A;
+    background: #ffa733;
 }
 
 .indicator-dot:hover {
-    background: rgba(255, 140, 26, 0.6);
+    background: rgba(255, 167, 51, 0.6);
 }
 
 .invitation-card-wrapper {
@@ -1846,7 +1847,7 @@ section {
 }
 
 .invitation-card {
-    background: linear-gradient(135deg, #FF9A3C 0%, #FF8C1A 100%);
+    background: linear-gradient(135deg, #ffa733 0%, #ffb347 100%);
     border-radius: 16px;
     overflow: hidden;
     width: 100%; /* Responsive width */
@@ -1951,7 +1952,7 @@ section {
 }
 
 .invitation-court-name i {
-    color: #ff9a3c;
+    color: #ffa733;
     flex-shrink: 0;
 }
 
@@ -1966,7 +1967,7 @@ section {
 }
 
 .invitation-date i {
-    color: #ff9a3c;
+    color: #ffa733;
     flex-shrink: 0;
 }
 
@@ -1981,7 +1982,7 @@ section {
 }
 
 .invitation-time i {
-    color: #ff9a3c;
+    color: #ffa733;
     flex-shrink: 0;
 }
 
@@ -1992,8 +1993,8 @@ section {
 }
 
 .invitation-tag {
-    background: rgba(255, 154, 60, 0.15);
-    color: #ff9a3c;
+    background: rgba(255, 167, 51, 0.15);
+    color: #ffa733;
     padding: 6px 12px;
     border-radius: 8px;
     font-size: 0.85rem;
@@ -2013,7 +2014,7 @@ section {
 }
 
 .invitation-inviter:hover {
-    color: #ff9a3c !important;
+    color: #ffa733 !important;
 }
 
 .invitation-inviter i {
@@ -2025,7 +2026,7 @@ section {
     height: 28px;
     border-radius: 50%;
     object-fit: cover;
-    border: 2px solid #ff9a3c;
+    border: 2px solid #ffa733;
 }
 
 .invitation-actions {

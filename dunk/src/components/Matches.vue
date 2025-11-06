@@ -180,6 +180,7 @@
             <template v-else-if="isJoined(match)">
                           <template v-if="match.started || match._started">
                               <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
+                              <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                             </template>
                           <template v-else>
                               <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
@@ -320,12 +321,10 @@
                                     <div class="d-flex justify-content-between align-items-start">
                                         <div class="d-flex flex-column align-items-start">
                                             <template v-if="isHost(match)">
-                                                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                                <button type="button" class="btn btn-danger btn-sm ms-3 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
+                                                <button type="button" class="btn btn-danger btn-sm d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                             </template>
                                             <template v-else-if="isJoined(match)">
-                                                <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                                <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
+                                                <!-- No actions for joined past matches -->
                                             </template>
                                             <template v-else>
                                                 <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
@@ -724,12 +723,12 @@ function openPlayersModal(match) {
             if (raw) {
                 // if entry is a string, use it; if it's an object, extract known name fields
                 if (typeof raw === 'string') name = raw
-                else if (typeof raw === 'object') name = raw.name || raw.displayName || raw.username || raw.uid || ''
+                else if (typeof raw === 'object') name = raw.username || raw.name || raw.displayName || raw.uid || ''
             }
             // fallback to user record in users cache (if available)
             if (!name && usersCache.value && usersCache.value[uid]) {
                 const u = usersCache.value[uid]
-                name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0]) || ''
+                name = u.username || u.name || u.displayName || (u.email && u.email.split('@')[0]) || ''
             }
             // final fallback to uid
             if (!name) name = uid
@@ -2146,11 +2145,14 @@ function displayedPlayers(match) {
                 name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0]) || ''
             }
             if (!name) name = uid
-            const avatar = (usersCache.value && usersCache.value[uid] && (usersCache.value[uid].photoURL || usersCache.value[uid].avatar)) || seededAvatar(name)
-            out.push({ uid, name, avatar })
+            const avatar = (usersCache.value && usersCache.value[uid] && (usersCache.value[uid].profilepicture || usersCache.value[uid].photoURL || usersCache.value[uid].avatar || usersCache.value[uid].picture)) || seededAvatar(name)
+            out.push({ uid, name, avatar, profilepicture: avatar })
         }
     } else if (Array.isArray(match.players)) {
-        for (const name of match.players) out.push({ name, avatar: seededAvatar(name) })
+        for (const name of match.players) {
+            const avatar = seededAvatar(name)
+            out.push({ name, avatar, profilepicture: avatar })
+        }
     }
 
     // ensure host appears in player list (hosts are implicitly joined)
@@ -2165,7 +2167,7 @@ function displayedPlayers(match) {
                     const avatar = (usersCache.value && usersCache.value[uid] && (
                         usersCache.value[uid].profilepicture || usersCache.value[uid].avatar || usersCache.value[uid].photoURL || usersCache.value[uid].picture || usersCache.value[uid].photo || usersCache.value[uid].imageURL || usersCache.value[uid].thumbnail
                     )) || seededAvatar(displayName)
-                    out.unshift({ uid, name: displayName, avatar })
+                    out.unshift({ uid, name: displayName, avatar, profilepicture: avatar })
                 }
             }
         }
@@ -2305,6 +2307,13 @@ async function joinMatch(match) {
             const displayName = currentUserProfile.value.name || currentUser.value.displayName || uid
             await setChildData(`${path}/${id}/joinedBy`, uid, true)
             await setChildData(`${path}/${id}/playersMap`, uid, displayName)
+            
+            // Remove any pending invitation for this match
+            if (match.id) {
+                await deleteChildData(`users/${uid}/invitations`, match.id)
+                // Reload invitations to update UI
+                await loadInvitations()
+            }
         } catch (e) {
             console.error('Failed to join match', e)
             showAlert('Failed to join — try again')
@@ -2805,12 +2814,12 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 
 .avatars { margin-top: 12px }
 .avatar-stack { display:flex; align-items:center }
-.avatar-stack .avatar-initial { width:36px; height:36px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#1f262b; color:#fff; font-weight:700; border:2px solid rgba(0,0,0,0.6); margin-left:-12px; font-size:0.85rem }
+.avatar-stack .avatar-initial { width:36px; height:36px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#1f262b; color:#fff; font-weight:700; border:2px solid rgba(0,0,0,0.6); margin-left:-12px; font-size:0.85rem; flex-shrink:0 }
 .avatar-stack .avatar-initial:first-child { margin-left:0 }
-.avatar-stack .avatar.extra { margin-left:8px; background:#2b2f33; width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; font-size:0.85rem }
+.avatar-stack .avatar.extra { margin-left:8px; background:#2b2f33; width:36px; height:36px; min-width:36px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; font-size:0.85rem; flex-shrink:0 }
 
 /* image avatar style (match initials look) */
-.avatar-img { width:36px; height:36px; border-radius:50%; object-fit:cover; border:2px solid rgba(0,0,0,0.6); margin-left:-12px }
+.avatar-img { width:36px; height:36px; border-radius:50%; object-fit:cover; border:2px solid rgba(0,0,0,0.6); margin-left:-12px; flex-shrink:0 }
 
 
 .players {
@@ -2926,7 +2935,7 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 .match-card.host-match .match-meta-row .time-range { color: #111 }
 .match-card.host-match .meta-pill { background: rgba(0,0,0,0.10); color: #111 }
 .match-card.host-match .meta-pill.badge-type { background: rgba(0,0,0,0.18); color: #111 }
-.match-card.host-match .match-people { color: #111 }
+.match-card.host-match .match-people { color: #fff; background: rgba(0,0,0,0.25); padding: 4px 10px; border-radius: 12px; }
 
 /* Playing match state: visually indicate an active/playing match (same treatment as host-match) */
 .match-card.playing-match {

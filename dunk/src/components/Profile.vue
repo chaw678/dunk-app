@@ -213,12 +213,12 @@
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search followers..."
+            placeholder="Type name to search..."
             class="search-input"
           />
 
           <div class="follow-list">
-            <div class="follow-item" v-for="f in filteredFollowList" :key="f.uid" v-if="matchesQuery(f)">
+            <div class="follow-item" v-for="f in filteredFollowList" :key="f.uid">
               <div
                 role="button"
                 tabindex="0"
@@ -252,12 +252,12 @@
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search following..."
+            placeholder="Type name to search..."
             class="search-input"
           />
 
           <div class="follow-list">
-            <div class="follow-item" v-for="f in filteredFollowList" :key="f.uid" v-if="matchesQuery(f)">
+            <div class="follow-item" v-for="f in filteredFollowList" :key="f.uid">
               <div
                 role="button"
                 tabindex="0"
@@ -459,8 +459,6 @@ const showConfirmPopup = ref(false)
 const confirmAction = ref(null)
 const confirmMessage = ref('')
 const searchQuery = ref('')
-const filteredFollowers = ref([])
-const filteredFollowing = ref([])
 const profilePollRef = ref(null)
 let profileUserUnsub = null
 
@@ -538,40 +536,38 @@ const filteredFollowList = computed(() => {
   // helper: perform strict prefix-only search on a list of users
   const searchList = (list) => {
     if (!q) return list
-    return list.filter(u => {
-      // match only the first token of the display name (first name) or the local-part of the email
-      const rawName = ((u.name || u.username) || '').toLowerCase().trim()
-      const firstToken = (rawName.split(/\s+/)[0] || '')
-      const emailLocal = ((u.email || '').toLowerCase().split('@')[0] || '')
-      return (firstToken && firstToken.startsWith(q)) || (emailLocal && emailLocal.startsWith(q))
-    })
+    
+    const matches = []
+    for (const u of list) {
+      if (!u) continue
+      
+      // Get the actual name/username that will be displayed
+      const displayName = (u.name || u.username || u.email || '').toLowerCase()
+      const username = (u.username || '').toLowerCase()
+      
+      // ONLY match if the name STARTS with the query
+      const nameStartsWith = displayName.length > 0 && displayName.startsWith(q)
+      const usernameStartsWith = username.length > 0 && username.startsWith(q)
+      
+      if (nameStartsWith || usernameStartsWith) {
+        matches.push(u)
+      }
+    }
+    
+    return matches
   }
 
   try {
     if (showFollowersModal.value) {
-      const out = searchList(followersList.value)
-      // debug: log query and results to help trace filtering issues in browser console
-      // eslint-disable-next-line no-console
-      console.debug('[Profile] filteredFollowList - followers', { q, baseCount: (followersList.value || []).length, resultCount: out.length, sample: out.slice(0,8).map(u => u.name || u.email) })
-      return out
+      return searchList(followersList.value)
     }
     if (showFollowingModal.value) {
-      const out = searchList(followingList.value)
-      // eslint-disable-next-line no-console
-      console.debug('[Profile] filteredFollowList - following', { q, baseCount: (followingList.value || []).length, resultCount: out.length, sample: out.slice(0,8).map(u => u.name || u.email) })
-      return out
+      return searchList(followingList.value)
     }
   } catch (e) {
-    // eslint-disable-next-line no-console
     console.warn('[Profile] filteredFollowList error', e)
   }
   return []
-})
-
-// watch lists to keep filtered copies in sync
-watch([followersList, followingList], () => {
-  if (showFollowersModal.value) filteredFollowers.value = followersList.value
-  if (showFollowingModal.value) filteredFollowing.value = followingList.value
 })
 
 // load profile + users map and start a short poll to refresh profile
@@ -993,10 +989,10 @@ function matchesQuery(u) {
   try {
     const q = (searchQuery.value || '').toLowerCase().trim()
     if (!q) return true
-    const rawName = ((u.name || u.username) || '').toLowerCase().trim()
-    const firstToken = (rawName.split(/\s+/)[0] || '')
-    const emailLocal = ((u.email || '').toLowerCase().split('@')[0] || '')
-    return (firstToken && firstToken.startsWith(q)) || (emailLocal && emailLocal.startsWith(q))
+    // Only match if name or username starts with the search term
+    const name = ((u.name || '') || '').toLowerCase().trim()
+    const username = ((u.username || '') || '').toLowerCase().trim()
+    return name.startsWith(q) || username.startsWith(q)
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn('[Profile] matchesQuery error', e)

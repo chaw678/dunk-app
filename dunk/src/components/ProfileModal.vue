@@ -374,12 +374,25 @@ const filteredFollowList = computed(() => {
   const q = (searchQuery.value || '').toLowerCase().trim()
   const searchList = (list) => {
     if (!q) return list
-    return list.filter(u => {
-      const rawName = ((u.name || u.username) || '').toLowerCase().trim()
-      const firstToken = (rawName.split(/\s+/)[0] || '')
-      const emailLocal = ((u.email || '').toLowerCase().split('@')[0] || '')
-      return (firstToken && firstToken.startsWith(q)) || (emailLocal && emailLocal.startsWith(q))
-    })
+    
+    const matches = []
+    for (const u of list) {
+      if (!u) continue
+      
+      // Get the actual name/username that will be displayed
+      const displayName = (u.name || u.username || u.email || '').toLowerCase()
+      const username = (u.username || '').toLowerCase()
+      
+      // ONLY match if the name STARTS with the query
+      const nameStartsWith = displayName.length > 0 && displayName.startsWith(q)
+      const usernameStartsWith = username.length > 0 && username.startsWith(q)
+      
+      if (nameStartsWith || usernameStartsWith) {
+        matches.push(u)
+      }
+    }
+    
+    return matches
   }
   try {
     if (showFollowersModal.value) return searchList(followersList.value)

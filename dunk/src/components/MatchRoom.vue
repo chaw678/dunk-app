@@ -1684,8 +1684,51 @@ button[disabled] { cursor: not-allowed; opacity: 0.6; }
 .btn[disabled] { opacity:0.45; cursor:not-allowed; }
  
 
-.matchroom-container { background: #10121A; color: #fff; min-height: 100vh; padding: 32px; }
-header { display: flex; align-items: center; justify-content: space-between; }
+.matchroom-container { background: #0f1418; color: #fff; min-height: 100vh; padding: 32px; border-radius: 20px; }
+
+/* Responsive adjustments for collapsed sidebar */
+.collapsed .matchroom-container {
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.collapsed .rounds-history {
+  max-width: 650px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 15px;
+}
+
+header { 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  padding: 16px 24px;
+  background: linear-gradient(180deg, rgba(255,154,60,0.08), rgba(255,154,60,0.02));
+  border-radius: 16px;
+  border: 1px solid rgba(255,154,60,0.15);
+  margin-bottom: 12px;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+header h1 {
+  color: #ffd98a;
+  font-size: 2rem;
+  font-weight: 900;
+  margin: 0;
+  flex: 1;
+  text-align: center;
+  letter-spacing: 0.5px;
+  margin-left: 60px; /* Shift right to align with Match Summary */
+}
+
+/* Player view: shift title left when "End Match" button is hidden */
+header:not(:has(.end-match-btn)) h1 {
+  margin-right: 40px;
+  margin-left: 0;
+}
+
 .bench-section, .team-card { background: #23262e; border-radius: 18px; padding: 20px 26px; margin-bottom: 22px; }
 .bench-list, .team-drop-list { display: flex; gap: 28px; min-height: 100px; flex-wrap: wrap; align-items: flex-start; }
   /* player tile row: avatar + name on left, wins on right */
@@ -1717,25 +1760,68 @@ header { display: flex; align-items: center; justify-content: space-between; }
 .active-pulse { animation: pulseborder 1s infinite alternate; border: 2.5px solid #ffad1d !important; }
 @keyframes pulseborder { from { box-shadow: 0 0 0 0 #ffad1d55; } to { box-shadow: 0 0 20px 8px #ffad1d90; } }
 .actions-row { margin-top: 30px; display: flex; gap: 22px; justify-content: center; }
-.back-btn, .end-match-btn { border:none; background:#B23B3B; color: #fff; border-radius: 8px; padding:9px 18px; font-weight:700; }
-.summary-btn { border:none; background:#2b6baf; color:#fff; border-radius:8px; padding:9px 14px; font-weight:700; margin:0 6px; }
-.title-actions { margin:8px 0 16px; display:flex; gap:8px; justify-content:center; width:100%; align-items:center }
+.back-btn, .end-match-btn { 
+  border: none; 
+  background: #B23B3B; 
+  color: #fff; 
+  border-radius: 10px; 
+  padding: 10px 20px; 
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.95rem;
+}
+.back-btn:hover, .end-match-btn:hover {
+  background: #c94545;
+  transform: translateY(-1px);
+}
+.summary-btn { 
+  border: none; 
+  background: #2b6baf; 
+  color: #fff; 
+  border-radius: 12px; 
+  padding: 12px 24px; 
+  font-weight: 700; 
+  margin: 0 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1rem;
+}
+.summary-btn:hover {
+  background: #3a7ac2;
+  transform: translateY(-1px);
+}
+.title-actions { 
+  margin: 0 0 16px; 
+  display: flex; 
+  gap: 8px; 
+  justify-content: center; 
+  width: 100%; 
+  align-items: center;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
 .close-btn {
   border: none;
-  background: transparent;
+  background: rgba(255,255,255,0.1);
   color: #fff;
   width: 40px;
   height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: 10px;
   font-size: 20px;
   font-weight: 800;
   cursor: pointer;
-  transition: background 120ms ease, transform 120ms ease;
+  transition: all 0.2s ease;
+  line-height: 1;
 }
-.close-btn:hover { background: rgba(255,255,255,0.03); transform: scale(1.03) }
+.close-btn:hover { 
+  background: rgba(255,255,255,0.15); 
+  transform: scale(1.05);
+}
 .bench-section p { font-size: 0.96rem; color: #ccc; margin-bottom:16px; }
 .teams-grid { display: flex; gap: 34px; align-items: flex-start; justify-content: center; }
 
@@ -1766,7 +1852,7 @@ header { display: flex; align-items: center; justify-content: space-between; }
 /* --- Rounds History Styles --- */
 .rounds-history { 
   margin: 32px auto; 
-  max-width: 980px; 
+  max-width: 650px; 
   background: linear-gradient(180deg,#0f1114,#15161a); 
   padding: 20px; 
   border-radius: 14px; 
@@ -1830,6 +1916,7 @@ header { display: flex; align-items: center; justify-content: space-between; }
 }
 .round-team { 
   flex: 1; 
+  min-width: 280px;
   background: rgba(255,255,255,0.02); 
   padding: 12px; 
   border-radius: 10px; 
@@ -1853,6 +1940,7 @@ header { display: flex; align-items: center; justify-content: space-between; }
   padding: 8px 10px; 
   border-radius: 8px; 
   border: 1px solid rgba(255,255,255,0.03); 
+  flex-wrap: wrap;
 }
 .round-avatar { 
   flex-shrink: 0; 
@@ -1882,10 +1970,15 @@ header { display: flex; align-items: center; justify-content: space-between; }
   font-weight: 800; 
   font-size: 0.9rem; 
   flex: 1; 
+  min-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .round-player-stats { 
   display: flex; 
   gap: 6px; 
+  flex-shrink: 0;
 }
 .stat-total { 
   color: #cfc9b0; 
@@ -1942,6 +2035,18 @@ header { display: flex; align-items: center; justify-content: space-between; }
 
 <style scoped>
 /* Responsive fixes for narrow viewports to prevent the matchroom UI from breaking */
+
+/* Only stack teams vertically on smaller screens */
+@media (max-width: 900px) {
+  .round-teams {
+    flex-direction: column;
+  }
+
+  .round-team {
+    min-width: unset;
+  }
+}
+
 @media (max-width: 1100px) {
   .matchroom-container { padding: 20px 16px; }
   header h1 { font-size: 1.2rem; }
@@ -1950,6 +2055,12 @@ header { display: flex; align-items: center; justify-content: space-between; }
   .bench-list, .team-drop-list { gap: 14px; }
   .wins-chart { max-width: 100%; padding: 0 8px; }
   .wins-title { font-size: 2rem; }
+  
+  /* Collapsed sidebar adjustments for medium screens */
+  .collapsed .matchroom-container { 
+    padding-left: 12px; 
+    padding-right: 12px; 
+  }
 }
 
 @media (max-width: 720px) {
@@ -1959,10 +2070,34 @@ header { display: flex; align-items: center; justify-content: space-between; }
   .player-sub { font-size: 0.72rem; }
   .member-pill { padding: 6px; gap: 10px; }
   .member-name { font-size: 0.9rem }
-  .rounds-history { padding: 12px; }
+  .rounds-history { 
+    padding: 12px; 
+    max-width: 100%;
+    margin: 20px 0;
+  }
   .round-card { flex-direction: column; }
   .card-left { width: 100%; display:flex; gap:8px; }
   .card-main { width: 100%; }
+  
+  .round-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .round-player-name {
+    font-size: 0.85rem;
+  }
+  
+  .round-player-stats {
+    font-size: 0.7rem;
+  }
+  
+  /* Collapsed sidebar adjustments for small screens */
+  .collapsed .matchroom-container { 
+    padding-left: 8px; 
+    padding-right: 8px; 
+  }
 }
 
 /* Very small screens: allow horizontal scroll for the teams grid as a fallback */
@@ -1971,6 +2106,29 @@ header { display: flex; align-items: center; justify-content: space-between; }
   .team-card { display: inline-block; vertical-align: top; white-space: normal; min-width: 280px; width: 86%; margin-right: 12px; }
   .bench-list { overflow-x: auto; white-space: nowrap; }
   .bench-list .player-avatar { display: inline-flex; width: auto; }
+  
+  .rounds-history {
+    padding: 12px;
+    margin: 15px 0;
+  }
+  
+  .rounds-history-header {
+    font-size: 1.5rem;
+  }
+  
+  .round-card {
+    padding: 12px;
+  }
+  
+  .round-player {
+    padding: 6px 8px;
+  }
+  
+  .round-avatar-img,
+  .round-avatar-fallback {
+    width: 32px;
+    height: 32px;
+  }
 }
 
 /* Always allow horizontal scrolling of the main container if content overflows */

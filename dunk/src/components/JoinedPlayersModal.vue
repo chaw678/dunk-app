@@ -10,7 +10,7 @@
       </div>
       <div class="card-body jp-body">
         <ul class="list-unstyled mb-0">
-          <li v-for="(p, i) in players || []" :key="i" class="player-row border-bottom">
+          <li v-for="(p, i) in enrichedPlayers" :key="i" class="player-row border-bottom">
             <div class="player-avatar">
               <router-link v-if="p.uid" :to="`/profile/${p.uid}`" class="player-link">
                 <img v-if="p.profilepicture || p.avatar" :src="p.profilepicture || p.avatar" alt="avatar" class="big-avatar" />
@@ -43,7 +43,7 @@
             </div>
           </li>
         </ul>
-        <div v-if="!players || !players.length" class="text-center text-muted py-4">No players yet</div>
+        <div v-if="!enrichedPlayers || !enrichedPlayers.length" class="text-center text-muted py-4">No players yet</div>
       </div>
     </div>
   </ModalPortal>
@@ -51,7 +51,7 @@
 
 <script setup>
 import ModalPortal from './ModalPortal.vue'
-import { defineProps, defineEmits, ref } from 'vue'
+import { defineProps, defineEmits, ref, computed } from 'vue'
 import { onUserStateChanged } from '../firebase/auth'
 import { getDataFromFirebase, setChildData, deleteChildData } from '../firebase/firebase'
 
@@ -65,6 +65,24 @@ const emit = defineEmits(['close'])
 const me = ref(null)
 const followingMap = ref({})
 const loadingFollowing = ref({})
+const usersCache = ref({})
+
+// Fetch user data to get usernames
+const enrichedPlayers = computed(() => {
+  return (props.players || []).map(p => {
+    if (p.uid && usersCache.value[p.uid]) {
+      const userData = usersCache.value[p.uid]
+      // Prioritize username over other name fields
+      const displayName = userData.username || userData.name || userData.displayName || p.name
+      return {
+        ...p,
+        name: displayName,
+        profilepicture: p.avatar || userData.profilepicture || userData.avatar
+      }
+    }
+    return p
+  })
+})
 
 function close() { emit('close') }
 
@@ -85,6 +103,22 @@ onUserStateChanged(async (u) => {
   } catch (err) {
     console.warn('Failed to load following map', err)
     followingMap.value = {}
+  }
+  
+  // Fetch user data for all players to get their usernames
+  if (props.players && props.players.length > 0) {
+    for (const player of props.players) {
+      if (player.uid && !usersCache.value[player.uid]) {
+        try {
+          const userData = await getDataFromFirebase(`users/${player.uid}`)
+          if (userData) {
+            usersCache.value = { ...usersCache.value, [player.uid]: userData }
+          }
+        } catch (err) {
+          console.warn(`Failed to load user data for ${player.uid}`, err)
+        }
+      }
+    }
   }
 })
 

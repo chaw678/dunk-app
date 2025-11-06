@@ -1867,63 +1867,129 @@ input.comment-edit-input:-webkit-autofill:focus {
 
 /* Themed upload modal styles (match screenshot) */
 .themed-modal {
-  background: #071021;
+  background: linear-gradient(180deg, #0f1418 0%, #0c0f12 100%);
   padding: 28px 32px;
-  border-radius: 12px;
+  border-radius: 16px;
   color: #fff;
   width: 92%;
   max-width: 720px;
-  box-shadow: 0 12px 40px rgba(2,6,23,0.7);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.6);
   position: relative;
+  border: 3px solid rgba(255,154,60,0.95);
 }
 .themed-modal .modal-close {
   position: absolute;
-  right: 14px;
-  top: 10px;
+  right: 18px;
+  top: 14px;
   background: transparent;
   border: none;
-  color: rgba(255,255,255,0.7);
-  font-size: 22px;
+  color: #fff;
+  font-size: 28px;
   line-height: 1;
   cursor: pointer;
+  transition: color 0.2s;
 }
-.themed-modal .modal-title { font-size: 22px; margin: 6px 0 6px; font-weight:700 }
-.themed-modal .modal-sub { color: rgba(255,255,255,0.65); margin-bottom: 14px }
+.themed-modal .modal-close:hover {
+  color: #ff9a3c;
+}
+.themed-modal .modal-title { 
+  font-size: 32px; 
+  margin: 6px 0 6px; 
+  font-weight: 800;
+  color: #ff9a3c;
+}
+.themed-modal .modal-sub { 
+  color: rgba(120, 115, 115, 0.92); 
+  margin-bottom: 20px;
+  font-size: 0.95rem;
+}
+.themed-modal .form-label {
+  color: #fff;
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: block;
+  font-size: 1rem;
+}
 .themed-modal .modal-textarea {
   width: 100%;
-  min-height: 140px;
-  background: transparent;
+  min-height: 160px;
+  background: #141617;
   border-radius: 10px;
   padding: 14px 16px;
   color: #fff;
-  border: 3px solid rgba(255,173,29,0.12);
+  border: 1px solid rgba(255,154,60,0.2);
   resize: vertical;
   font-size: 15px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.themed-modal .modal-textarea::placeholder {
+  color: rgba(91, 91, 91, 0.65);
 }
 .themed-modal .modal-textarea:focus {
   outline: none;
-  box-shadow: 0 0 0 4px rgba(255,173,29,0.07);
-  border-color: rgba(255,173,29,0.9);
+  box-shadow: 0 0 0 3px rgba(255,154,60,0.15);
+  border-color: #ff9a3c;
 }
-.themed-modal .modal-row { display:flex; gap:16px; margin-top:12px }
+.themed-modal .modal-row { display:flex; gap:16px; margin-top:16px }
 .themed-modal .modal-col { flex:1 }
 .themed-modal .modal-select, .themed-modal .modal-file {
   width: 100%;
   border-radius: 10px;
-  padding: 10px 12px;
-  background: rgba(255,255,255,0.02);
+  padding: 12px 14px;
+  background: #141617;
   border: 1px solid rgba(255,255,255,0.06);
   color: #fff;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+.themed-modal .modal-select:focus, .themed-modal .modal-file:focus {
+  outline: none;
+  border-color: #ff9a3c;
 }
 .themed-modal .file-row { display:flex; align-items:center; gap:12px }
-.themed-modal .file-note { color: rgba(255,255,255,0.6); font-size:13px }
+.themed-modal .file-note { color: rgba(91, 91, 91, 0.92); font-size:13px }
 .themed-modal .preview-grid { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px }
-.themed-modal .preview-item { display:flex; gap:8px; align-items:center; background: rgba(255,255,255,0.02); padding:8px; border-radius:8px }
+.themed-modal .preview-item { 
+  display:flex; 
+  gap:8px; 
+  align-items:center; 
+  background: rgba(18,20,22,0.85); 
+  padding:10px; 
+  border-radius:10px;
+  border: 1px solid rgba(255,255,255,0.03);
+}
 .themed-modal .preview-thumb { width:72px; height:54px; object-fit:cover; border-radius:6px }
 .themed-modal .preview-meta .small { color: rgba(255,255,255,0.85) }
-.themed-modal .modal-actions { display:flex; justify-content:flex-end; gap:12px; margin-top:18px }
-.themed-modal .btn-cancel { background: rgba(0,0,0,0.35); color: #fff; border: 1px solid rgba(255,255,255,0.04); padding:10px 16px; border-radius:10px }
-.themed-modal .btn-create { background: #ff9a1f; color: #111; padding:10px 18px; border-radius:10px; border:none; font-weight:700 }
+.themed-modal .modal-actions { display:flex; justify-content:flex-end; gap:12px; margin-top:24px }
+.themed-modal .btn-cancel { 
+  background: transparent; 
+  color: #cfd9e3; 
+  border: 1px solid rgba(255,255,255,0.06); 
+  padding: 12px 20px; 
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.themed-modal .btn-cancel:hover {
+  background: rgba(255,255,255,0.02);
+  border-color: rgba(255,255,255,0.1);
+}
+.themed-modal .btn-create { 
+  background: #ff9a3c; 
+  color: #111; 
+  padding: 12px 24px; 
+  border-radius: 10px; 
+  border: none; 
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 6px 18px rgba(255,154,60,0.12);
+}
+.themed-modal .btn-create:hover {
+  background: #ffb369;
+  box-shadow: 0 8px 24px rgba(255,154,60,0.2);
+}
 
 @media (max-width: 640px) {
   .themed-modal { padding: 18px; width: 95%; }

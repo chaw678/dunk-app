@@ -1537,9 +1537,72 @@ function syncTimerFromServer() {
 .player-username { margin-top:8px; color:#ffad1d; font-weight:700; text-align:center; word-break:break-word; }
 
 /* copy of MatchRoom timer & team styles so RoundStarted visually matches */
-.matchroom-container { background: #10121A; color: #fff; min-height: 100vh; padding: 32px; }
-header { display:flex; align-items:center; justify-content:center; gap:12px; position:relative; }
-.back-btn { border:none; background:#B23B3B; color:#fff; border-radius:8px; padding:9px 18px; font-weight:700; position:absolute; left:12px; top:12px; }
+.matchroom-container { background: #0f1418; color: #fff; min-height: 100vh; padding: 32px; border-radius: 20px; }
+header { 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  gap: 12px; 
+  position: relative;
+  padding: 16px 24px;
+  background: linear-gradient(180deg, rgba(255,154,60,0.08), rgba(255,154,60,0.02));
+  border-radius: 16px;
+  border: 1px solid rgba(255,154,60,0.15);
+  margin-bottom: 20px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+header h1 {
+  color: #ffd98a;
+  font-size: 2rem;
+  font-weight: 900;
+  margin: 0;
+  flex: 1;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+/* Host view: shift title left to center with timer */
+header:has(.back-btn) h1 {
+  margin-left: -85px;
+}
+
+/* Player view: shift title left to center it */
+header:has(.close-btn) h1 {
+  margin-left: -30px;
+}
+.back-btn { 
+  border: none; 
+  background: #B23B3B; 
+  color: #fff; 
+  border-radius: 10px; 
+  padding: 10px 20px; 
+  font-weight: 700; 
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.95rem;
+}
+.back-btn:hover {
+  background: #c94545;
+  transform: translateY(-1px);
+}
+.close-btn {
+  border: none;
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 1.3rem;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+.close-btn:hover {
+  background: rgba(255,255,255,0.15);
+  transform: scale(1.05);
+}
 
 .players-row { display:flex; gap:18px; padding-top:12px; flex-wrap:wrap; align-items:center; }
 .player-tile { display:flex; align-items:center; gap:14px; padding:10px 0; }
@@ -1585,8 +1648,27 @@ header { display:flex; align-items:center; justify-content:center; gap:12px; pos
 .preset { background:#111318; color:#fff; border:1px solid rgba(255,255,255,0.03); padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700; }
 
 /* Teams layout */
-.teams-grid { display:flex; gap:34px; align-items:flex-start; justify-content:center; margin-top:8px; }
-.team-card { min-width: 330px; flex: 1; border: 2.5px dashed #fff4d1; transition: border 0.3s; min-height: 260px; padding:18px; border-radius:18px; background:#23262e; }
+.teams-grid { 
+  display: flex; 
+  flex-direction: row;
+  gap: 20px; 
+  align-items: stretch; 
+  justify-content: center; 
+  margin-top: 8px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.team-card { 
+  flex: 1;
+  min-width: 300px;
+  border: 2.5px dashed #fff4d1; 
+  transition: border 0.3s; 
+  min-height: 200px; 
+  padding: 18px; 
+  border-radius: 18px; 
+  background: #23262e; 
+}
 .active-outline { border: 2.5px solid #ffad1d !important; }
 .inactive-outline { border: 2.5px dashed #ededed !important; }
 .winner-outline { border: 2.5px solid #2eb872 !important; box-shadow: 0 0 24px 8px rgba(46,184,114,0.12); }
@@ -1641,7 +1723,7 @@ header { display:flex; align-items:center; justify-content:center; gap:12px; pos
 /* --- Rounds History Styles --- */
 .rounds-history { 
   margin: 32px auto; 
-  max-width: 980px; 
+  max-width: 650px; 
   background: linear-gradient(180deg,#0f1114,#15161a); 
   padding: 20px; 
   border-radius: 14px; 
@@ -1671,7 +1753,9 @@ header { display:flex; align-items:center; justify-content:center; gap:12px; pos
   padding: 16px; 
   border-radius: 12px; 
   border: 1px solid rgba(255,255,255,0.03); 
-  transition: transform 180ms ease, box-shadow 180ms ease; 
+  transition: transform 180ms ease, box-shadow 180ms ease;
+  max-width: 750px;
+  margin: 0 auto;
 }
 .round-card:hover { 
   transform: translateY(-4px); 
@@ -1705,6 +1789,7 @@ header { display:flex; align-items:center; justify-content:center; gap:12px; pos
 }
 .round-team { 
   flex: 1; 
+  min-width: 280px;
   background: rgba(255,255,255,0.02); 
   padding: 12px; 
   border-radius: 10px; 
@@ -1728,6 +1813,7 @@ header { display:flex; align-items:center; justify-content:center; gap:12px; pos
   padding: 8px 10px; 
   border-radius: 8px; 
   border: 1px solid rgba(255,255,255,0.03); 
+  flex-wrap: wrap;
 }
 .round-avatar { 
   flex-shrink: 0; 
@@ -1757,10 +1843,15 @@ header { display:flex; align-items:center; justify-content:center; gap:12px; pos
   font-weight: 800; 
   font-size: 0.9rem; 
   flex: 1; 
+  min-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .round-player-stats { 
   display: flex; 
   gap: 6px; 
+  flex-shrink: 0;
 }
 .stat-total { 
   color: #cfc9b0; 
@@ -1789,17 +1880,150 @@ header { display:flex; align-items:center; justify-content:center; gap:12px; pos
 }
 .final-results-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   margin-bottom: 32px;
+  position: relative;
+  max-width: 650px;
+  margin-left: auto;
+  margin-right: auto;
 }
 .final-results-header h1 {
   color: #ffd98a;
   font-size: 2.2rem;
   font-weight: 800;
   margin: 0;
+  text-align: center;
+}
+.final-results-header .close-btn {
+  position: absolute;
+  right: 10px;
 }
 .final-results-view .rounds-history {
   margin-top: 0;
+}
+
+/* Collapsed sidebar responsive styles */
+.collapsed .matchroom-container {
+  padding: 20px 15px;
+}
+
+.collapsed .teams-grid {
+  max-width: 100%;
+}
+
+/* Stack vertically when collapsed and screen is narrow */
+@media (max-width: 1100px) {
+  .collapsed .teams-grid {
+    flex-direction: column;
+  }
+  
+  .collapsed .team-card {
+    width: 100%;
+    min-width: unset;
+  }
+}
+
+.collapsed .rounds-history {
+  max-width: 650px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 15px;
+}
+
+/* Only stack teams vertically on smaller screens */
+@media (max-width: 900px) {
+  .teams-grid {
+    flex-direction: column;
+  }
+
+  .team-card {
+    min-width: unset;
+    width: 100%;
+  }
+  
+  .round-teams {
+    flex-direction: column;
+  }
+
+  .round-team {
+    min-width: unset;
+  }
+}
+
+/* Mobile responsive styles */
+@media (max-width: 720px) {
+  .matchroom-container {
+    padding: 20px 15px;
+  }
+  
+  .teams-grid {
+    gap: 15px;
+    flex-direction: column;
+  }
+  
+  .team-card {
+    min-height: 180px;
+    width: 100%;
+  }
+  
+  .rounds-history {
+    max-width: 100%;
+    padding: 15px;
+    margin: 20px 0;
+  }
+  
+  .round-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .round-player-name {
+    font-size: 0.85rem;
+  }
+  
+  .round-player-stats {
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .matchroom-container {
+    padding: 15px 10px;
+  }
+  
+  .teams-grid {
+    gap: 12px;
+    flex-direction: column;
+  }
+  
+  .team-card {
+    min-height: 160px;
+    width: 100%;
+  }
+  
+  .rounds-history {
+    padding: 12px;
+    margin: 15px 0;
+  }
+  
+  .rounds-history-header {
+    font-size: 1.5rem;
+  }
+  
+  .round-card {
+    padding: 12px;
+  }
+  
+  .round-player {
+    padding: 6px 8px;
+  }
+  
+  .round-avatar-img,
+  .round-avatar-fallback {
+    width: 32px;
+    height: 32px;
+  }
 }
 </style>

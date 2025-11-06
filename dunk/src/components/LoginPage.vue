@@ -153,11 +153,19 @@ watch(searchQuery, (val) => {
   const q = val.trim().toLowerCase();
   if (showFollowers.value) {
     filteredFollowers.value = followersList.value.filter(
-      (u) => u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
+      (u) => {
+        const name = (u.name || '').toLowerCase();
+        const username = (u.username || '').toLowerCase();
+        return name.startsWith(q) || username.startsWith(q);
+      }
     );
   } else if (showFollowing.value) {
     filteredFollowing.value = followingList.value.filter(
-      (u) => u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
+      (u) => {
+        const name = (u.name || '').toLowerCase();
+        const username = (u.username || '').toLowerCase();
+        return name.startsWith(q) || username.startsWith(q);
+      }
     );
   }
 });
@@ -1028,24 +1036,24 @@ watch(animateBars, (v) => { if (v) animateCounts() })
             <div class="chart-bar" 
                  @mouseenter="showBarTooltip($event, 'Open', statsFromProfile.open_wins)"
                  @mouseleave="hideBarTooltip">
+              <div v-if="statsFromProfile.open_wins > 0" class="bar-value-top">{{ statsFromProfile.open_wins }}</div>
               <div class="bar-fill" :style="{ height: (statsFromProfile.open_wins > 0 ? (animateBars ? barHeight(statsFromProfile.open_wins) : '8px') : '4px'), background: (statsFromProfile.open_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (statsFromProfile.open_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '0ms' }" aria-hidden="true"></div>
-              <div class="bar-value">{{ statsFromProfile.open_wins > 0 ? displayOpen : '' }}</div>
               <div class="bar-label">Open</div>
             </div>
 
             <div class="chart-bar"
                  @mouseenter="showBarTooltip($event, 'Intermediate', statsFromProfile.intermediate_wins)"
                  @mouseleave="hideBarTooltip">
+              <div v-if="statsFromProfile.intermediate_wins > 0" class="bar-value-top">{{ statsFromProfile.intermediate_wins }}</div>
               <div class="bar-fill" :style="{ height: (statsFromProfile.intermediate_wins > 0 ? (animateBars ? barHeight(statsFromProfile.intermediate_wins) : '8px') : '4px'), background: (statsFromProfile.intermediate_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (statsFromProfile.intermediate_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '90ms' }" aria-hidden="true"></div>
-              <div class="bar-value">{{ statsFromProfile.intermediate_wins > 0 ? displayIntermediate : '' }}</div>
               <div class="bar-label">Intermediate</div>
             </div>
 
             <div class="chart-bar"
                  @mouseenter="showBarTooltip($event, 'Professional', statsFromProfile.professional_wins)"
                  @mouseleave="hideBarTooltip">
+              <div v-if="statsFromProfile.professional_wins > 0" class="bar-value-top">{{ statsFromProfile.professional_wins }}</div>
               <div class="bar-fill" :style="{ height: (statsFromProfile.professional_wins > 0 ? (animateBars ? barHeight(statsFromProfile.professional_wins) : '8px') : '4px'), background: (statsFromProfile.professional_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (statsFromProfile.professional_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '180ms' }" aria-hidden="true"></div>
-              <div class="bar-value">{{ statsFromProfile.professional_wins > 0 ? displayProfessional : '' }}</div>
               <div class="bar-label">Professional</div>
             </div>
           </div>
@@ -1511,6 +1519,13 @@ watch(animateBars, (v) => { if (v) animateCounts() })
         display:flex; align-items:flex-start; justify-content:center; padding-top:8px; box-shadow: 0 6px 18px rgba(0,0,0,0.35);
       }
 
+      .bar-value-top { 
+        color: #ffca6a; 
+        font-weight: 800; 
+        font-size: 1.1rem; 
+        margin-bottom: 6px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      }
       .bar-value { color: #081017; font-weight:800; font-size:0.98rem; margin-bottom:6px }
       .bar-label { color:#9CA3AF; margin-top:10px; font-size:0.95rem }
 

@@ -177,34 +177,20 @@ const filteredCandidates = computed(() => {
 
   if (!term) return pool
 
-  // find prefix (startsWith) matches on name/username
-  const prefixMatches = []
-  const containsMatches = []
+  // Only show users whose name/username starts with the search term
+  const matches = []
   for (const u of pool) {
     const name = ('' + (u.name || u.username || '')).toLowerCase()
-    const email = ('' + (u.email || '')).toLowerCase()
-    const combined = `${name} ${email}`.trim()
-    if (name.startsWith(term) || (u.username && ('' + u.username).toLowerCase().startsWith(term))) {
-      prefixMatches.push(u)
-    } else if (combined.indexOf(term) !== -1) {
-      containsMatches.push(u)
+    const username = ('' + (u.username || '')).toLowerCase()
+    
+    // Check if name or username starts with the search term
+    if (name.startsWith(term) || username.startsWith(term)) {
+      matches.push(u)
     }
   }
 
-  // If we have any prefix matches, show ONLY those (as requested). Otherwise fall back to contains matches.
-  if (prefixMatches.length) {
-    // optional: sort prefix matches alphabetically by display name
-    prefixMatches.sort((a, b) => {
-      const da = ('' + (a.name || a.username || a.email || a.uid)).toLowerCase()
-      const db = ('' + (b.name || b.username || b.email || b.uid)).toLowerCase()
-      if (da < db) return -1
-      if (da > db) return 1
-      return 0
-    })
-    return prefixMatches
-  }
-
-  containsMatches.sort((a, b) => {
+  // Sort matches alphabetically by display name
+  matches.sort((a, b) => {
     const da = ('' + (a.name || a.username || a.email || a.uid)).toLowerCase()
     const db = ('' + (b.name || b.username || b.email || b.uid)).toLowerCase()
     if (da < db) return -1
@@ -212,7 +198,7 @@ const filteredCandidates = computed(() => {
     return 0
   })
 
-  return containsMatches
+  return matches
 })
 
 function seededAvatar(name) {
