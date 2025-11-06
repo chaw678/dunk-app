@@ -244,9 +244,8 @@
                                 <div class="mt-auto d-flex justify-content-between align-items-center">
                                     <div class="btn-group">
                                         <template v-if="isHost(match)">
-                                            <!-- For scheduled matches, hosts can invite and start; keep delete as a secondary action -->
+                                            <!-- For scheduled matches, hosts can invite and delete -->
                                             <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                                            <button type="button" class="btn btn-success btn-sm ms-2 d-flex align-items-center" @click.prevent.stop="startMatch(match)"><i class="bi bi-play-fill me-2"></i>Start Match</button>
                                             <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" @click.prevent="deleteMatch(match)"><i class="bi bi-trash me-2"></i>Delete</button>
                                         </template>
                                         <template v-else-if="isJoined(match)">
