@@ -962,8 +962,7 @@ async function confirmWinnerNextRound() {
 async function confirmWinnerEndMatch() {
   if (!selectedWinner.value) return
   
-  // keep the existing browser confirm as a final guard, then show the end-summary modal
-  if (!confirm('Are you sure you want to end this match? This will move it to past matches.')) return
+  // Directly end the match without confirmation dialog
   const nowIso = new Date().toISOString()
   try {
     const dbPath = await resolveMatchDbPath()

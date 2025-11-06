@@ -2424,7 +2424,8 @@ async function startMatchConfirmed(match) {
 async function endMatch(match) {
     if (!currentUser.value) { showAlert('Please sign in'); return }
     if (!isHost(match)) { showAlert('Only the host may end this match'); return }
-    openConfirm('end', match)
+    // Directly end the match without confirmation dialog
+    await endMatchConfirmed(match)
 }
 
 async function endMatchConfirmed(match) {
