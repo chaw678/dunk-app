@@ -1,72 +1,7 @@
 <template>
   <div class="matchroom-container">
-    <!-- Final Match Results View (shown when match is ended) -->
-    <div v-if="isMatchEnded" class="final-results-view">
-      <header class="final-results-header">
-        <h1>Final Match Results</h1>
-        <button @click="closeFinalResults" class="close-btn" aria-label="Close">✕</button>
-      </header>
-
-      <!-- Rounds History -->
-      <section class="rounds-history">
-        <h2 class="rounds-history-header">Rounds History</h2>
-
-        <div v-if="!(rounds && rounds.length)" class="rounds-empty">No rounds played yet.</div>
-
-        <div v-else class="round-list">
-          <div v-for="(r, idx) in (rounds || [])" :key="r.ts" class="round-card" :title="formatDate(r.endedAt)">
-            <div class="round-card-header">
-              <span class="round-index">Round {{ roundsCount ? (roundsCount - idx) : (idx + 1) }}</span>
-              <span class="round-time">{{ formatDate(r.endedAt) }}</span>
-              <span class="round-duration">{{ formatDuration(r.duration) }}</span>
-            </div>
-
-            <div class="round-teams">
-              <div class="round-team">
-                <div class="round-team-label">Team A</div>
-                <div class="round-team-roster">
-                  <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player">
-                    <div class="round-avatar">
-                      <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
-                      <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
-                    </div>
-                    <div class="round-player-name">{{ displayNameFor(uid) }}</div>
-                    <div class="round-player-stats">
-                      <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
-                      <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="round-team">
-                <div class="round-team-label">Team B</div>
-                <div class="round-team-roster">
-                  <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player">
-                    <div class="round-avatar">
-                      <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
-                      <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
-                    </div>
-                    <div class="round-player-name">{{ displayNameFor(uid) }}</div>
-                    <div class="round-player-stats">
-                      <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
-                      <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="r.winningTeam" class="round-winner">
-              Winner: Team {{ r.winningTeam }} ({{ winnersLabel(r) }})
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-
-    <!-- Normal Match Room View (shown when match is active) -->
-    <div v-else>
+    <!-- Normal Match Room View -->
+    <div>
     <header>
       <button @click="goBack" class="back-btn">← Back</button>
       <h1 class="matchroom-title" style="text-align: center;">{{ displayTitle }}</h1>
@@ -290,10 +225,10 @@
           <div class="round-team">
             <div class="round-team-label">Team A</div>
             <div class="round-team-roster">
-              <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player">
-                <div class="round-avatar"  @click="openProfileModal(uid)">
+              <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player" @click="openProfileModal(uid)" style="cursor: pointer;">
+                <div class="round-avatar">
                   <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
-                  <div v-else class="round-avatar-fallback"  @click="openProfileModal(uid)">{{ initials(displayNameFor(uid)) }}</div>
+                  <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
                 </div>
                 <div class="round-player-name">{{ displayNameFor(uid) }}</div>
                 <div class="round-player-stats">
@@ -307,10 +242,10 @@
           <div class="round-team">
             <div class="round-team-label">Team B</div>
             <div class="round-team-roster">
-              <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player">
-                <div class="round-avatar" @click="openProfileModal(uid)">
+              <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player" @click="openProfileModal(uid)" style="cursor: pointer;">
+                <div class="round-avatar">
                   <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
-                  <div v-else class="round-avatar-fallback" @click="openProfileModal(uid)">{{ initials(displayNameFor(uid)) }}</div>
+                  <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
                 </div>
                 <div class="round-player-name">{{ displayNameFor(uid) }}</div>
                 <div class="round-player-stats">
@@ -795,6 +730,14 @@ const animateB = ref(false)
 watch(winsA, (nv, ov) => { if (nv !== ov) { animateA.value = true; setTimeout(() => (animateA.value = false), 650) } })
 watch(winsB, (nv, ov) => { if (nv !== ov) { animateB.value = true; setTimeout(() => (animateB.value = false), 650) } })
 
+// Watch for match end to show summary modal for all users
+watch(() => matchData.value?.matchEnded, (newVal, oldVal) => {
+  if (newVal === true && oldVal !== true) {
+    console.log('MatchRoom: Match ended detected, showing summary modal')
+    showStats.value = true
+  }
+})
+
 let winsUnsub = null
 async function loadWins() {
   try {
@@ -833,6 +776,7 @@ let manuallyReturnedToMatchRoom = false // Track if user manually clicked back f
 let lastTeamsHash = null // track last seen teams to detect changes
 let lastTeamsConfirmedAt = null
 let matchRoundActiveUnsub = null
+let matchDataUnsub = null
 async function subscribeTeams(dbPath) {
   try {
     if (!dbPath) return
@@ -1190,6 +1134,19 @@ onMounted(async () => {
               } catch (e) { console.warn('match roundActive handler failed', e) }
             })
           } catch (e) { console.warn('subscribe to match roundActive failed', e) }
+          
+          // Subscribe to entire matchData to detect when match ends
+          try {
+            if (matchDataUnsub) { try { matchDataUnsub() } catch (e) {} ; matchDataUnsub = null }
+            matchDataUnsub = onDataChange(dbPath, (val) => {
+              try {
+                if (val) {
+                  // Update matchData while preserving __dbPath
+                  matchData.value = { ...(val || {}), __dbPath: dbPath }
+                }
+              } catch (e) { console.warn('matchData subscription handler failed', e) }
+            })
+          } catch (e) { console.warn('subscribe to matchData failed', e) }
         } else {
           console.warn('onMounted: dbPath is null, cannot subscribe to teams')
         }
@@ -1446,7 +1403,7 @@ async function confirmEndMatch() {
       await setChildData(dbPath, 'endAtISO', nowIso)
       await setChildData(dbPath, 'started', false)
       // keep local model in sync so UI updates immediately
-      try { matchData.value = { ...(matchData.value || {}), started: false, endedAt: nowIso, endAtISO: nowIso } } catch (e) {}
+      try { matchData.value = { ...(matchData.value || {}), started: false, endedAt: nowIso, endAtISO: nowIso, matchEnded: true } } catch (e) {}
       // Show the end match summary modal
       showStats.value = true
     }
@@ -1517,6 +1474,7 @@ onBeforeUnmount(() => {
   if (winsByEachPlayerUnsub) { try { winsByEachPlayerUnsub() } catch (e) {} ; winsByEachPlayerUnsub = null }
   if (teamsUnsub) { try { teamsUnsub() } catch (e) {} ; teamsUnsub = null }
   if (matchRoundActiveUnsub) { try { matchRoundActiveUnsub() } catch (e) {} ; matchRoundActiveUnsub = null }
+  if (matchDataUnsub) { try { matchDataUnsub() } catch (e) {} ; matchDataUnsub = null }
 })
 
 </script>
