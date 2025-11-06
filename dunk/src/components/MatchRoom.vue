@@ -1415,12 +1415,7 @@ async function confirmEndMatch() {
 
 function onEndSummaryClose() {
   showStats.value = false
-  // Navigate to Matches page just like the Cancel button does
-  try {
-    router.push({ path: '/matches', query: { section: 'past' } })
-  } catch (e) {
-    try { router.push('/matches') } catch (err) { /* ignore */ }
-  }
+  // Stay in match room, do not navigate away
 }
 
 function onPostMatchToForum() {
@@ -1446,36 +1441,21 @@ function onPostMatchToForum() {
 }
 
 function onCancelSummary() {
-  console.log('MatchRoom.vue: onCancelSummary called, closing modal and navigating to matches')
+  console.log('MatchRoom.vue: onCancelSummary called, closing modal and staying in match room')
   showStats.value = false
-  // Navigate to Past Matches section
-  try {
-    router.push({ path: '/matches', query: { section: 'past' } })
-  } catch (e) {
-    try { router.push('/matches') } catch (err) { /* ignore */ }
-  }
+  // Stay in match room, do not navigate away
 }
 
 function onCloseSummaryCompact() {
   console.log('MatchRoom.vue: onCloseSummaryCompact called (X button on compact modal)')
   showSummary.value = false
-  // Navigate to Matches page
-  try {
-    router.push({ path: '/matches', query: { section: 'past' } })
-  } catch (e) {
-    try { router.push('/matches') } catch (err) { /* ignore */ }
-  }
+  // Stay in match room, do not navigate away
 }
 
 function onCancelSummaryCompact() {
   console.log('MatchRoom.vue: onCancelSummaryCompact called (Cancel button on compact modal)')
   showSummary.value = false
-  // Navigate to Matches page
-  try {
-    router.push({ path: '/matches', query: { section: 'past' } })
-  } catch (e) {
-    try { router.push('/matches') } catch (err) { /* ignore */ }
-  }
+  // Stay in match room, do not navigate away
 }
 
 async function goBack() {

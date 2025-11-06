@@ -1288,11 +1288,7 @@ function goBack() {
 
 function onEndSummaryClose() {
   showEndSummary.value = false
-  try {
-    router.push('/matches')
-  } catch (e) {
-    try { router.back() } catch (_) { /* ignore */ }
-  }
+  // Stay in round started view, do not navigate away
 }
 
 function onPostMatchToForum() {
@@ -1318,36 +1314,21 @@ function onPostMatchToForum() {
 }
 
 function onCancelSummary() {
-  console.log('RoundStarted.vue: onCancelSummary called, closing modal and navigating to matches')
+  console.log('RoundStarted.vue: onCancelSummary called, closing modal and staying in round')
   showEndSummary.value = false
-  // Navigate to Past Matches section
-  try {
-    router.push({ path: '/matches', query: { section: 'past' } })
-  } catch (e) {
-    try { router.push('/matches') } catch (err) { /* ignore */ }
-  }
+  // Stay in round started view, do not navigate away
 }
 
 function onCloseSummaryCompact() {
   console.log('RoundStarted.vue: onCloseSummaryCompact called (X button on compact modal)')
   showSummary.value = false
-  // Navigate to Matches page
-  try {
-    router.push({ path: '/matches', query: { section: 'past' } })
-  } catch (e) {
-    try { router.push('/matches') } catch (err) { /* ignore */ }
-  }
+  // Stay in round started view, do not navigate away
 }
 
 function onCancelSummaryCompact() {
   console.log('RoundStarted.vue: onCancelSummaryCompact called (Cancel button on compact modal)')
   showSummary.value = false
-  // Navigate to Matches page
-  try {
-    router.push({ path: '/matches', query: { section: 'past' } })
-  } catch (e) {
-    try { router.push('/matches') } catch (err) { /* ignore */ }
-  }
+  // Stay in round started view, do not navigate away
 }
 
 async function resolveMatchDbPath() {
