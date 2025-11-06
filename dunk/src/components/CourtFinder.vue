@@ -13,6 +13,19 @@
       </div>
     </div>
 
+    <!-- Delete confirmation popup -->
+    <div v-if="showDeleteConfirm" class="success-overlay" @click.self="closeDeleteConfirm">
+      <div class="success-popup delete-confirm-popup">
+        <div class="success-icon" style="background:#ef4444">⚠</div>
+        <h3>Delete Court</h3>
+        <p>Are you sure you want to delete "{{ courtToDelete?.name }}"? This action cannot be undone.</p>
+        <div class="popup-buttons">
+          <button class="delete-confirm-btn" @click.stop="confirmDelete">Delete</button>
+          <button class="close-btn" @click.stop="closeDeleteConfirm">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <div class="content-wrapper">
       <div class="card container-fluid">
         <div class="header-row">
@@ -150,6 +163,8 @@ const expandedCourts = ref({})
 const matchesCache = ref({})
 const showPopup = ref(false)
 const isSigningIn = ref(false)
+const showDeleteConfirm = ref(false)
+const courtToDelete = ref(null)
 //change 1: to allow more thna one filtering
 const selectedRegions = ref(['all'])
 const searchQuery = ref('')
@@ -721,18 +736,31 @@ function isCourtCreator(court) {
 // Function to delete a court
 async function deleteCourt(court) {
   if (!currentUser.value) {
-    alert('Please sign in to delete courts.')
+    showPopup.value = true
     return
   }
   
   if (!isCourtCreator(court)) {
-    alert('You can only delete courts that you created.')
     return
   }
   
-  if (!confirm(`Are you sure you want to delete "${court.name}"? This action cannot be undone.`)) {
-    return
-  }
+  // Show confirmation popup
+  courtToDelete.value = court
+  showDeleteConfirm.value = true
+}
+
+// Close delete confirmation popup
+function closeDeleteConfirm() {
+  showDeleteConfirm.value = false
+  courtToDelete.value = null
+}
+
+// Confirm and execute deletion
+async function confirmDelete() {
+  if (!courtToDelete.value) return
+  
+  const court = courtToDelete.value
+  showDeleteConfirm.value = false
   
   try {
     // Find the court in Firebase by matching the court data
@@ -753,7 +781,7 @@ async function deleteCourt(court) {
     }
     
     if (!courtKey) {
-      alert('Court not found in database.')
+      courtToDelete.value = null
       return
     }
     
@@ -761,15 +789,13 @@ async function deleteCourt(court) {
     const success = await deleteDataFromFirebase(`courts/${courtKey}`)
     
     if (success) {
-      alert('Court deleted successfully!')
       // Refresh the courts list
       await loadCourtsFromFirebase()
-    } else {
-      alert('Failed to delete court. Please try again.')
     }
   } catch (error) {
     console.error('Error deleting court:', error)
-    alert('Failed to delete court: ' + error.message)
+  } finally {
+    courtToDelete.value = null
   }
 }
 
@@ -1990,12 +2016,48 @@ text-decoration: underline;
   font-size: 0.95rem
 }
 
+.court-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .view-matches-link {
   background: transparent;
   border: none;
   color: #ffb14d;
   font-weight: 700;
-  cursor: pointer
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.view-matches-link:hover {
+  color: #ffc773;
+}
+
+.delete-court-btn {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ff6b6b;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.delete-court-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ff5252;
+  transform: translateY(-1px);
+}
+
+.delete-court-btn:active {
+  transform: translateY(0);
 }
 
 .mini-matches {
@@ -2264,12 +2326,38 @@ text-decoration: underline;
   background-color: #4B5563;
 }
 
+.delete-confirm-popup {
+  max-width: 450px;
+}
+
+.delete-confirm-btn {
+  background-color: #ef4444;
+  color: white;
+  font-weight: 600;
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.875rem;
+}
+
+.delete-confirm-btn:hover {
+  background-color: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+.delete-confirm-btn:active {
+  transform: translateY(0);
+}
+
 /* Responsive */
 @media (max-width: 900px) {
 
   .card,
   .main-card {
-    padding: 20px 10px 60px 10px;
+    padding: 24px 16px 60px 16px;
   }
 
   .header-row {
@@ -2297,7 +2385,7 @@ text-decoration: underline;
 
   .card,
   .main-card {
-    padding: 10px 2px 50px 2px;
+    padding: 20px 12px 50px 12px;
   }
 
   .card-title {

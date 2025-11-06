@@ -54,6 +54,7 @@ import ModalPortal from './ModalPortal.vue'
 import { defineProps, defineEmits, ref, computed } from 'vue'
 import { onUserStateChanged } from '../firebase/auth'
 import { getDataFromFirebase, setChildData, deleteChildData } from '../firebase/firebase'
+import { avatarForUser } from '../utils/avatar.js'
 
 const props = defineProps({
   // players: array of { name, uid?, avatar?, meta? }
@@ -74,10 +75,13 @@ const enrichedPlayers = computed(() => {
       const userData = usersCache.value[p.uid]
       // Prioritize username over other name fields
       const displayName = userData.username || userData.name || userData.displayName || p.name
+      // Use avatarForUser with uid to ensure consistent avatar across all pages
+      const userObj = { uid: p.uid, ...userData }
+      const avatar = avatarForUser(userObj)
       return {
         ...p,
         name: displayName,
-        profilepicture: p.avatar || userData.profilepicture || userData.avatar
+        profilepicture: avatar
       }
     }
     return p

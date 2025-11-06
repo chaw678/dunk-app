@@ -533,13 +533,14 @@ function close() { emit('close') }
 </script>
 
 <style scoped>
-.profile-modal-overlay { position: fixed; inset: 0; background: rgba(10,12,14,0.7); display:flex; align-items:center; justify-content:center; z-index:11000 }
+.profile-modal-overlay { position: fixed; inset: 0; background: rgba(10,12,14,0.7); display:flex; align-items:center; justify-content:center; z-index:11000; padding: 20px 0; }
 .profile-modal-overlay.deep-dim { background: rgba(10,12,14,0.96); }
 .profile-modal-overlay.deep-dim .profile-modal { box-shadow: 0 32px 120px rgba(0,0,0,0.85); }
-.profile-modal { width: 92%; max-width: 680px; background: #0f1113; border-radius: 14px; padding: 16px; border: 2px solid #FFAD1D; box-shadow: 0 22px 64px rgba(0,0,0,0.7); position: relative }
-.modal-close { position:absolute; right:12px; top:12px; background:transparent; border:none; color:#fff; font-size:20px; cursor:pointer }
+.profile-modal { width: 92%; max-width: 680px; max-height: 90vh; background: #0f1113; border-radius: 14px; border: 2px solid #FFAD1D; box-shadow: 0 22px 64px rgba(0,0,0,0.7); position: relative; display: flex; flex-direction: column; overflow: hidden; }
+.modal-close { position:absolute; right:12px; top:12px; background:transparent; border:none; color:#fff; font-size:20px; cursor:pointer; z-index: 10; }
+.profile-inner { padding: 16px; overflow-y: auto; overflow-x: hidden; max-height: 100%; }
 .profile-header { display:flex; gap:16px; align-items:center }
-.avatar-wrap { width:100px; height:100px; border-radius:50%; overflow:hidden; border:4px solid #FFAD1D; display:flex; align-items:center; justify-content:center }
+.avatar-wrap { width:100px; height:100px; border-radius:50%; overflow:hidden; border:4px solid #FFAD1D; display:flex; align-items:center; justify-content:center; flex-shrink: 0; }
 .avatar-img { width:100%; height:100%; object-fit:cover }
 .avatar-fallback { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1f262b; color:#fff; font-weight:700; font-size:28px }
 .profile-meta h2 { margin:0; color:#fff }

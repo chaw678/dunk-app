@@ -1530,6 +1530,10 @@ onUnmounted(() => {
   margin-bottom: 22px;
   border: 1px solid rgba(255,255,255,0.05);
   transition: box-shadow 0.18s;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
 }
 .forum-item .card.bg-dark {
   background: rgba(35, 40, 48, 0.95) !important;
@@ -1563,6 +1567,7 @@ onUnmounted(() => {
 /* Tabs container */
 .forum-tabs .tabs-container {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   background: rgba(18,22,27,0.95);
   padding: 6px;
@@ -1913,6 +1918,27 @@ input.comment-edit-input:-webkit-autofill:focus {
   overflow: hidden;
 }
 
+.forum-item .card-body {
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.forum-item .card-body p,
+.forum-item .card-body .mb-2 {
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.forum-item .fw-bold,
+.forum-item .text-reset {
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  display: inline-block;
+}
+
 /* File action buttons inside card */
 .forum-uploads .file-actions {
   z-index: 10;
@@ -2161,6 +2187,25 @@ input.comment-edit-input:-webkit-autofill:focus {
 @media (max-width: 640px) {
   .themed-modal { padding: 18px; width: 95%; }
   .themed-modal .modal-row { flex-direction:column }
+  
+  .forum-item .card {
+    padding: 12px;
+    overflow: visible;
+  }
+  
+  .forum-item .card-body {
+    padding: 0;
+    overflow-x: hidden;
+  }
+  
+  .forum-item .d-flex {
+    flex-wrap: wrap;
+  }
+  
+  .post-image {
+    max-width: 100%;
+    height: auto;
+  }
 }
 
 /* Floating pencil button */
@@ -2594,7 +2639,7 @@ input.comment-edit-input:-webkit-autofill:focus {
   display: block;
 }
 .avatar {
-  margin-top: -10px;
+  margin-top: 0;
   width: 40px;
   border: 0;
   height: 40px;
@@ -3132,6 +3177,19 @@ input.comment-edit-input:-webkit-autofill:focus {
 
 /* Responsive tweaks: ensure the timeline / reply grid doesn't break on narrow viewports */
 @media (max-width: 900px) {
+  .forum-tabs .tabs-container {
+    gap: 6px;
+    padding: 5px;
+  }
+  
+  .tab-btn {
+    flex: 1 1 auto;
+    min-width: calc(50% - 3px);
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+  
   .forum-header-inner {
     flex-wrap: wrap;
     gap: 10px;

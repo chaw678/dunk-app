@@ -798,17 +798,14 @@ watch(profileTotalWins, async (newVal, oldVal) => {
   }
 })
 function barHeight(value) {
-  // Compute proportional bar heights but cap them to the chart's available height
-  // to avoid visual overflow when one value dominates.
+  // Compute proportional bar heights based on the maximum value
   const basePx = 30
-  // Lower the max visible height to ensure bars never touch header or labels
-  const maxVisiblePx = 160 // leave extra breathing room above/below bars
+  const maxVisiblePx = 160
 
   const maxVal = Math.max(1, statsFromProfile.value.open_wins, statsFromProfile.value.intermediate_wins, statsFromProfile.value.professional_wins)
   const ratio = value / maxVal
-  // soft-scale using square-root to reduce dominance of extremely large values while keeping proportions
-  const scaled = Math.sqrt(ratio)
-  const px = Math.round(basePx + scaled * (maxVisiblePx - basePx))
+  // Use linear scaling for better visual proportions
+  const px = Math.round(basePx + ratio * (maxVisiblePx - basePx))
   return `${px}px`
 }
 const animateBars = ref(false)
@@ -1029,9 +1026,9 @@ function matchesQuery(u) {
 
 /* Match statistics chart */
 .match-stats-card { background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02)); border: 1px solid rgba(255,255,255,0.04); padding: 18px; position: relative; overflow: hidden; }
-.match-stats-card .lead-text { color: rgba(255,255,255,0.88); margin-bottom: 8px; font-size:0.98rem }
-.stats-chart { gap: 28px; align-items:flex-end; height:260px; padding-bottom:12px; display:flex }
-.chart-bar { flex: 1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; position:relative }
+.match-stats-card .lead-text { color: rgba(255,255,255,0.88); margin-bottom: 12px; font-size:0.98rem }
+.stats-chart { gap: 28px; align-items:flex-end; height:260px; padding-top: 20px; padding-bottom:12px; display:flex; overflow: hidden; }
+.chart-bar { flex: 1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; position:relative; max-height: 100%; }
 .chart-grid-lines { position:absolute; left:18px; right:18px; top:18px; bottom:56px; pointer-events:none; background-image: linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 100% 44px; opacity:0.9; }
 .bar-fill { width: 60%; background: linear-gradient(180deg,#ffca6a,#ffad1d); border-radius: 8px 8px 4px 4px; transition: height 360ms cubic-bezier(.2,.9,.3,1); display:flex; align-items:flex-start; justify-content:center; padding-top:8px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
 .bar-value { color: #081017; font-weight:800; font-size:0.98rem; margin-bottom:6px }
@@ -1122,7 +1119,39 @@ function matchesQuery(u) {
 @keyframes popup-fade-in { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 /* responsive */
-@media (max-width: 540px) { .stats-chart { height: 180px } .bar-fill { width: 72% } }
+@media (max-width: 640px) {
+  .match-stats-card { padding: 14px; }
+  .match-stats-card .lead-text { font-size: 0.88rem; }
+  .stats-chart { height: 200px; gap: 18px; padding-top: 16px; }
+  .bar-value { font-size: 0.9rem; }
+  .bar-label { font-size: 0.88rem; }
+}
+
+@media (max-width: 540px) { 
+  .match-stats-card { padding: 12px; }
+  .match-stats-card .lead-text { font-size: 0.82rem; }
+  .stats-chart { height: 150px; gap: 10px; padding-top: 12px; } 
+  .bar-fill { width: 75%; } 
+  .bar-value { font-size: 0.8rem; }
+  .bar-label { font-size: 0.78rem; margin-top: 6px; }
+}
+
+@media (max-width: 420px) {
+  .match-stats-card .lead-text { font-size: 0.78rem; }
+  .stats-chart { height: 130px; gap: 6px; padding-top: 10px; }
+  .bar-fill { width: 80%; }
+  .bar-value { font-size: 0.75rem; }
+  .bar-label { font-size: 0.72rem; word-break: break-word; }
+}
+
+@media (max-width: 360px) {
+  .match-stats-card { padding: 10px; }
+  .match-stats-card .lead-text { font-size: 0.72rem; line-height: 1.3; }
+  .stats-chart { height: 120px; gap: 4px; padding-top: 8px; }
+  .bar-fill { width: 82%; }
+  .bar-value { font-size: 0.7rem; }
+  .bar-label { font-size: 0.68rem; }
+}
 
 
 /* .loginpage-modal { z-index: 10050; }

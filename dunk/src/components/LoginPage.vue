@@ -738,18 +738,14 @@ watch(totalWins, async (newVal, oldVal) => {
 })
 
 function barHeight(value) {
-  // Compute proportional bar heights but cap them to the chart's available height
-  // to avoid visual overflow when one value dominates.
-  // Base padding for small bars, and maximum visible bar height inside the chart.
+  // Compute proportional bar heights based on the maximum value
   const basePx = 30
-  // Lower the max visible height to ensure bars never touch header or labels
-  const maxVisiblePx = 160 // leave extra breathing room above/below bars
+  const maxVisiblePx = 160
 
   const maxVal = Math.max(1, statsFromProfile.value.open_wins, statsFromProfile.value.intermediate_wins, statsFromProfile.value.professional_wins)
   const ratio = value / maxVal
-  // soft-scale using square-root to reduce dominance of extremely large values while keeping proportions
-  const scaled = Math.sqrt(ratio) // 0..1
-  const px = Math.round(basePx + scaled * (maxVisiblePx - basePx))
+  // Use linear scaling for better visual proportions
+  const px = Math.round(basePx + ratio * (maxVisiblePx - basePx))
   return `${px}px`
 }
 
@@ -1495,14 +1491,14 @@ watch(animateBars, (v) => { if (v) animateCounts() })
         position: relative;
         overflow: hidden;
       }
-      .match-stats-card .lead-text { color: rgba(255,255,255,0.88); margin-bottom: 8px; font-size:0.98rem }
+      .match-stats-card .lead-text { color: rgba(255,255,255,0.88); margin-bottom: 12px; font-size:0.98rem }
 
       .match-stats-grid {
         display:flex; gap:18px; align-items:center; justify-content:space-between; margin-top:6px;
       }
 
-      .stats-chart { gap: 28px; align-items:flex-end; height:260px; padding-bottom:12px; display:flex }
-      .chart-bar { flex: 1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; position:relative }
+      .stats-chart { gap: 28px; align-items:flex-end; height:260px; padding-top: 20px; padding-bottom:12px; display:flex; overflow: hidden; }
+      .chart-bar { flex: 1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; position:relative; max-height: 100%; }
 
       .chart-grid-lines {
         position:absolute; left:18px; right:18px; top:18px; bottom:56px; pointer-events:none;

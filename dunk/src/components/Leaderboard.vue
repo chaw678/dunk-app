@@ -233,6 +233,7 @@ onMounted(async () => {
 /* Segmented control */
 .segmented { 
   display: flex; 
+  flex-wrap: wrap;
   gap: 8px; 
   background: rgba(18,22,27,0.95); 
   padding: 6px; 
@@ -473,6 +474,28 @@ onMounted(async () => {
 }
 
 @media (max-width: 640px) {
+  .segmented {
+    gap: 6px;
+    padding: 5px;
+  }
+  
+  .seg-btn {
+    flex: 1 1 auto;
+    min-width: calc(50% - 3px);
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+  
+  /* Ensure crown icons stay visible and properly sized */
+  .text-warning svg,
+  .podium-medal svg {
+    min-width: 24px !important;
+    min-height: 24px !important;
+    width: 24px !important;
+    height: 24px !important;
+  }
+  
   .podium { 
     gap: 8px; 
   }

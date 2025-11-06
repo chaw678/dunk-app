@@ -205,7 +205,10 @@ export function onDataChange(path, cb) {
                     } else {
                         // Subscribing to a single user path: 'users/<uid>' — val is one user object.
                         try {
-                            const userObj = Object.assign({}, val)
+                            // Extract uid from path (e.g., 'users/abc123' -> 'abc123')
+                            const pathParts = path.split('/')
+                            const extractedUid = pathParts.length >= 2 ? pathParts[1] : null
+                            const userObj = Object.assign({ uid: extractedUid }, val)
                             const resolvedAvatar = avatarForUser(userObj)
                             val = Object.assign({}, val, { avatar: (val && (val.avatar || val.photoURL)) ? (val.avatar || val.photoURL) : resolvedAvatar })
                         } catch (inner) {

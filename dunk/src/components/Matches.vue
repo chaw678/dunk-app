@@ -62,8 +62,7 @@
                     <button :class="['tab-pill', selectedTab === 'past' ? 'active' : '']" @click="selectedTab = 'past'">Past Matches</button>
                 </div>
             </div>
-
-            <!-- Invitations Section - Show when user has pending invitations -->
+  <!-- Invitations Section - Show when user has pending invitations -->
             <div v-if="activeInvitations.length > 0 && selectedTab === 'invites'" class="invitations-wrapper mb-4">
                 <div class="invitations-section">
                     <h3 class="section-heading">
@@ -2153,7 +2152,9 @@ function displayedPlayers(match) {
                 name = u.name || u.username || u.displayName || (u.email && u.email.split('@')[0]) || ''
             }
             if (!name) name = uid
-            const avatar = (usersCache.value && usersCache.value[uid] && (usersCache.value[uid].profilepicture || usersCache.value[uid].photoURL || usersCache.value[uid].avatar || usersCache.value[uid].picture)) || seededAvatar(name)
+            // Use avatarForUser with uid to ensure consistent avatar across all pages
+            const userObj = { uid, ...(usersCache.value && usersCache.value[uid] ? usersCache.value[uid] : {}) }
+            const avatar = avatarForUser(userObj)
             out.push({ uid, name, avatar, profilepicture: avatar })
         }
     } else if (Array.isArray(match.players)) {
@@ -2172,9 +2173,9 @@ function displayedPlayers(match) {
                 const exists = out.find(p => p.uid === uid)
                 if (!exists) {
                     const displayName = (currentUserProfile.value && (currentUserProfile.value.name || currentUser.value.displayName)) || uid
-                    const avatar = (usersCache.value && usersCache.value[uid] && (
-                        usersCache.value[uid].profilepicture || usersCache.value[uid].avatar || usersCache.value[uid].photoURL || usersCache.value[uid].picture || usersCache.value[uid].photo || usersCache.value[uid].imageURL || usersCache.value[uid].thumbnail
-                    )) || seededAvatar(displayName)
+                    // Use avatarForUser with uid to ensure consistent avatar
+                    const userObj = { uid, ...(usersCache.value && usersCache.value[uid] ? usersCache.value[uid] : {}) }
+                    const avatar = avatarForUser(userObj)
                     out.unshift({ uid, name: displayName, avatar, profilepicture: avatar })
                 }
             }
@@ -2658,6 +2659,21 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     display: inline-flex;
     align-items: center;
     gap: 10px;
+    box-shadow: 0 4px 12px rgba(255, 154, 60, 0.3);
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.btn-create-match:not(:disabled):hover,
+.btn-create-match:not(:disabled):focus {
+    background: #ffb14d;
+    box-shadow: 0 6px 20px rgba(255, 177, 77, 0.4);
+    transform: translateY(-2px);
+}
+
+.btn-create-match:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 .btn-create-match .icon-circle { background: rgba(0,0,0,0.08); padding: 6px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center }
 
@@ -3155,25 +3171,35 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     border: 1px solid rgba(255, 154, 60, 0.15);
 }
 
+/* Invitations Section */
+.invitations-wrapper {
+    width: 100%;
+}
+
+.invitations-section {
+    padding: 24px;
+    background: rgba(255, 154, 60, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 154, 60, 0.15);
+}
+
 .invitations-section .section-heading {
     margin-top: 0;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
     text-align: center;
-    font-size: 1.25rem;
 }
 
 .invitations-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
     width: 100%;
     align-items: stretch;
 }
 
 .invitation-card-wrapper {
     display: flex;
-    justify-content: center;
-    width: 100%;
+    justify-content: flex-start;
 }
 
 .invitation-card {
@@ -3182,17 +3208,14 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     border-radius: 10px;
     transition: transform 0.2s, box-shadow 0.2s;
     width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    overflow: hidden;
-    min-width: 0; /* Allow card to shrink below content width */
+    max-width: 400px;
 }
 
 .invitation-card .card-body {
-    padding: 16px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
 }
 
 .invitation-card:hover {
@@ -3203,14 +3226,9 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 .invitation-title {
     color: #ff9a3c;
     font-weight: 700;
-    font-size: 1.1rem;
-    text-align: center;
+    font-size: 1.15rem;
+    text-align: left;
     margin: 0;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    word-break: break-word;
-    hyphens: auto;
-    line-height: 1.3;
 }
 
 .invitation-details {
@@ -3225,18 +3243,7 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     justify-content: flex-start;
     gap: 8px;
     color: #9fb0bf;
-    font-size: 0.85rem;
-    flex-wrap: wrap;
-    min-width: 0; /* Allow items to shrink */
-}
-
-.invitation-detail-item span {
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    word-break: break-word;
-    max-width: 100%;
-    min-width: 0; /* Allow text to shrink */
-    flex: 1;
+    font-size: 0.9rem;
 }
 
 .invitation-detail-item i {
@@ -3262,20 +3269,14 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 
 .invitation-actions {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     margin-top: 4px;
-    width: 100%;
 }
 
 .invitation-actions button {
     flex: 1;
-    padding: 10px 12px;
+    padding: 10px 16px;
     font-weight: 600;
-    font-size: 0.9rem;
-    white-space: nowrap;
-    min-width: 0; /* Allow buttons to shrink */
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 /* Responsive tweaks for invitation cards on narrow screens */

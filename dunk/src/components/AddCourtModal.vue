@@ -7,6 +7,10 @@
       <h2 class="modal-title">Add a New Court</h2>
       <p class="modal-desc">Enter the name of the court at the selected location.</p>
 
+      <div v-if="errorMessage" class="error-message">
+        {{ errorMessage }}
+      </div>
+
       <form @submit.prevent="createCourt">
         <label>Court Name</label>
         <input type="text" v-model="courtName" placeholder="e.g., Sunset Park Court" />
@@ -48,12 +52,13 @@ import { pushDataToFirebase } from '../firebase/firebase'
 const props = defineProps({
   coordinates: Object
 })
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'refreshCourts'])
 
 const courtName = ref('')
 const isIndoor = ref(false)
 const region = ref('')
 const courtAddress = ref('')
+const errorMessage = ref('')
 
 const closeModal = () => {
   emit('close')
@@ -135,10 +140,12 @@ onMounted(() => {
   }
 });
 
-
 const createCourt = async () => {
+  // Clear previous error
+  errorMessage.value = ''
+
   if (!courtName.value.trim() || !region.value) {
-    alert('Please enter a court name and select a region.')
+    errorMessage.value = 'Please enter a court name and select a region.'
     return
   }
 
@@ -155,11 +162,10 @@ const createCourt = async () => {
 
   try {
     await pushDataToFirebase('courts', newCourt)
-    alert('Court added to Firebase!')
     emit('refreshCourts')
     closeModal()
   } catch (error) {
-    alert('Failed to add court: ' + error.message)
+    errorMessage.value = 'Failed to add court: ' + error.message
   }
 }
 </script>
@@ -220,6 +226,17 @@ const createCourt = async () => {
   font-size: 1rem;
   color: #a2aec3;
   margin-bottom: 24px;
+}
+
+.error-message {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid #ef4444;
+  color: #ff6b6b;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 0.95rem;
+  font-weight: 500;
 }
 
 form {

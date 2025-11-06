@@ -7,6 +7,10 @@
       <h2 class="modal-title">Add a New Court</h2>
       <p class="modal-desc">Enter the name of the court at the selected location.</p>
 
+      <div v-if="errorMessage" class="error-message">
+        {{ errorMessage }}
+      </div>
+
       <form @submit.prevent="createCourt">
         <label>Court Address</label>
         <input
@@ -16,8 +20,6 @@
           placeholder="Start typing an address in Singapore..."
           class="search-input"
           autocomplete="off"
-          @focus="onAddressFocus"
-          @input="onAddressInput"
         />
 
         <label>Court Name</label>
@@ -54,7 +56,7 @@
 
 
 import { pushDataToFirebase } from '../firebase/firebase'
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import ModalPortal from './ModalPortal.vue'
 import { getAuth } from 'firebase/auth'
 
@@ -120,35 +122,10 @@ const emit = defineEmits(['close', 'refreshCourts'])
 const courtName = ref('')
 const isIndoor = ref(false)
 const region = ref('')
+const errorMessage = ref('')
 
 // Close modal function
 const closeModal = () => emit('close')
-
-const onAddressFocus = () => {
-  console.log('📍 Address input focused')
-  if (!autocompleteReady.value) {
-    console.warn('⚠️ Autocomplete not ready yet')
-  }
-}
-
-const onAddressInput = (e) => {
-  console.log('⌨️ User typing:', e.target.value)
-  // Check if pac-container exists
-  setTimeout(() => {
-    const pacContainer = document.querySelector('.pac-container')
-    if (pacContainer) {
-      console.log('✅ .pac-container found in DOM')
-      console.log('📏 Container display:', window.getComputedStyle(pacContainer).display)
-      console.log('📏 Container visibility:', window.getComputedStyle(pacContainer).visibility)
-      console.log('📏 Container z-index:', window.getComputedStyle(pacContainer).zIndex)
-      console.log('📏 Container position:', window.getComputedStyle(pacContainer).position)
-      console.log('📏 Container top:', window.getComputedStyle(pacContainer).top)
-      console.log('📏 Container left:', window.getComputedStyle(pacContainer).left)
-    } else {
-      console.warn('❌ .pac-container NOT found in DOM')
-    }
-  }, 500)
-}
 
 // Initialize Google Places Autocomplete and reverse geocoding
 onMounted(() => {
@@ -276,9 +253,20 @@ onMounted(() => {
   }
 })
 
+// Cleanup on unmount
+onBeforeUnmount(() => {
+  const pacContainers = document.querySelectorAll('.pac-container')
+  pacContainers.forEach(container => {
+    container.remove()
+  })
+})
+
 const createCourt = async () => {
+  // Clear previous error
+  errorMessage.value = ''
+
   if (!courtName.value.trim() || !region.value) {
-    alert('Please enter a court name and select a region.')
+    errorMessage.value = 'Please enter a court name and select a region.'
     return
   }
 
@@ -303,11 +291,10 @@ const createCourt = async () => {
 
   try {
     await pushDataToFirebase('courts', newCourt)
-    alert('Court added to Firebase!')
     emit('refreshCourts')
     closeModal()
   } catch (error) {
-    alert('Failed to add court: ' + error.message)
+    errorMessage.value = 'Failed to add court: ' + error.message
   }
 }
 </script>
@@ -435,6 +422,17 @@ const createCourt = async () => {
   font-size: 1rem;
   color: #a2aec3;
   margin-bottom: 24px;
+}
+
+.error-message {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid #ef4444;
+  color: #ff6b6b;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 0.95rem;
+  font-weight: 500;
 }
 
 form {
