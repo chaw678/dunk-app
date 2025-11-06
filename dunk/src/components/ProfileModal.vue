@@ -84,24 +84,24 @@
               <div class="chart-bar"
                    @mouseenter="showBarTooltip($event, 'Open', stats.open_wins)"
                    @mouseleave="hideBarTooltip">
+                <div v-if="stats.open_wins > 0" class="bar-value-top">{{ stats.open_wins }}</div>
                 <div class="bar-fill" :style="{ height: (stats.open_wins > 0 ? (animateBars ? barHeight(stats.open_wins) : '8px') : '4px'), background: (stats.open_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (stats.open_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '0ms' }" aria-hidden="true"></div>
-                <div class="bar-value">{{ stats.open_wins > 0 ? displayOpen : '' }}</div>
                 <div class="bar-label">Open</div>
               </div>
 
               <div class="chart-bar"
                    @mouseenter="showBarTooltip($event, 'Intermediate', stats.intermediate_wins)"
                    @mouseleave="hideBarTooltip">
+                <div v-if="stats.intermediate_wins > 0" class="bar-value-top">{{ stats.intermediate_wins }}</div>
                 <div class="bar-fill" :style="{ height: (stats.intermediate_wins > 0 ? (animateBars ? barHeight(stats.intermediate_wins) : '8px') : '4px'), background: (stats.intermediate_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (stats.intermediate_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '90ms' }" aria-hidden="true"></div>
-                <div class="bar-value">{{ stats.intermediate_wins > 0 ? displayIntermediate : '' }}</div>
                 <div class="bar-label">Intermediate</div>
               </div>
 
               <div class="chart-bar"
                    @mouseenter="showBarTooltip($event, 'Professional', stats.professional_wins)"
                    @mouseleave="hideBarTooltip">
+                <div v-if="stats.professional_wins > 0" class="bar-value-top">{{ stats.professional_wins }}</div>
                 <div class="bar-fill" :style="{ height: (stats.professional_wins > 0 ? (animateBars ? barHeight(stats.professional_wins) : '8px') : '4px'), background: (stats.professional_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (stats.professional_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '180ms' }" aria-hidden="true"></div>
-                <div class="bar-value">{{ stats.professional_wins > 0 ? displayProfessional : '' }}</div>
                 <div class="bar-label">Professional</div>
               </div>
             </div>

@@ -177,11 +177,11 @@
           <button v-if="teamsLocked" @click="goToRound" class="go-to-round-btn">Go to Round</button>
           <!-- Show team controls when round is not active -->
           <template v-else>
-            <button @click="randomizeTeams">Randomize Teams</button>
+            <button @click="randomizeTeams" class="randomize-btn">Randomize Teams</button>
             <button
               @click="confirmTeams"
               :disabled="!teamReady"
-              :class="{ pulsate: confirmShouldPulse }"
+              :class="['confirm-btn', { pulsate: confirmShouldPulse }]"
             >Confirm Teams</button>
           </template>
         </template>
@@ -1572,6 +1572,52 @@ button[disabled] { cursor: not-allowed; opacity: 0.6; }
   box-shadow: 0 8px 24px rgba(74, 158, 255, 0.35);
 }
 
+/* Randomize Teams button styling */
+.randomize-btn {
+  background: linear-gradient(90deg, #2b2f33, #1f2327);
+  color: #fff;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 173, 29, 0.2);
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+.randomize-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(255, 173, 29, 0.15);
+  background: linear-gradient(90deg, #3a3f45, #2b2f33);
+  border-color: rgba(255, 173, 29, 0.3);
+}
+
+/* Confirm Teams button styling */
+.confirm-btn {
+  background: linear-gradient(90deg, #ffad1d, #ffda99);
+  color: #0b0b0b;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(255, 173, 29, 0.25);
+  transition: all 0.2s ease;
+}
+.confirm-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(255, 173, 29, 0.35);
+}
+.confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+.confirm-btn:disabled:hover {
+  transform: none;
+  box-shadow: 0 6px 18px rgba(255, 173, 29, 0.25);
+}
+
+
 .timer-setter-inline .setter-row { display:flex; flex-direction:column; gap:10px; width:100%; align-items:center; }
 .time-inputs-inline { display:flex; align-items:center; gap:10px; }
 .time-input { width:84px; padding:10px 12px; border-radius:8px; background:#16181c; color:#fff; border:1px solid rgba(255,255,255,0.06); font-size:1rem; text-align:center; }
@@ -1668,6 +1714,7 @@ header {
   max-width: 900px;
   margin-left: auto;
   margin-right: auto;
+  position: relative;
 }
 header h1 {
   color: #ffd98a;
@@ -1677,13 +1724,11 @@ header h1 {
   flex: 1;
   text-align: center;
   letter-spacing: 0.5px;
-  margin-left: 60px; /* Shift right to align with Match Summary */
-}
-
-/* Player view: shift title left when "End Match" button is hidden */
-header:not(:has(.end-match-btn)) h1 {
-  margin-right: 40px;
-  margin-left: 0;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  max-width: 60%;
 }
 
 .bench-section, .team-card { background: #23262e; border-radius: 18px; padding: 20px 26px; margin-bottom: 22px; }

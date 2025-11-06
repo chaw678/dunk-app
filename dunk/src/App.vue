@@ -63,6 +63,8 @@ const showGlobalMatchEndModal = ref(false)
 const globalMatchEndDbPath = ref(null)
 const currentUser = ref(null)
 const trackedMatches = ref({}) // Track which matches we've already shown modals for
+const trackedRoundStarts = ref({}) // Track which round starts we've already navigated for
+const initialLoadComplete = ref(false) // Track if initial load is done
 
 let matchesUnsub = null
 
@@ -70,10 +72,27 @@ const navigateToHomePage = () => {
   router.push('/homepage')
 }
 
-const handlePostToForum = () => {
-  // Navigate to forum after posting
-  router.push('/forum')
-  closeGlobalMatchEndModal()
+const handlePostToForum = (matchData) => {
+  // Navigate to forum with prefilled data to open creation modal
+  const courtName = matchData?.courtName || 'Unknown Court'
+  const matchTitle = matchData?.matchTitle || 'Match'
+  const matchPath = matchData?.matchPath || globalMatchEndDbPath.value || ''
+  
+  try {
+    router.push({
+      path: '/forum',
+      query: {
+        openCreate: '1',
+        court: encodeURIComponent(courtName),
+        tag: 'Matches',
+        matchId: matchPath,
+        matchTitle: encodeURIComponent(matchTitle)
+      }
+    })
+    closeGlobalMatchEndModal()
+  } catch (e) {
+    console.error('Failed to navigate to forum:', e)
+  }
 }
 
 const closeGlobalMatchEndModal = () => {
@@ -95,6 +114,8 @@ onMounted(() => {
         matchesUnsub = null
       }
       trackedMatches.value = {}
+      trackedRoundStarts.value = {}
+      initialLoadComplete.value = false
     }
   })
 })
@@ -108,6 +129,9 @@ onBeforeUnmount(() => {
 function subscribeToMatches() {
   if (matchesUnsub) return // Already subscribed
   
+  // Reset initial load flag when subscribing
+  initialLoadComplete.value = false
+  
   try {
     matchesUnsub = onDataChange('matches', (data) => {
       if (!data || !currentUser.value) return
@@ -120,22 +144,60 @@ function subscribeToMatches() {
         if (!matchData) return
         
         // Check if user is involved in this match (host or joined player)
-        const isHost = matchData.host === uid
+        const isHost = matchData.host === uid || matchData.ownerId === uid || matchData.ownerUid === uid
         const isJoined = matchData.playersMap && matchData.playersMap[uid]
         
         if (!isHost && !isJoined) return // User not involved in this match
         
+        const matchId = matchPath.split('/').pop()
+        
+        // Check if round just started (for non-hosts only)
+        const roundActive = matchData.roundActive === true
+        const alreadyNavigated = trackedRoundStarts.value[matchId]
+        
+        // Auto-navigate non-hosts to RoundStarted when host starts a round
+        // This creates a "television screen" effect where non-hosts see the round live
+        if (!isHost && roundActive && !alreadyNavigated) {
+          // Check if user is not already on the RoundStarted page for this match
+          const currentRoute = router.currentRoute.value
+          const isAlreadyOnRoundStarted = currentRoute.name === 'RoundStarted' && currentRoute.params.id === matchId
+          
+          if (!isAlreadyOnRoundStarted) {
+            console.log('🎬 Round active detected! Auto-navigating non-host to television screen view for match:', matchId)
+            trackedRoundStarts.value[matchId] = true
+            
+            // Navigate to RoundStarted with match details - non-host will see synchronized timer and round #
+            router.push({
+              name: 'RoundStarted',
+              params: { id: matchId },
+              query: { path: matchPath }
+            })
+          } else {
+            // Already on the page, just mark as navigated
+            trackedRoundStarts.value[matchId] = true
+          }
+        } else if (!isHost && !roundActive && alreadyNavigated) {
+          // Round ended, clear the tracked state so we can navigate again if round starts again
+          delete trackedRoundStarts.value[matchId]
+        }
+        
         // Check if match just ended
         const matchEnded = matchData.matchEnded === true
-        const matchId = matchPath.split('/').pop()
         const alreadyShown = trackedMatches.value[matchId]
         
-        if (matchEnded && !alreadyShown) {
+        // Only show modal if:
+        // 1. Match has ended
+        // 2. We haven't shown it yet
+        // 3. Initial load is complete (don't show for old matches on login/refresh)
+        if (matchEnded && !alreadyShown && initialLoadComplete.value) {
           // Match just ended and we haven't shown the modal yet
           console.log('Global match end detected for match:', matchId, 'at path:', matchPath)
           trackedMatches.value[matchId] = true
           globalMatchEndDbPath.value = matchPath
           showGlobalMatchEndModal.value = true
+        } else if (matchEnded && !alreadyShown && !initialLoadComplete.value) {
+          // Mark old ended matches as already shown during initial load
+          trackedMatches.value[matchId] = true
         }
       }
       
@@ -164,6 +226,14 @@ function subscribeToMatches() {
           })
         }
       })
+      
+      // Mark initial load as complete after first data load
+      if (!initialLoadComplete.value) {
+        setTimeout(() => {
+          initialLoadComplete.value = true
+          console.log('Initial match load complete, now monitoring for new match ends')
+        }, 500) // Small delay to ensure all initial data is processed
+      }
     })
   } catch (e) {
     console.warn('Failed to subscribe to matches in App.vue', e)

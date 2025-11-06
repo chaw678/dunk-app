@@ -3,7 +3,7 @@
     <!-- Normal Round View -->
     <div>
     <header>
-      <button v-if="isHost" @click="goBack" class="back-btn" :disabled="roundActive">← Back</button>
+      <button v-if="isHost" @click.stop.prevent="goBack" class="back-btn" :disabled="roundEverStarted" style="z-index: 100; position: relative;">← Back</button>
       <button v-else @click="closePlayerView" class="close-btn" aria-label="Close" :disabled="roundActive">✕</button>
       <h1 class="matchroom-title">Round #{{ displayTitle }}</h1>
       <div></div>
@@ -119,6 +119,17 @@
             <button class="btn-end" @click="confirmWinnerEndMatch">Confirm Winner & End Match</button>
           </div>
       </div>
+    </section>
+
+    <!-- Non-host view: Show selected winner (read-only) -->
+    <section v-if="!isHost && !roundActive && roundFinished && selectedWinner" class="winner-section">
+      <p class="pick-txt">Host selected winning team:</p>
+      <div class="winner-display">
+        <div :class="['winner-indicator', { 'winner-team-a': selectedWinner === 'A', 'winner-team-b': selectedWinner === 'B' }]">
+          Team {{ selectedWinner }}
+        </div>
+      </div>
+      <p class="waiting-txt">Waiting for host to confirm...</p>
     </section>
     
     <!-- Wins bar chart (matchroom style) -->
@@ -359,13 +370,25 @@ const timerSet = ref(false)
 const timerInterval = ref(null)
 const timerPaused = ref(false)
 const roundActive = ref(false)
+const roundEverStarted = ref(false) // Track if host has ever started a round
 
-// Watch roundActive and update sidebar disabled state
-watch(roundActive, (isActive) => {
+// Watch roundEverStarted to update sidebar disabled state
+// Sidebar should be disabled once round has been started
+watch(roundEverStarted, (everStarted) => {
   if (setSidebarDisabled) {
-    setSidebarDisabled(isActive)
+    setSidebarDisabled(everStarted)
   }
-})
+}, { immediate: true })
+
+// Watch roundActive for non-hosts to sync state when auto-navigated
+// When non-host is navigated to RoundStarted with active round, sync everything
+watch(roundActive, (isActive) => {
+  if (!isHost.value && isActive && !roundEverStarted.value) {
+    console.log('Non-host: Round is active, syncing state')
+    roundEverStarted.value = true // Disable sidebar and close button for non-host
+    // Timer sync will be handled by subscribeRemoteTimer
+  }
+}, { immediate: true })
 
 // modal state for End Round confirmation (use the same ConfirmModal as Matches.vue)
 const showEndConfirm = ref(false)
@@ -406,6 +429,7 @@ let recentAllocationNav = false // debounce guard to avoid rapid re-navigation
 let prevTeamsLocked = null
 let teamsUnsub = null // subscription for live team updates
 let matchDataUnsub = null // subscription for matchEnded flag changes
+let selectedWinnerUnsub = null // subscription for selectedWinner changes
 
 const startEnabled = computed(() => {
   // If matchData hasn't been loaded yet, allow enabling so host navigation
@@ -441,8 +465,18 @@ const timerDisplay = computed(() => {
   return `${mm}:${ss}`
 })
 
-const teamAOutlineClass = computed(() => teamA.value.length ? (selectedWinner.value === 'A' ? 'winner-outline' : 'active-outline') : 'inactive-outline')
-const teamBOutlineClass = computed(() => teamB.value.length ? (selectedWinner.value === 'B' ? 'winner-outline' : 'active-outline') : 'inactive-outline')
+const teamAOutlineClass = computed(() => {
+  if (!teamA.value.length) return 'inactive-outline'
+  // Both hosts and non-hosts see green outline when winner is selected (live sync)
+  if (selectedWinner.value === 'A') return 'winner-outline'
+  return 'active-outline'
+})
+const teamBOutlineClass = computed(() => {
+  if (!teamB.value.length) return 'inactive-outline'
+  // Both hosts and non-hosts see green outline when winner is selected (live sync)
+  if (selectedWinner.value === 'B') return 'winner-outline'
+  return 'active-outline'
+})
 
 // Pulse teams only while the timer is actively counting down (not paused)
 const teamPulseActive = computed(() => {
@@ -667,7 +701,9 @@ async function startRound() {
   // continues running here.
   if (!startEnabled.value) { alert('Ensure both teams present and timer set.'); return }
   roundActive.value = true
+  roundEverStarted.value = true // Mark that a round has been started
   roundFinished.value = false
+  selectedWinner.value = null // Clear previous winner selection
   // start the local timer so this view remains the active controller
   startTimer()
   try {
@@ -677,6 +713,8 @@ async function startRound() {
       // persist duration so other clients can mirror the countdown
   try { await setChildData(dbPath, 'roundDuration', Number(timerTotal.value) || 0) } catch (e) { /* non-fatal */ }
       await setChildData(dbPath, 'lastRoundStartedAt', new Date().toISOString())
+      // Clear selectedWinner in Firebase so non-hosts also reset
+      await setChildData(dbPath, 'selectedWinner', null)
     }
   } catch (e) { /* ignore write errors */ }
 }
@@ -705,8 +743,20 @@ async function endRound(confirmReq = true) {
   console.log('Round ended locally; awaiting explicit winner confirmation before finalizing.')
 }
 
-function selectWinner(team) {
+async function selectWinner(team) {
   selectedWinner.value = team
+  // Persist selected winner to Firebase so non-hosts can see it
+  if (isHost.value) {
+    try {
+      const dbPath = await resolveMatchDbPath()
+      if (dbPath) {
+        await setChildData(dbPath, 'selectedWinner', team)
+        console.log('Host selected winner:', team, 'persisted to Firebase')
+      }
+    } catch (e) {
+      console.warn('Failed to persist selectedWinner', e)
+    }
+  }
 }
 
 async function confirmWinner() {
@@ -805,6 +855,7 @@ async function confirmWinner() {
 // confirm winner and start next round (keep teams)
 async function confirmWinnerNextRound() {
   if (!selectedWinner.value) return
+  
   try {
     const dbPath = await resolveMatchDbPath()
   if (dbPath) {
@@ -886,6 +937,15 @@ async function confirmWinnerNextRound() {
     }))
   } catch (e) { console.warn('increment wins failed', e) }
 
+  // Clear selectedWinner locally and in Firebase before navigating
+  selectedWinner.value = null
+  try {
+    const dbPath = await resolveMatchDbPath()
+    if (dbPath) {
+      await setChildData(dbPath, 'selectedWinner', null)
+    }
+  } catch (e) { /* ignore */ }
+
   // navigate back to MatchRoom to start the next round; keep teams intact
   const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
   try {
@@ -900,6 +960,7 @@ async function confirmWinnerNextRound() {
 // confirm winner and end match (persist winner and rounds, mark match ended and go to Matches list)
 async function confirmWinnerEndMatch() {
   if (!selectedWinner.value) return
+  
   // keep the existing browser confirm as a final guard, then show the end-summary modal
   if (!confirm('Are you sure you want to end this match? This will move it to past matches.')) return
   const nowIso = new Date().toISOString()
@@ -979,6 +1040,15 @@ async function confirmWinnerEndMatch() {
     }
   } catch (err) { console.warn('Could not persist roundsplayed entry', err) }
 
+  // Clear selectedWinner locally and in Firebase before showing end summary
+  selectedWinner.value = null
+  try {
+    const dbPath = await resolveMatchDbPath()
+    if (dbPath) {
+      await setChildData(dbPath, 'selectedWinner', null)
+    }
+  } catch (e) { /* ignore */ }
+
   // show the end-of-match summary modal so the host can review final stats
   try {
     showEndSummary.value = true
@@ -992,16 +1062,31 @@ async function confirmWinnerEndMatch() {
 // load persisted teams from DB and enrich players
 async function loadTeams() {
   try {
-    // 1) Try the canonical path first
-    const directPath = `matches/${matchId.value}`
-    let data = await getDataFromFirebase(directPath)
-
-    // if direct read returned something, keep the exact dbPath for round -> match navigation
-    if (data) {
-      matchData.value = { ...(data || {}), __dbPath: directPath }
+    // 1) First check if a specific path was provided via route query (from auto-navigation)
+    let data = null
+    let dbPath = null
+    
+    if (route && route.query && route.query.path) {
+      dbPath = decodeURIComponent(route.query.path)
+      console.log('Loading match data from query path:', dbPath)
+      data = await getDataFromFirebase(dbPath)
+      if (data) {
+        matchData.value = { ...(data || {}), __dbPath: dbPath }
+        console.log('Match data loaded from query path, roundsplayed count:', data.roundsplayed ? Object.keys(data.roundsplayed).length : 0)
+      }
+    }
+    
+    // 2) If not provided via query, try the canonical path
+    if (!data) {
+      const directPath = `matches/${matchId.value}`
+      data = await getDataFromFirebase(directPath)
+      // if direct read returned something, keep the exact dbPath for round -> match navigation
+      if (data) {
+        matchData.value = { ...(data || {}), __dbPath: directPath }
+      }
     }
 
-    // 2) If not found, allow teams to be provided via router history state or query (MatchRoom can push these)
+    // 3) If not found, allow teams to be provided via router history state or query (MatchRoom can push these)
     if ((!data || !data.teams)) {
       const historyState = (typeof window !== 'undefined' && window.history && window.history.state) ? window.history.state : null
       if (historyState && historyState.teams) {
@@ -1174,6 +1259,13 @@ function displayAvatarFor(element) {
 }
 
 function goBack() {
+  console.log('goBack called - roundEverStarted:', roundEverStarted.value, 'matchId:', matchId.value)
+  
+  if (roundEverStarted.value) {
+    console.log('Cannot go back - round has been started!')
+    return
+  }
+  
   // Preserve current allocations in history state so MatchRoom can restore
   // them immediately when the user navigates back.
   const query = (matchData.value && matchData.value.__dbPath) ? { path: matchData.value.__dbPath } : {}
@@ -1189,6 +1281,8 @@ function goBack() {
   // restore the visual allocations
   state.restore = true
   if (matchData.value && matchData.value.__dbPath) state.matchPath = matchData.value.__dbPath
+  console.log('Navigating to MatchRoom with params:', { id: matchId.value }, 'query:', query, 'state:', state)
+  
   router.push({ name: 'MatchRoom', params: { id: matchId.value }, query, state })
 }
 
@@ -1400,19 +1494,24 @@ onMounted(async () => {
   // Ensure teams/matchData is resolved before subscribing to wins so we
   // subscribe to the correct (possibly nested) DB path.
   await loadTeams()
+  console.log('onMounted: loadTeams complete, matchData.__dbPath:', matchData.value?.__dbPath)
   await loadWins()
   // subscribe to persisted roundsplayed so header round number reflects DB
   await loadRounds()
+  console.log('onMounted: loadRounds complete, roundsCount:', roundsCount.value)
   // start remote timer subscription so non-host clients mirror host timer
   try {
     const dbPath = matchData.value && matchData.value.__dbPath ? matchData.value.__dbPath : (matchId.value ? `matches/${matchId.value}` : null)
+    console.log('onMounted: Setting up subscriptions for dbPath:', dbPath, 'isHost:', isHost.value)
     if (dbPath) {
       subscribeRemoteTimer(dbPath)
       try { subscribeTeamsLocked(dbPath) } catch (e) { /* ignore */ }
       try { subscribeToTeams(dbPath) } catch (e) { /* ignore */ }
       try { subscribeMatchData(dbPath) } catch (e) { /* ignore */ }
+      try { subscribeSelectedWinner(dbPath) } catch (e) { /* ignore */ }
+      console.log('onMounted: All subscriptions set up successfully')
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) { console.error('onMounted: Subscription setup failed', e) }
 })
 
 // Watch for match end to show summary modal for all users
@@ -1456,6 +1555,7 @@ onBeforeUnmount(() => {
   if (teamsLockedUnsub) { try { teamsLockedUnsub() } catch (e) {} ; teamsLockedUnsub = null }
   if (teamsUnsub) { try { teamsUnsub() } catch (e) {} ; teamsUnsub = null }
   if (matchDataUnsub) { try { matchDataUnsub() } catch (e) {} ; matchDataUnsub = null }
+  if (selectedWinnerUnsub) { try { selectedWinnerUnsub() } catch (e) {} ; selectedWinnerUnsub = null }
   recentAllocationNav = false
 })
 
@@ -1501,8 +1601,13 @@ function subscribeRemoteTimer(dbPath) {
         
         // when round becomes active, ensure we sync timer from server
         if (roundActive.value && !isHost.value) {
-          // if we already have last started and duration, start syncing
-          syncTimerFromServer()
+          // Delay sync slightly to ensure lastRoundStartedAt and roundDuration are loaded
+          setTimeout(() => {
+            if (roundActive.value) {
+              console.log('Non-host: Syncing timer from server after roundActive=true')
+              syncTimerFromServer()
+            }
+          }, 200)
           // start a periodic resync every 15s to correct drift
           try {
             if (!resyncInterval.value) {
@@ -1674,11 +1779,43 @@ function subscribeMatchData(dbPath) {
   } catch (e) { console.warn('subscribeMatchData failed', e) }
 }
 
+function subscribeSelectedWinner(dbPath) {
+  try {
+    if (selectedWinnerUnsub) { try { selectedWinnerUnsub() } catch (e) {} ; selectedWinnerUnsub = null }
+    selectedWinnerUnsub = onDataChange(`${dbPath}/selectedWinner`, (val) => {
+      try {
+        if (!isHost.value) {
+          // Non-host: sync selected winner from host
+          selectedWinner.value = val || null
+          console.log('Non-host: selectedWinner synced to', val)
+        }
+      } catch (e) { console.warn('selectedWinner subscription handler failed', e) }
+    })
+  } catch (e) { console.warn('subscribeSelectedWinner failed', e) }
+}
+
 function syncTimerFromServer() {
   try {
-    if (!remoteLastStartedAt.value || !remoteRoundDuration.value) return
+    console.log('syncTimerFromServer called', {
+      isHost: isHost.value,
+      remoteLastStartedAt: remoteLastStartedAt.value,
+      remoteRoundDuration: remoteRoundDuration.value,
+      roundActive: roundActive.value
+    })
+    
+    if (!remoteLastStartedAt.value || !remoteRoundDuration.value) {
+      console.warn('syncTimerFromServer: Missing data', {
+        hasLastStartedAt: !!remoteLastStartedAt.value,
+        hasRoundDuration: !!remoteRoundDuration.value
+      })
+      return
+    }
+    
     const started = Date.parse(remoteLastStartedAt.value)
-    if (isNaN(started)) return
+    if (isNaN(started)) {
+      console.warn('syncTimerFromServer: Invalid date', remoteLastStartedAt.value)
+      return
+    }
     
     // If timer is paused, don't recalculate based on elapsed time
     // Instead, use the persisted timerRemaining value
@@ -1693,6 +1830,14 @@ function syncTimerFromServer() {
     timerTotal.value = Number(remoteRoundDuration.value || 0)
     timerRemaining.value = rem
     timerSet.value = timerTotal.value > 0
+    
+    console.log('syncTimerFromServer: Calculated timer', {
+      elapsed,
+      remaining: rem,
+      total: timerTotal.value,
+      isHost: isHost.value
+    })
+    
     // DO NOT reset timerPaused here - it's controlled by Firebase subscription
     // timerPaused.value = false  <-- REMOVED
     
@@ -1727,6 +1872,14 @@ function syncTimerFromServer() {
         }
       }, 1000)
       console.log(isHost.value ? 'Host' : 'Non-host', 'timer interval started, remaining:', rem)
+    } else {
+      console.log('syncTimerFromServer: Not starting interval', {
+        shouldStartInterval,
+        hasInterval: !!timerInterval.value,
+        roundActive: roundActive.value,
+        timerPaused: timerPaused.value,
+        isHost: isHost.value
+      })
     }
   } catch (e) { console.warn('syncTimerFromServer failed', e) }
 }
@@ -1807,6 +1960,11 @@ header:has(.close-btn) h1 {
   background: #c94545;
   transform: translateY(-1px);
 }
+.back-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 .close-btn {
   border: none;
   background: rgba(255,255,255,0.1);
@@ -1822,6 +1980,11 @@ header:has(.close-btn) h1 {
 .close-btn:hover {
   background: rgba(255,255,255,0.15);
   transform: scale(1.05);
+}
+.close-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .players-row { display:flex; gap:18px; padding-top:12px; flex-wrap:wrap; align-items:center; }

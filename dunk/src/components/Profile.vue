@@ -163,24 +163,24 @@
             <div class="chart-bar"
                  @mouseenter="showBarTooltip($event, 'Open', statsFromProfile.open_wins)"
                  @mouseleave="hideBarTooltip">
+              <div v-if="statsFromProfile.open_wins > 0" class="bar-value-top">{{ statsFromProfile.open_wins }}</div>
               <div class="bar-fill" :style="{ height: (statsFromProfile.open_wins > 0 ? (animateBars ? barHeight(statsFromProfile.open_wins) : '8px') : '4px'), background: (statsFromProfile.open_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (statsFromProfile.open_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '0ms' }" aria-hidden="true"></div>
-              <div class="bar-value">{{ statsFromProfile.open_wins > 0 ? displayOpen : '' }}</div>
               <div class="bar-label">Open</div>
             </div>
 
             <div class="chart-bar"
                  @mouseenter="showBarTooltip($event, 'Intermediate', statsFromProfile.intermediate_wins)"
                  @mouseleave="hideBarTooltip">
+              <div v-if="statsFromProfile.intermediate_wins > 0" class="bar-value-top">{{ statsFromProfile.intermediate_wins }}</div>
               <div class="bar-fill" :style="{ height: (statsFromProfile.intermediate_wins > 0 ? (animateBars ? barHeight(statsFromProfile.intermediate_wins) : '8px') : '4px'), background: (statsFromProfile.intermediate_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (statsFromProfile.intermediate_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '90ms' }" aria-hidden="true"></div>
-              <div class="bar-value">{{ statsFromProfile.intermediate_wins > 0 ? displayIntermediate : '' }}</div>
               <div class="bar-label">Intermediate</div>
             </div>
 
             <div class="chart-bar"
                  @mouseenter="showBarTooltip($event, 'Professional', statsFromProfile.professional_wins)"
                  @mouseleave="hideBarTooltip">
+              <div v-if="statsFromProfile.professional_wins > 0" class="bar-value-top">{{ statsFromProfile.professional_wins }}</div>
               <div class="bar-fill" :style="{ height: (statsFromProfile.professional_wins > 0 ? (animateBars ? barHeight(statsFromProfile.professional_wins) : '8px') : '4px'), background: (statsFromProfile.professional_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (statsFromProfile.professional_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '180ms' }" aria-hidden="true"></div>
-              <div class="bar-value">{{ statsFromProfile.professional_wins > 0 ? displayProfessional : '' }}</div>
               <div class="bar-label">Professional</div>
             </div>
           </div>
@@ -459,6 +459,8 @@ const showConfirmPopup = ref(false)
 const confirmAction = ref(null)
 const confirmMessage = ref('')
 const searchQuery = ref('')
+const filteredFollowers = ref([])
+const filteredFollowing = ref([])
 const profilePollRef = ref(null)
 let profileUserUnsub = null
 
@@ -1034,6 +1036,13 @@ function matchesQuery(u) {
 .chart-bar { flex: 1 1 0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; position:relative }
 .chart-grid-lines { position:absolute; left:18px; right:18px; top:18px; bottom:56px; pointer-events:none; background-image: linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 100% 44px; opacity:0.9; }
 .bar-fill { width: 60%; background: linear-gradient(180deg,#ffca6a,#ffad1d); border-radius: 8px 8px 4px 4px; transition: height 360ms cubic-bezier(.2,.9,.3,1); display:flex; align-items:flex-start; justify-content:center; padding-top:8px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+.bar-value-top { 
+  color: #ffca6a; 
+  font-weight: 800; 
+  font-size: 1.1rem; 
+  margin-bottom: 6px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
 .bar-value { color: #081017; font-weight:800; font-size:0.98rem; margin-bottom:6px }
 .bar-label { color:#9CA3AF; margin-top:10px; font-size:0.95rem }
 
