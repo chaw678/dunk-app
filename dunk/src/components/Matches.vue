@@ -1634,9 +1634,11 @@ async function onMatchCreated() {
         console.warn('onMatchCreated: failed to reload matches', e)
     } finally {
         showAddMatchModal.value = false
-        // show success popup briefly
-        showCreatedPopup.value = true
-        setTimeout(() => { showCreatedPopup.value = false }, 2500)
+        // Only show success popup when not embedded (skip popup in CourtFinder)
+        if (!embedded) {
+            showCreatedPopup.value = true
+            setTimeout(() => { showCreatedPopup.value = false }, 2500)
+        }
     }
 }
 
