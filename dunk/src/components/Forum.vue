@@ -115,7 +115,7 @@
                   <img :src="avatarForFile(file) || '/src/assets/vue.svg'" alt="user"/>
                 </template>
               </div>
-              <div class="flex-grow-1" style="margin-top: -2px;">
+              <div class="flex-grow-1" style="margin-top: 8px;">
                 <div class="fw-bold">
                     <template v-if="profilePathForFile(file)">
                     <router-link :to="profilePathForFile(file)" class="text-reset text-decoration-none">{{ displayNameForFile(file) }}</router-link>
