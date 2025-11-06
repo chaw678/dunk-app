@@ -738,18 +738,21 @@ watch(totalWins, async (newVal, oldVal) => {
 })
 
 function barHeight(value) {
-  // Compute proportional bar heights but cap them to the chart's available height
-  // to avoid visual overflow when one value dominates.
-  // Base padding for small bars, and maximum visible bar height inside the chart.
-  const basePx = 30
-  // Lower the max visible height to ensure bars never touch header or labels
-  const maxVisiblePx = 160 // leave extra breathing room above/below bars
-
+  // TRUE proportional scaling: the ENTIRE height is proportional to the value
+  // A value of 5 will be exactly half the height of 10, and 5/68 the height of 68
+  const minPx = 20 // minimum height for bars with value > 0, for visibility
+  const maxVisiblePx = 180 // maximum bar height
+  
   const maxVal = Math.max(1, statsFromProfile.value.open_wins, statsFromProfile.value.intermediate_wins, statsFromProfile.value.professional_wins)
+  
+  // For the max value, use full height; for others, scale proportionally
+  if (value === maxVal) {
+    return `${maxVisiblePx}px`
+  }
+  
+  // For non-max values, calculate proportional height with a small minimum
   const ratio = value / maxVal
-  // soft-scale using square-root to reduce dominance of extremely large values while keeping proportions
-  const scaled = Math.sqrt(ratio) // 0..1
-  const px = Math.round(basePx + scaled * (maxVisiblePx - basePx))
+  const px = Math.max(minPx, Math.round(ratio * maxVisiblePx))
   return `${px}px`
 }
 
