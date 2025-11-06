@@ -8,6 +8,7 @@
         <header class="summary-header">
           <!-- LIVE / Match Complete indicator -->
           <span v-if="isMatchLive" class="match-status-badge live-badge">LIVE</span>
+          <span v-else-if="isMatchEnded" class="match-status-badge ended-badge">MATCH COMPLETE</span>
           <button class="close-btn" @click="close">✕</button>
         </header>
 
@@ -327,7 +328,7 @@ const isMatchEnded = computed(() => {
   try {
     // Match is ended if:
     // 1. Has actual completion timestamp or ended flag
-    if (match.value.endedAt || match.value.endedAtISO || match.value.ended || match.value._ended) return true
+    if (match.value.endedAt || match.value.endedAtISO || match.value.ended || match.value._ended || match.value.matchEnded) return true
     
     // 2. OR scheduled end time has passed
     if (match.value.endAtISO) {

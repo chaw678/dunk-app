@@ -1,7 +1,7 @@
 <template>
   <div id="app">
     <!-- Sidebar receives v-model:collapsed so App controls layout -->
-    <Sidebar v-model:collapsed="collapsed" />
+    <Sidebar v-model:collapsed="collapsed" :disabled="sidebarDisabled" />
 
     <!-- Topbar (logo + title + actions) aligned with main content -->
     <header class="topbar" :class="{ collapsed }"
@@ -27,20 +27,147 @@
          :style="{ '--sidebar-current-width': collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)' }">
       <router-view />
     </div>
+
+    <!-- Global match end modal -->
+    <EndMatchSummary
+      v-if="showGlobalMatchEndModal"
+      :dbPath="globalMatchEndDbPath"
+      @close="closeGlobalMatchEndModal"
+      @post-to-forum="handlePostToForum"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, provide } from 'vue'
 import { useRouter } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import DunkLogo from './components/DunkLogo.vue'
+import EndMatchSummary from './components/EndMatchSummary.vue'
+import { onUserStateChanged } from './firebase/auth'
+import { onDataChange } from './firebase/firebase'
 
 const collapsed = ref(false)
 const router = useRouter()
 
+// Sidebar disabled state (for when round is active)
+const sidebarDisabled = ref(false)
+
+// Provide function to child components to control sidebar state
+provide('setSidebarDisabled', (disabled) => {
+  sidebarDisabled.value = disabled
+})
+
+// Global match end modal state
+const showGlobalMatchEndModal = ref(false)
+const globalMatchEndDbPath = ref(null)
+const currentUser = ref(null)
+const trackedMatches = ref({}) // Track which matches we've already shown modals for
+
+let matchesUnsub = null
+
 const navigateToHomePage = () => {
   router.push('/homepage')
+}
+
+const handlePostToForum = () => {
+  // Navigate to forum after posting
+  router.push('/forum')
+  closeGlobalMatchEndModal()
+}
+
+const closeGlobalMatchEndModal = () => {
+  showGlobalMatchEndModal.value = false
+  globalMatchEndDbPath.value = null
+}
+
+// Watch for user authentication
+onMounted(() => {
+  onUserStateChanged((user) => {
+    currentUser.value = user
+    if (user) {
+      // User is signed in, subscribe to matches
+      subscribeToMatches()
+    } else {
+      // User signed out, unsubscribe
+      if (matchesUnsub) {
+        matchesUnsub()
+        matchesUnsub = null
+      }
+      trackedMatches.value = {}
+    }
+  })
+})
+
+onBeforeUnmount(() => {
+  if (matchesUnsub) {
+    matchesUnsub()
+  }
+})
+
+function subscribeToMatches() {
+  if (matchesUnsub) return // Already subscribed
+  
+  try {
+    matchesUnsub = onDataChange('matches', (data) => {
+      if (!data || !currentUser.value) return
+      
+      const uid = currentUser.value.uid
+      
+      // Check all matches for ones the user is involved in
+      // Matches can be nested like matches/{court}/{date}/{matchId}
+      function checkMatch(matchData, matchPath) {
+        if (!matchData) return
+        
+        // Check if user is involved in this match (host or joined player)
+        const isHost = matchData.host === uid
+        const isJoined = matchData.playersMap && matchData.playersMap[uid]
+        
+        if (!isHost && !isJoined) return // User not involved in this match
+        
+        // Check if match just ended
+        const matchEnded = matchData.matchEnded === true
+        const matchId = matchPath.split('/').pop()
+        const alreadyShown = trackedMatches.value[matchId]
+        
+        if (matchEnded && !alreadyShown) {
+          // Match just ended and we haven't shown the modal yet
+          console.log('Global match end detected for match:', matchId, 'at path:', matchPath)
+          trackedMatches.value[matchId] = true
+          globalMatchEndDbPath.value = matchPath
+          showGlobalMatchEndModal.value = true
+        }
+      }
+      
+      // Traverse the nested structure
+      Object.entries(data).forEach(([key1, val1]) => {
+        if (!val1 || typeof val1 !== 'object') return
+        
+        // Check if this is directly a match object (has host or playersMap)
+        if (val1.host || val1.playersMap) {
+          checkMatch(val1, `matches/${key1}`)
+        } else {
+          // It's a nested level, traverse deeper
+          Object.entries(val1).forEach(([key2, val2]) => {
+            if (!val2 || typeof val2 !== 'object') return
+            
+            // Check if this level contains matches
+            if (val2.host || val2.playersMap) {
+              checkMatch(val2, `matches/${key1}/${key2}`)
+            } else {
+              // Another level of nesting
+              Object.entries(val2).forEach(([key3, val3]) => {
+                if (!val3 || typeof val3 !== 'object') return
+                checkMatch(val3, `matches/${key1}/${key2}/${key3}`)
+              })
+            }
+          })
+        }
+      })
+    })
+  } catch (e) {
+    console.warn('Failed to subscribe to matches in App.vue', e)
+  }
 }
 </script>
 

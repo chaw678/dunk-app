@@ -330,7 +330,9 @@
                                                 <button type="button" :class="['btn', 'btn-join', 'btn-sm']" :disabled="!!joinDisabledReason(match)" :title="joinDisabledReason(match) || 'Join match'" @click.prevent.stop="joinMatch(match)">Join</button>
                                             </template>
                                         </div>
-                                        <div></div>
+                                        <div class="d-flex flex-column align-items-end">
+                                            <button type="button" class="btn btn-primary btn-sm d-flex align-items-center" @click.prevent.stop="openMatchSummary(match)"><i class="bi bi-clipboard-data me-2"></i>Match Summary</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -352,7 +354,6 @@
           v-if="showMatchSummary" 
           :dbPath="(summaryMatch && summaryMatch.__dbPath) || (summaryMatch && summaryMatch.id ? `matches/${summaryMatch.id}` : null)" 
           :matchData="summaryMatch" 
-          compact 
           @close="onCloseSummary"
           @post-to-forum="onPostMatchToForum"
           @cancel-navigate="onCancelSummary"
@@ -366,11 +367,6 @@
             cancelLabel="Cancel"
             :destructive="pendingConfirm && pendingConfirm.destructive"
             @confirm="onConfirmModal"
-        />
-        <FinalResultsModal 
-            v-if="showFinalResultsModal" 
-            :matchPath="finalResultsMatchPath" 
-            @close="showFinalResultsModal = false" 
         />
         <ProfileModal 
             v-if="showProfileModal" 
@@ -407,7 +403,6 @@ import ConfirmModal from './ConfirmModal.vue'
 import DunkLogo from './DunkLogo.vue'
 import EndMatchSummary from './EndMatchSummary.vue'
 import { seededAvatar, avatarForUser } from '../utils/avatar.js'
-import FinalResultsModal from './FinalResultsModal.vue'
 import ProfileModal from './ProfileModal.vue'
 import PopupMessage from './PopupMessage.vue'
 
@@ -425,9 +420,6 @@ function showAlert(message, type = 'error') {
     alertType.value = type
     showAlertPopup.value = true
 }
-
-const showFinalResultsModal = ref(false)
-const finalResultsMatchPath = ref('')
 
 const maxAvatars = 6
 const usersCache = ref({})
@@ -568,11 +560,27 @@ async function openMatch(match, event) {
                 // ignore and continue
         }
         
-        // If match is ended, show the final results modal instead of navigating
+        // If match is ended, show the end match summary modal instead of navigating
         if (isPast(match)) {
-            const matchPath = match.__dbPath || `matches/${match.id || match.key}`
-            showFinalResultsModal.value = true
-            finalResultsMatchPath.value = matchPath
+            summaryMatch.value = match
+            showMatchSummary.value = true
+            return
+        }
+        
+        // NEW: Prevent opening match if it hasn't been started yet
+        // EVERYONE (including host) must wait until "Start Match" is clicked
+        if (!match.started && !match._started) {
+            if (isHost(match)) {
+                showAlert('Please click "Start Match" to begin the match.')
+            } else {
+                showAlert('Match has not started yet. Wait for the host to start the match.')
+            }
+            return
+        }
+        
+        // NEW: Prevent opening match if user hasn't joined (unless they're the host)
+        if (!isJoined(match) && !isHost(match)) {
+            showAlert('You must join this match to view it.')
             return
         }
         
@@ -2431,6 +2439,7 @@ async function endMatchConfirmed(match) {
             const path = parts.join('/')
             await setChildData(`${path}/${id}`, 'started', false)
             await setChildData(`${path}/${id}`, 'endedAt', new Date().toISOString())
+            await setChildData(`${path}/${id}`, 'matchEnded', true)
         } catch (e) {
             console.error('Failed to end match', e)
             showAlert('Failed to end match — try again')

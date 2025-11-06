@@ -16,7 +16,8 @@ import Profile from '../components/Profile.vue'
 const history = createWebHistory()
 
 const routes = [
-    { path: '/', component: MainMenu },
+    { path: '/', redirect: '/homepage' },
+    { path: '/mainmenu', component: MainMenu },
     { path: '/home', component: Home },
     { path: '/homepage', component: HomePage },
     {

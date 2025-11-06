@@ -20,13 +20,15 @@
           </button>
         </div>
 
-        <nav class="nav-list" role="navigation" aria-label="Main">
+        <nav :class="['nav-list', { 'nav-disabled': props.disabled }]" role="navigation" aria-label="Main">
           <router-link
             class="nav-item"
             to="/court-finder"
             active-class="router-link-active"
             :aria-label="'Court Finder'"
             :aria-describedby="props.collapsed && tooltipVisible ? tooltipId : null"
+            :class="{ 'link-disabled': props.disabled }"
+            @click.prevent="props.disabled ? null : undefined"
             @mouseenter="showTooltip($event, 'Court Finder')"
             @mousemove="updateTooltip($event)"
             @mouseleave="hideTooltip"
@@ -43,6 +45,8 @@
             active-class="router-link-active"
             :aria-label="'Matches'"
             :aria-describedby="props.collapsed && tooltipVisible ? tooltipId : null"
+            :class="{ 'link-disabled': props.disabled }"
+            @click.prevent="props.disabled ? null : undefined"
             @mouseenter="showTooltip($event, 'Matches')"
             @mousemove="updateTooltip($event)"
             @mouseleave="hideTooltip"
@@ -59,6 +63,8 @@
             active-class="router-link-active"
             :aria-label="'Leaderboard'"
             :aria-describedby="props.collapsed && tooltipVisible ? tooltipId : null"
+            :class="{ 'link-disabled': props.disabled }"
+            @click.prevent="props.disabled ? null : undefined"
             @mouseenter="showTooltip($event, 'Leaderboard')"
             @mousemove="updateTooltip($event)"
             @mouseleave="hideTooltip"
@@ -75,6 +81,8 @@
             active-class="router-link-active"
             :aria-label="'Forum'"
             :aria-describedby="props.collapsed && tooltipVisible ? tooltipId : null"
+            :class="{ 'link-disabled': props.disabled }"
+            @click.prevent="props.disabled ? null : undefined"
             @mouseenter="showTooltip($event, 'Forum')"
             @mousemove="updateTooltip($event)"
             @mouseleave="hideTooltip"
@@ -95,6 +103,8 @@
             active-class="router-link-active"
             :aria-label="'Profile'"
             :aria-describedby="props.collapsed && tooltipVisible ? tooltipId : null"
+            :class="{ 'link-disabled': props.disabled }"
+            @click.prevent="props.disabled ? null : undefined"
             @mouseenter="showTooltip($event, 'Profile')"
             @mousemove="updateTooltip($event)"
             @mouseleave="hideTooltip"
@@ -135,7 +145,8 @@ import { defineProps, defineEmits, watch, onBeforeUnmount } from 'vue'
 import { Grid2x2, Trophy, Users, MessageCircle, Award } from 'lucide-vue-next'
 
 const props = defineProps({
-  collapsed: { type: Boolean, default: false }
+  collapsed: { type: Boolean, default: false },
+  disabled: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:collapsed'])
 
@@ -384,6 +395,21 @@ function hideTooltip() {
 .router-link-active {
   background: linear-gradient(90deg, rgba(255,154,60,0.22), rgba(255,154,60,0.11));
   color: var(--main-yellow);
+}
+
+/* Disabled navigation styles */
+.nav-disabled {
+  pointer-events: none;
+}
+
+.link-disabled {
+  opacity: 0.4;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
+.link-disabled:hover {
+  background: transparent !important;
 }
 
 .spacer {

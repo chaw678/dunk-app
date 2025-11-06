@@ -1,198 +1,253 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-container">
-      <header class="modal-header">
-        <h1>Final Match Results</h1>
-        <button @click="$emit('close')" class="close-btn" aria-label="Close">✕</button>
-      </header>
+  <Teleport to="body">
+    <div class="end-summary-overlay" @click.self="close">
+      <div :class="['end-summary-modal', { compact: props.compact }]">
+        <!-- Large centered match title (matches Rounds Completed font but bigger) -->
+        <div class="modal-match-title">{{ matchTitle }}</div>
 
-      <div class="modal-body">
-        <!-- Match Details -->
-        <section class="match-details-section">
-          <h2 class="section-title">Match Details</h2>
+        <header class="summary-header">
+          <!-- LIVE / Match Complete indicator -->
+          <span v-if="isMatchLive" class="match-status-badge live-badge">LIVE</span>
+          <button class="close-btn" @click="close">✕</button>
+        </header>
+
+        <section class="match-details">
           <div class="details-grid">
             <div class="detail-item">
-              <span class="detail-label">Court:</span>
-              <span class="detail-value">{{ matchData.court || matchData.location || 'Unknown' }}</span>
+              <div class="detail-icon">📅</div>
+              <div>
+                <div class="detail-label">Date</div>
+                <div class="detail-value">{{ matchDateDisplay }}</div>
+              </div>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Date:</span>
-              <span class="detail-value">{{ formatMatchDate(matchData) }}</span>
+              <div class="detail-icon">🕒</div>
+              <div>
+                <div class="detail-label">Time</div>
+                <div class="detail-value">{{ matchTimeDisplay }}</div>
+              </div>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Type:</span>
-              <span class="detail-value">{{ matchData.matchType || 'Casual' }}</span>
+              <div class="detail-icon">📍</div>
+              <div>
+                <div class="detail-label">Court</div>
+                <div class="detail-value">{{ courtDisplay }}</div>
+              </div>
             </div>
             <div class="detail-item">
-              <span class="detail-label">Gender:</span>
-              <span class="detail-value">{{ matchData.gender || 'All' }}</span>
+              <div class="detail-icon">🏷️</div>
+              <div>
+                <div class="detail-label">Type</div>
+                <div class="detail-value">{{ matchTypeDisplay }}</div>
+              </div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-icon">🚻</div>
+              <div>
+                <div class="detail-label">Gender</div>
+                <div class="detail-value">{{ genderDisplay }}</div>
+              </div>
             </div>
           </div>
         </section>
 
-        <!-- Rounds History -->
-        <section class="rounds-history-section">
-          <h2 class="section-title">Rounds History</h2>
-          <div v-if="!rounds || rounds.length === 0" class="rounds-empty">
-            No rounds played in this match.
-          </div>
-          <div v-else class="round-list">
-            <div v-for="(r, idx) in rounds" :key="r.key || idx" class="round-card">
-              <div class="round-card-header">
-                <span class="round-index">Round {{ rounds.length - idx }}</span>
-                <span class="round-time">{{ formatDate(r.endedAt) }}</span>
-                <span class="round-duration">{{ formatDuration(r.duration) }}</span>
-              </div>
-              <div class="round-teams">
-                <div class="round-team">
-                  <div class="round-team-label">Team A</div>
-                  <div class="round-team-roster">
-                    <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player">
-                      <div class="round-avatar">
-                        <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
-                        <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
-                      </div>
-                      <div class="round-player-name">{{ displayNameFor(uid) }}</div>
-                      <div class="round-player-stats">
-                        <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
-                        <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="round-team">
-                  <div class="round-team-label">Team B</div>
-                  <div class="round-team-roster">
-                    <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player">
-                      <div class="round-avatar">
-                        <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
-                        <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
-                      </div>
-                      <div class="round-player-name">{{ displayNameFor(uid) }}</div>
-                      <div class="round-player-stats">
-                        <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
-                        <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div v-if="r.winningTeam" class="round-winner">
-                Winner: Team {{ r.winningTeam }} ({{ winnersLabel(r) }})
-              </div>
-            </div>
-          </div>
+        <section class="round-summary">
+          <h3>Rounds played: {{ rounds.length }}</h3>
         </section>
+
+        <!-- Scrollable area: player rankings and rounds history will scroll while the header/details/round-summary remain fixed -->
+        <div class="summary-scroll">
+          <section class="players-ranking">
+            <h3>Player rankings (by match wins)</h3>
+            <ul class="ranking-list">
+              <li v-for="(p, idx) in sortedPlayers" :key="p.uid" :class="['ranking-item', { 'rank-1': idx === 0, 'rank-2': idx === 1, 'rank-3': idx === 2 }]" @click="openProfileModal(p.uid)">
+                <div class="rank-number">#{{ idx + 1 }}</div>
+                <div class="pill-left">
+                  <div class="member-avatar-wrapper">
+                    <div class="member-avatar-small"><img :src="avatarForUid(p.uid)" :alt="displayNameFor(p.uid) + ' avatar'"/></div>
+                    <div v-if="idx === 0" class="medal-badge">🥇</div>
+                    <div v-else-if="idx === 1" class="medal-badge">🥈</div>
+                    <div v-else-if="idx === 2" class="medal-badge">🥉</div>
+                  </div>
+                  <div class="member-meta">
+                    <div class="member-name">{{ displayNameFor(p.uid) }}</div>
+                    <div class="member-sub">Total: {{ displayTotalWinsForUid(p.uid) }}</div>
+                  </div>
+                </div>
+                <div class="member-wins">🏆 {{ displayMatchWinsForUid(p.uid) }}</div>
+              </li>
+            </ul>
+          </section>
+
+          <section class="rounds-history">
+            <h3>Rounds history</h3>
+            <div v-if="!rounds || rounds.length === 0" class="rounds-empty">
+              {{ isMatchEnded ? 'No rounds played' : 'No rounds history yet...' }}
+            </div>
+            <ul v-else class="round-list">
+              <li v-for="(r, idx) in rounds" :key="r.ts || idx" class="round-card">
+                <div class="round-card-header">
+                  <span class="round-index">Round {{ rounds.length ? (rounds.length - idx) : (idx + 1) }}</span>
+                  <span class="round-time">{{ formatDate(r.endedAt) }}</span>
+                  <span class="round-duration">⏱ {{ formatDuration(r.duration) }}</span>
+                </div>
+                <div class="round-teams">
+                  <div class="round-team">
+                    <div class="round-team-label">Team A</div>
+                    <div class="round-team-roster">
+                      <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player" @click.stop="openProfileModal(uid)">
+                        <div class="round-avatar">
+                          <img :src="avatarForUid(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
+                        </div>
+                        <div class="round-player-name">{{ displayNameFor(uid) }}</div>
+                        <div class="round-player-stats">
+                          <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
+                          <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="round-team">
+                    <div class="round-team-label">Team B</div>
+                    <div class="round-team-roster">
+                      <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player" @click.stop="openProfileModal(uid)">
+                        <div class="round-avatar">
+                          <img :src="avatarForUid(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
+                        </div>
+                        <div class="round-player-name">{{ displayNameFor(uid) }}</div>
+                        <div class="round-player-stats">
+                          <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
+                          <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="r.winningTeam" class="round-winner">
+                  Winner: Team {{ r.winningTeam }}  — {{ winnersLabel(r) }}
+                </div>
+              </li>
+            </ul>
+          </section>
+
+          <!-- Action Buttons (only show when match has ended and actions are not hidden) -->
+          <div v-if="isMatchEnded && !hideActions" class="summary-actions">
+            <button class="btn-post-forum" @click="onPostToForum">
+              Post Match on Forum
+            </button>
+            <button class="btn-cancel-summary" @click="onCancelAndNavigate">
+              Cancel
+            </button>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
+    <ProfileModal v-if="showProfileModal" :uid="profileModalUid" :initialProfile="profileModalInitial" @close="closeProfileModal" />
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { Teleport } from 'vue'
 import { getDataFromFirebase, onDataChange } from '../firebase/firebase'
+import { avatarForUser } from '../utils/avatar.js'
+import ProfileModal from './ProfileModal.vue'
 
-const props = defineProps({
-  matchPath: {
-    type: String,
-    required: true
-  }
+const props = defineProps({ 
+  dbPath: { type: String, required: false }, 
+  matchData: { type: Object, required: false }, 
+  compact: { type: Boolean, required: false, default: false },
+  hideActions: { type: Boolean, required: false, default: false }
+})
+const emit = defineEmits(['close', 'open-profile', 'post-to-forum', 'cancel-navigate'])
+
+const match = ref(props.matchData || {})
+const usersMap = ref({})
+const playersMap = ref({})
+const winsByEachPlayer = ref({})
+const rounds = ref([])
+
+// ProfileModal state
+const showProfileModal = ref(false)
+const profileModalUid = ref(null)
+const profileModalInitial = ref(null)
+
+let usersUnsub = null
+let playersMapUnsub = null
+let winsByEachUnsub = null
+let roundsUnsub = null
+let matchUnsub = null
+let _prevBodyOverflow = null
+
+async function loadInitial() {
+  try {
+    const dbPath = props.dbPath || (match.value && match.value.__dbPath) || null
+    if (dbPath) {
+      const remote = await getDataFromFirebase(dbPath)
+      if (remote) match.value = { ...(match.value || {}), ...(remote || {}), __dbPath: dbPath }
+
+      // Subscribe to match data changes (for live status updates)
+      try { matchUnsub = onDataChange(dbPath, (v) => { if (v) match.value = { ...(match.value || {}), ...(v || {}), __dbPath: dbPath } }) } catch (e) { console.warn('match subscribe failed', e) }
+      try { playersMapUnsub = onDataChange(`${dbPath}/playersMap`, (v) => { playersMap.value = v || {} }) } catch (e) { console.warn('pm subscribe failed', e) }
+      try { winsByEachUnsub = onDataChange(`${dbPath}/WinsByEachPlayer`, (v) => { winsByEachPlayer.value = v || {} }) } catch (e) {}
+      try { roundsUnsub = onDataChange(`${dbPath}/roundsplayed`, (val) => { const arr = val ? Object.entries(val).map(([k,v])=>({ ts:k, ...v })) : []; arr.sort((a,b)=>Number(b.ts)-Number(a.ts)); rounds.value = arr }) } catch (e) {}
+    }
+    try { usersUnsub = onDataChange('users', (v) => { usersMap.value = v || {} }) } catch (e) { console.warn('users subscribe failed', e) }
+  } catch (e) { console.warn('EndMatchSummary loadInitial failed', e) }
+}
+
+onMounted(() => {
+  loadInitial()
+  try {
+    _prevBodyOverflow = document && document.body ? document.body.style.overflow : null
+    if (document && document.body) document.body.style.overflow = 'hidden'
+  } catch (e) {}
 })
 
-defineEmits(['close'])
+onBeforeUnmount(() => {
+  try { if (usersUnsub) usersUnsub() } catch(_){ }
+  try { if (playersMapUnsub) playersMapUnsub() } catch(_){ }
+  try { if (winsByEachUnsub) winsByEachUnsub() } catch(_){ }
+  try { if (roundsUnsub) roundsUnsub() } catch(_){ }
+  try { if (matchUnsub) matchUnsub() } catch(_){ }
+  try { if (document && document.body) document.body.style.overflow = (_prevBodyOverflow !== null ? _prevBodyOverflow : '') } catch (e) {}
+})
 
-const matchData = ref({})
-const rounds = ref([])
-const usersMap = ref({})
-let usersUnsub = null
+function close() { emit('close') }
 
-function subscribeUsers() {
-  if (usersUnsub) {
-    try { usersUnsub() } catch (e) {}
-    usersUnsub = null
+function openProfile(uid) { emit('open-profile', uid) }
+
+function openProfileModal(target) {
+  if (!target) return
+  // allow either a uid string or an enriched player object
+  if (typeof target === 'string') {
+    profileModalUid.value = target
+    profileModalInitial.value = null
+  } else if (typeof target === 'object' && target) {
+    const uid = target.uid || target.id || target.key || null
+    if (!uid) return
+    profileModalUid.value = uid
+    // keep the enriched object (name/avatar) so modal can render immediately
+    profileModalInitial.value = target
+  } else {
+    return
   }
-  return new Promise((resolve) => {
-    try {
-      let firstLoad = true
-      usersUnsub = onDataChange('users', (val) => { 
-        usersMap.value = val || {}
-        if (firstLoad) {
-          firstLoad = false
-          resolve()
-        }
-      })
-    } catch (e) { 
-      console.warn('subscribeUsers failed', e)
-      resolve()
-    }
-  })
+  showProfileModal.value = true
 }
 
-function initials(name) {
-  if (!name) return 'U'
-  const parts = String(name).trim().split(' ').filter(Boolean)
-  if (parts.length === 0) return 'U'
-  if (parts.length === 1) return parts[0].slice(0,2).toUpperCase()
-  return (parts[0][0] + parts[1][0]).toUpperCase()
+function closeProfileModal() { 
+  showProfileModal.value = false
+  profileModalUid.value = null
+  profileModalInitial.value = null
 }
 
-function displayNameFor(element) {
-  if (!element) return ''
-  if (typeof element === 'string') {
-    const uid = element
-    const resolved = usersMap.value && usersMap.value[uid]
-    return (resolved && (resolved.name || resolved.displayName || resolved.username)) || uid
-  }
-  const uid = element.uid || element.id || element.key || null
-  const resolved = uid && usersMap.value ? usersMap.value[uid] : null
-  const resolvedName = (resolved && (resolved.name || resolved.displayName || resolved.username)) || null
-  const fallback = uid || (element && element.name) || 'Player'
-  return element.name || resolvedName || fallback
-}
+function avatarForUid(uid) { const u = usersMap.value && usersMap.value[uid]; if (u && u.profilepicture) return u.profilepicture; if (u && u.avatar) return u.avatar; return avatarForUser(u || uid) }
 
-function displayAvatarFor(element) {
-  if (!element) return null
-  const uid = (typeof element === 'string') ? element : (element.uid || element.id || element.key || null)
-  const resolved = uid && usersMap.value ? usersMap.value[uid] : null
-  if (resolved) {
-    return resolved.profilepicture || resolved.avatar || resolved.photoURL || resolved.picture || resolved.photo || resolved.imageURL || resolved.thumbnail || null
-  }
-  if (typeof element === 'object' && element.avatar) return element.avatar
-  return null
-}
+function displayNameFor(uid) { if (!uid) return ''; const u = usersMap.value && usersMap.value[uid]; return (u && (u.name || u.displayName || u.username)) || uid }
 
-function formatDate(iso) {
-  if (!iso) return '—'
-  try { return new Date(iso).toLocaleString() } catch (e) { return String(iso) }
-}
+function displayTotalWinsForUid(uid) { const u = usersMap.value && usersMap.value[uid]; if (u && typeof u.totalWins !== 'undefined') return Number(u.totalWins || 0); return 0 }
 
-function formatDuration(sec) {
-  if (!sec && sec !== 0) return '—'
-  const s = Number(sec) || 0
-  if (s < 60) return `${s}s`
-  const m = Math.floor(s / 60)
-  const rem = s % 60
-  return `${m}m ${rem}s`
-}
-
-function formatMatchDate(match) {
-  if (!match) return '—'
-  try {
-    if (match.startISO) return new Date(match.startISO).toLocaleDateString()
-    if (match.start) return new Date(match.start).toLocaleDateString()
-    return '—'
-  } catch (e) {
-    return '—'
-  }
-}
-
-function sanitizeUserKey(uname) {
-  if (!uname) return String(uname || '').replace(/[.$#\[\]\/]/g, '_')
-  return String(uname).replace(/[.$#\[\]\/]/g, '_')
-}
-
-const winsByEachPlayer = ref({})
-const playersMap = ref({})
+function sanitizeUserKey(uname) { if (!uname) return String(uname || '').replace(/[.$#\[\]\//]/g, '_'); return String(uname).replace(/[.$#\[\]\//]/g, '_') }
 
 function displayMatchWinsForUid(uid) {
   if (!uid) return 0
@@ -205,310 +260,262 @@ function displayMatchWinsForUid(uid) {
   return 0
 }
 
-function displayTotalWinsForUid(uid) {
-  if (!uid) return 0
-  const u = usersMap.value && usersMap.value[uid]
-  if (u && typeof u.totalWins !== 'undefined') return Number(u.totalWins || 0)
-  return 0
-}
+const sortedPlayers = computed(() => {
+  const map = playersMap.value || {}
+  const seeds = new Set()
+  Object.keys(map || {}).forEach(k => seeds.add(k))
+  const m = match.value || {}
+  if (m.players && typeof m.players === 'object') Object.keys(m.players).forEach(k => seeds.add(k))
+  ;(rounds.value || []).forEach(r => { (r.teamA || []).forEach(u => seeds.add(u)); (r.teamB || []).forEach(u => seeds.add(u)) })
 
-function winnersLabel(r) {
-  if (!r || !r.winningTeamMembers) return '—'
-  return r.winningTeamMembers.map(uid => displayNameFor(uid)).join(', ')
-}
-
-async function loadMatchData() {
-  try {
-    const data = await getDataFromFirebase(props.matchPath)
-    if (data) {
-      matchData.value = data
-      
-      // Load rounds
-      if (data.roundsplayed) {
-        rounds.value = Object.entries(data.roundsplayed)
-          .map(([key, round]) => ({
-            ...round,
-            key
-          }))
-          .sort((a, b) => {
-            const timeA = a.endedAt ? new Date(a.endedAt).getTime() : 0
-            const timeB = b.endedAt ? new Date(b.endedAt).getTime() : 0
-            return timeB - timeA
-          })
-      }
-      
-      // Load wins data
-      if (data.WinsByEachPlayer) {
-        winsByEachPlayer.value = data.WinsByEachPlayer
-      }
-      if (data.playersMap) {
-        playersMap.value = data.playersMap
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to load match data:', e)
-  }
-}
-
-onMounted(async () => {
-  await subscribeUsers()
-  await loadMatchData()
+  const arr = Array.from(seeds).map(uid => ({ 
+    uid, 
+    wins: displayMatchWinsForUid(uid),
+    totalWins: displayTotalWinsForUid(uid)
+  }))
+  // Sort by match wins (descending), then by total wins (descending), then by uid alphabetically
+  arr.sort((a,b) => {
+    const matchWinsDiff = Number(b.wins || 0) - Number(a.wins || 0)
+    if (matchWinsDiff !== 0) return matchWinsDiff
+    const totalWinsDiff = Number(b.totalWins || 0) - Number(a.totalWins || 0)
+    if (totalWinsDiff !== 0) return totalWinsDiff
+    return a.uid.localeCompare(b.uid)
+  })
+  return arr
 })
+
+function formatDate(iso) { if (!iso) return '—'; try { return new Date(iso).toLocaleString() } catch (e) { return String(iso) } }
+function formatDuration(sec) { if (!sec && sec !== 0) return '—'; const s = Number(sec) || 0; if (s < 60) return `${s}s`; const m = Math.floor(s/60); const rem = s%60; return `${m}m ${rem}s` }
+
+function winnersLabel(r) { if (!r || !r.winningTeamMembers) return '—'; return r.winningTeamMembers.map(uid => displayNameFor(uid)).join(', ') }
+
+const matchTitle = computed(() => { const t = (match.value && (match.value.title || match.value.name)) ? String(match.value.title || match.value.name).trim() : ''; return t || 'Untitled Match' })
+const matchDateDisplay = computed(() => { try { if (match.value && match.value.date) return String(match.value.date); if (match.value && match.value.startAtISO) return new Date(match.value.startAtISO).toLocaleDateString(); return '—' } catch (e) { return '—' } })
+const matchTimeDisplay = computed(() => { try { if (match.value && match.value.startTime && match.value.endTime) return `${match.value.startTime} — ${match.value.endTime}`; if (match.value && match.value.startTime) return match.value.startTime; if (match.value && match.value.startAtISO) return new Date(match.value.startAtISO).toLocaleTimeString(); return '—' } catch (e) { return '—' } })
+const courtDisplay = computed(() => { try { return match.value && (match.value.court || match.value.venue || match.value.location || match.value.title) ? (match.value.court || match.value.venue || match.value.location || match.value.title) : 'Unknown venue' } catch (e) { return 'Unknown venue' } })
+const matchTypeDisplay = computed(() => { try { return match.value && match.value.type ? String(match.value.type) : 'Open' } catch (e) { return 'Open' } })
+const genderDisplay = computed(() => { try { return match.value && match.value.gender ? String(match.value.gender) : 'All' } catch (e) { return 'All' } })
+
+// Match status indicators
+// Consider a match LIVE only if it has started and is not explicitly ended.
+// Some legacy entries may lack endedAt/endedAtISO but set matchEnded=true; guard for that as well.
+const isMatchLive = computed(() => {
+  try {
+    // Match is LIVE if it's started but NOT actually ended
+    const started = match.value.started || match.value._started
+    if (!started) return false
+    
+    // Check for ACTUAL end fields (match was manually ended)
+    const actuallyEnded = match.value.endedAt || match.value.endedAtISO || match.value.ended || match.value._ended
+    if (actuallyEnded) return false
+    
+    // Check if scheduled end time has passed (match expired)
+    if (match.value.endAtISO) {
+      try {
+        const endTime = new Date(match.value.endAtISO)
+        const now = new Date()
+        if (endTime < now) return false // Match scheduled time has passed
+      } catch (e) {}
+    }
+    
+    return true // Started and not ended
+  } catch (e) {
+    return false
+  }
+})
+const isMatchEnded = computed(() => {
+  try {
+    // Match is ended if:
+    // 1. Has actual completion timestamp or ended flag
+    if (match.value.endedAt || match.value.endedAtISO || match.value.ended || match.value._ended) return true
+    
+    // 2. OR scheduled end time has passed
+    if (match.value.endAtISO) {
+      try {
+        const endTime = new Date(match.value.endAtISO)
+        const now = new Date()
+        if (endTime < now) return true
+      } catch (e) {}
+    }
+    
+    return false
+  } catch (e) {
+    return false
+  }
+})
+
+// Action handlers for forum posting and navigation
+function onPostToForum() {
+  emit('post-to-forum')
+}
+
+function onCancelAndNavigate() {
+  emit('cancel-navigate')
+}
+
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: 20px;
-}
+/* Overlay + entry animations */
+.end-summary-overlay { position:fixed; inset:0; background:rgba(8,10,12,0.9); display:flex; align-items:center; justify-content:center; z-index:11000; backdrop-filter: blur(4px); animation: overlayFade 180ms ease both }
+.end-summary-modal { position: relative; box-sizing: border-box; width:880px; max-width:96%; max-height:calc(92vh - 36px); /* modal will be a flex column; inner area will scroll */ display:flex; flex-direction:column; background: linear-gradient(180deg,#0f1114,#151617); border-radius:14px; padding:18px; border:2px solid #FFAD1D; box-shadow: 0 22px 64px rgba(0,0,0,0.7); transform-origin:center center; animation: modalPop 220ms cubic-bezier(.2,.9,.2,1) both }
+.end-summary-modal.compact { width:92%; max-width:680px; padding:14px }
 
-.modal-container {
-  background: #10121A;
-  border-radius: 16px;
-  max-width: 1000px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-}
+.summary-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px }
+.summary-header h2 { color:#ffad1d; margin:0; font-size:1.6rem; letter-spacing:0.6px }
+.summary-meta { color:#d3c7a3; font-weight:700; font-size:0.9rem; margin-top:4px }
+.close-btn { position: absolute; right: 12px; top: 12px; background: transparent; border: none; color: #fff; font-size: 20px; cursor: pointer }
 
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 24px 28px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  position: sticky;
-  top: 0;
-  background: #10121A;
-  z-index: 10;
-}
-
-.modal-header h1 {
-  color: #ffd98a;
-  font-size: 2rem;
+/* Match status badges (LIVE / Match Ended) */
+.match-status-badge {
+  position: absolute;
+  left: 20px;
+  top: 21px;
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: 999px;
   font-weight: 800;
-  margin: 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid rgba(0,0,0,0.4);
 }
 
-.close-btn {
+.live-badge {
+  background: linear-gradient(180deg, #a83a3a 0%, #c84b4b 100%);
+  color: rgba(255, 210, 210, 0.95);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,0.03), 0 6px 18px rgba(200,50,50,0.12);
+  animation: live-blink 2.6s ease-in-out infinite;
+}
+
+.ended-badge {
+  background: linear-gradient(180deg, #3a5a8a 0%, #4b6bc8 100%);
+  color: rgba(210, 230, 255, 0.95);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,0.03), 0 6px 18px rgba(50,100,200,0.12);
+}
+
+@keyframes live-blink {
+  0% { opacity: 1; transform: translateZ(0) scale(1); }
+  45% { opacity: 0.5; transform: translateZ(0) scale(0.995); }
+  55% { opacity: 0.5; transform: translateZ(0) scale(0.995); }
+  100% { opacity: 1; transform: translateZ(0) scale(1); }
+}
+
+.details-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap:12px; margin-bottom:14px }
+.detail-item { display:flex; gap:10px; align-items:center }
+.detail-icon { width:38px; height:38px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg,#111214,#1a1d20); color:#ffd98a; font-size:18px; border:1px solid rgba(255,255,255,0.03) }
+.detail-label { color:#cfc9b0; font-weight:700 }
+.detail-value { color:#fff; font-weight:900 }
+
+.round-summary h3 { color:#ffd98a; font-weight:900; margin:0 0 8px 0; font-size:2.2rem }
+
+/* Large centered match title in modal */
+.modal-match-title { color:#fff; font-weight:900; font-size:3rem; text-align:center; margin:6px 0 12px; line-height:1; }
+
+.players-ranking { margin-top:8px }
+.ranking-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px }
+.ranking-item { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:10px; border-radius:12px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02)); border:1px solid rgba(255,255,255,0.03); cursor:pointer; transition: transform 160ms ease, box-shadow 160ms ease }
+.ranking-item:hover { transform: translateY(-6px); box-shadow: 0 18px 40px rgba(0,0,0,0.6) }
+/* Top 3 special backgrounds */
+.ranking-item.rank-1 { background: linear-gradient(135deg, rgba(255,215,0,0.12), rgba(255,193,7,0.06)); border:1px solid rgba(255,215,0,0.25); box-shadow: 0 4px 16px rgba(255,215,0,0.15); }
+.ranking-item.rank-2 { background: linear-gradient(135deg, rgba(192,192,192,0.12), rgba(169,169,169,0.06)); border:1px solid rgba(192,192,192,0.25); box-shadow: 0 4px 16px rgba(192,192,192,0.15); }
+.ranking-item.rank-3 { background: linear-gradient(135deg, rgba(205,127,50,0.12), rgba(184,115,51,0.06)); border:1px solid rgba(205,127,50,0.25); box-shadow: 0 4px 16px rgba(205,127,50,0.15); }
+.rank-number { width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg,#ffad1d,#ffd98a); color:#0b0b0b; font-weight:900; font-size:1.1rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow: 0 4px 12px rgba(255,173,29,0.25); }
+.pill-left { display:flex; align-items:center; gap:3px }
+.member-avatar-wrapper { position:relative; display:flex; align-items:center; justify-content:center; }
+.member-avatar-small { width:44px; height:44px; border-radius:50%; overflow:hidden; border:3px solid #ffad1d }
+.member-avatar-small img { width:100%; height:100%; object-fit:cover }
+.medal-badge { position:absolute; bottom:-4px; right:-6px; font-size:1.3rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); z-index:1; }
+.member-meta { display:flex; flex-direction:column }
+.member-name { color:#fff; font-weight:900; font-size:1rem }
+.member-sub { color:#cfc9b0; font-weight:700; font-size:0.85rem }
+.member-wins { color:#ffd98a; font-weight:900 }
+
+.rounds-history { margin-top:16px }
+.rounds-empty { color:#cfc9b0; text-align:center; padding:32px; font-size:0.95rem; font-style:italic; }
+.round-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:16px }
+.round-card { background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02)); padding:16px; border-radius:12px; border:1px solid rgba(255,255,255,0.03); transition: transform 180ms ease, box-shadow 180ms ease }
+.round-card:hover { transform: translateY(-4px); box-shadow: 0 18px 40px rgba(0,0,0,0.6) }
+.round-card-header { display:flex; gap:16px; align-items:center; margin-bottom:12px; flex-wrap:wrap }
+.round-index { font-weight:900; color:#fff; font-size:1.1rem }
+.round-time { color:#d3c7a3; font-size:0.85rem }
+.round-duration { color:#ffd98a; font-weight:800; font-size:0.85rem }
+.round-teams { display:flex; gap:16px; margin-bottom:12px }
+.round-team { flex:1; background: rgba(255,255,255,0.02); padding:12px; border-radius:10px }
+.round-team-label { font-weight:900; color:#fff4d1; margin-bottom:10px; font-size:0.95rem }
+.round-team-roster { display:flex; flex-direction:column; gap:8px }
+.round-player { display:flex; gap:10px; align-items:center; background: linear-gradient(180deg, #0f1114, #141516); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.03); cursor:pointer; transition: box-shadow 120ms ease }
+.round-player:hover { box-shadow: 0 12px 36px rgba(0,0,0,0.55) }
+.round-avatar { flex-shrink:0 }
+.round-avatar-img { width:36px; height:36px; border-radius:50%; border:2px solid #ffad1d; object-fit:cover; display:block }
+.round-player-name { color:#fff; font-weight:800; font-size:0.9rem; flex:1 }
+.round-player-stats { display:flex; gap:6px }
+.stat-total { color:#cfc9b0; font-weight:700; font-size:0.72rem }
+.stat-trophy { color:#ffd98a; font-weight:900; font-size:0.82rem }
+.round-winner { background: linear-gradient(90deg,#1f262b,#23272b); color:#ffd98a; padding:10px 14px; border-radius:10px; font-weight:800; text-align:center; font-size:0.95rem }
+
+/* scrollbar for modal body */
+.summary-scroll { overflow:auto; flex:1; padding-top:8px; display:flex; flex-direction:column; gap:12px }
+.summary-scroll::-webkit-scrollbar { width:10px }
+.summary-scroll::-webkit-scrollbar-track { background: transparent }
+.summary-scroll::-webkit-scrollbar-thumb { background: linear-gradient(180deg,#2b2f33,#1f2326); border-radius:10px }
+
+/* Action Buttons */
+.summary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0 8px 0;
+  margin-top: auto;
+}
+
+.btn-post-forum {
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #ff9a3c, #ffb76a);
+  color: #111;
   border: none;
-  background: transparent;
-  color: #fff;
-  width: 40px;
-  height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  font-size: 24px;
-  font-weight: 800;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 120ms ease, transform 120ms ease;
-}
-
-.close-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  transform: scale(1.05);
-}
-
-.modal-body {
-  padding: 24px 28px;
-}
-
-.section-title {
-  color: #ffd98a;
-  font-size: 1.5rem;
-  font-weight: 800;
-  margin-bottom: 16px;
-}
-
-.match-details-section {
-  margin-bottom: 32px;
-}
-
-.details-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-}
-
-.detail-item {
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));
-  padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.03);
-}
-
-.detail-label {
-  color: #d3c7a3;
-  font-weight: 700;
-  font-size: 0.85rem;
-  margin-right: 8px;
-}
-
-.detail-value {
-  color: #fff;
-  font-weight: 800;
-}
-
-.rounds-history-section {
-  margin-top: 32px;
-}
-
-.rounds-empty {
-  color: #cfc9b0;
+  transition: all 0.2s;
   text-align: center;
-  padding: 32px;
-  font-size: 0.95rem;
 }
 
-.round-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.btn-post-forum:hover {
+  background: linear-gradient(135deg, #ffad1d, #ff9a3c);
+  transform: translateY(-1px);
 }
 
-.round-card {
-  background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.03);
-  transition: transform 180ms ease, box-shadow 180ms ease;
+.btn-post-forum:active {
+  transform: translateY(0);
 }
 
-.round-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 18px 40px rgba(0,0,0,0.6);
-}
-
-.round-card-header {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-
-.round-index {
-  font-weight: 900;
-  color: #fff;
-  font-size: 1.1rem;
-}
-
-.round-time {
-  color: #d3c7a3;
-  font-size: 0.85rem;
-}
-
-.round-duration {
-  color: #ffd98a;
-  font-weight: 800;
-  font-size: 0.85rem;
-}
-
-.round-teams {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-
-.round-team {
-  flex: 1;
-  background: rgba(255,255,255,0.02);
-  padding: 12px;
+.btn-cancel-summary {
+  padding: 12px 24px;
+  background: rgba(255,255,255,0.06);
+  color: #ccc;
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 10px;
-}
-
-.round-team-label {
-  font-weight: 900;
-  color: #fff4d1;
-  margin-bottom: 10px;
-  font-size: 0.95rem;
-}
-
-.round-team-roster {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.round-player {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  background: linear-gradient(180deg, #0f1114, #141516);
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.03);
-}
-
-.round-avatar {
-  flex-shrink: 0;
-}
-
-.round-avatar-img {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 2px solid #ffad1d;
-  object-fit: cover;
-}
-
-.round-avatar-fallback {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 2px solid #ffad1d;
-  background: #1f262b;
-  color: #ffad1d;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.85rem;
-}
-
-.round-player-name {
-  color: #fff;
-  font-weight: 800;
-  font-size: 0.9rem;
-  flex: 1;
-}
-
-.round-player-stats {
-  display: flex;
-  gap: 6px;
-}
-
-.stat-total {
-  color: #cfc9b0;
-  font-weight: 700;
-  font-size: 0.72rem;
-}
-
-.stat-trophy {
-  color: #ffd98a;
-  font-weight: 900;
-  font-size: 0.82rem;
-}
-
-.round-winner {
-  background: linear-gradient(90deg,#1f262b,#23272b);
-  color: #ffd98a;
-  padding: 10px 14px;
-  border-radius: 10px;
-  font-weight: 800;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
   text-align: center;
-  font-size: 0.95rem;
 }
+
+.btn-cancel-summary:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  border-color: rgba(255,255,255,0.15);
+}
+
+.btn-cancel-summary:active {
+  background: rgba(255,255,255,0.04);
+}
+
+/* Animations */
+@keyframes modalPop { from { transform: translateY(8px) scale(0.98); opacity:0 } to { transform: translateY(0) scale(1); opacity:1 } }
+@keyframes overlayFade { from { opacity:0 } to { opacity:1 } }
+
 </style>

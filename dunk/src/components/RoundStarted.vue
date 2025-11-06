@@ -1,75 +1,16 @@
 <template>
   <div class="matchroom-container">
-    <!-- Final Match Results View (shown when match is ended) -->
-    <div v-if="isMatchEnded" class="final-results-view">
-      <header class="final-results-header">
-        <h1>Final Match Results</h1>
-        <button @click="closeFinalResults" class="close-btn" aria-label="Close">✕</button>
-      </header>
-
-      <!-- Rounds History -->
-      <section class="rounds-history">
-        <h2 class="rounds-history-header">Rounds History</h2>
-        <div v-if="!rounds || rounds.length === 0" class="rounds-empty">
-          No rounds played yet.
-        </div>
-        <div v-else class="round-list">
-          <div v-for="(r, idx) in rounds" :key="r.key || idx" class="round-card">
-            <div class="round-card-header">
-              <span class="round-index">Round {{ rounds.length - idx }}</span>
-              <span class="round-time">{{ formatDate(r.endedAt) }}</span>
-              <span class="round-duration">{{ formatDuration(r.duration) }}</span>
-            </div>
-            <div class="round-teams">
-              <div class="round-team">
-                <div class="round-team-label">Team A</div>
-                <div class="round-team-roster">
-                  <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player">
-                    <div class="round-avatar">
-                      <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
-                      <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
-                    </div>
-                    <div class="round-player-name">{{ displayNameFor(uid) }}</div>
-                    <div class="round-player-stats">
-                      <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
-                      <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="round-team">
-                <div class="round-team-label">Team B</div>
-                <div class="round-team-roster">
-                  <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player">
-                    <div class="round-avatar">
-                      <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
-                      <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
-                    </div>
-                    <div class="round-player-name">{{ displayNameFor(uid) }}</div>
-                    <div class="round-player-stats">
-                      <span class="stat-total">Total: {{ displayTotalWinsForUid(uid) }}</span>
-                      <span class="stat-trophy">🏆 {{ displayMatchWinsForUid(uid) }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div v-if="r.winningTeam" class="round-winner">
-              Winner: Team {{ r.winningTeam }} ({{ winnersLabel(r) }})
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-
-    <!-- Normal Round View (shown when match is active) -->
-    <div v-else>
+    <!-- Normal Round View -->
+    <div>
     <header>
-      <button v-if="isHost" @click="goBack" class="back-btn">← Back</button>
-      <button v-else @click="closePlayerView" class="close-btn" aria-label="Close">✕</button>
-  <h1>Round #{{ displayTitle }}</h1>
+      <button v-if="isHost" @click="goBack" class="back-btn" :disabled="roundActive">← Back</button>
+      <button v-else @click="closePlayerView" class="close-btn" aria-label="Close" :disabled="roundActive">✕</button>
+      <h1 class="matchroom-title">Round #{{ displayTitle }}</h1>
       <div></div>
     </header>
+    <div class="title-actions" style="text-align: center;">
+      <button @click="showSummary = true" class="summary-btn">Match Summary</button>
+    </div>
 
     <!-- Centered Timer Card (same look / behavior as MatchRoom) -->
     <div class="center-timer">
@@ -120,28 +61,44 @@
 
     <!-- Teams vertical boxes (same visual style as MatchRoom) -->
     <section class="teams-grid">
-  <div :class="['team-card', teamAOutlineClass, { 'pulsate-team': teamPulseActive }]" @click="roundFinished && selectWinner('A')" :aria-disabled="!roundFinished">
+  <div :class="['team-card', teamAOutlineClass, { 'pulsate-team': teamPulseActive }]" @click="isHost && roundFinished && selectWinner('A')" :aria-disabled="!roundFinished">
     <h2>Team A</h2>
     <div class="team-drop-list">
-      <div v-for="p in teamA" :key="p.uid" class="player-tile">
-        <div class="avatar-wrap">
-          <img v-if="displayAvatarFor(p)" :src="displayAvatarFor(p)" class="avatar-img" :alt="displayNameFor(p)" />
-          <div v-else class="avatar-fallback">{{ initials(displayNameFor(p)) }}</div>
+      <div v-for="p in teamA" :key="p.uid" class="player-avatar" @click.stop="openProfileModal(p.uid)" style="cursor: pointer;">
+        <div class="player-left">
+          <div class="avatar-block">
+            <template v-if="displayAvatarFor(p)">
+              <img :src="displayAvatarFor(p)" class="avatar-img" :alt="displayNameFor(p)" />
+            </template>
+            <template v-else>
+              <div class="avatar-fallback">{{ initials(displayNameFor(p)) }}</div>
+            </template>
+            <div class="player-sub">Total: {{ displayTotalWinsForUid(p.uid) }}</div>
+          </div>
+          <div class="player-name">{{ displayNameFor(p) }}</div>
         </div>
-        <div class="player-username">{{ displayNameFor(p) }}</div>
+        <div class="player-wins">🏆 {{ displayMatchWinsForUid(p.uid) }}</div>
       </div>
     </div>
   </div>
 
-  <div :class="['team-card', teamBOutlineClass, { 'pulsate-team': teamPulseActive }]" @click="roundFinished && selectWinner('B')" :aria-disabled="!roundFinished">
+  <div :class="['team-card', teamBOutlineClass, { 'pulsate-team': teamPulseActive }]" @click="isHost && roundFinished && selectWinner('B')" :aria-disabled="!roundFinished">
     <h2>Team B</h2>
     <div class="team-drop-list">
-      <div v-for="p in teamB" :key="p.uid" class="player-tile">
-        <div class="avatar-wrap">
-          <img v-if="displayAvatarFor(p)" :src="displayAvatarFor(p)" class="avatar-img" :alt="displayNameFor(p)" />
-          <div v-else class="avatar-fallback">{{ initials(displayNameFor(p)) }}</div>
+      <div v-for="p in teamB" :key="p.uid" class="player-avatar" @click.stop="openProfileModal(p.uid)" style="cursor: pointer;">
+        <div class="player-left">
+          <div class="avatar-block">
+            <template v-if="displayAvatarFor(p)">
+              <img :src="displayAvatarFor(p)" class="avatar-img" :alt="displayNameFor(p)" />
+            </template>
+            <template v-else>
+              <div class="avatar-fallback">{{ initials(displayNameFor(p)) }}</div>
+            </template>
+            <div class="player-sub">Total: {{ displayTotalWinsForUid(p.uid) }}</div>
+          </div>
+          <div class="player-name">{{ displayNameFor(p) }}</div>
         </div>
-        <div class="player-username">{{ displayNameFor(p) }}</div>
+        <div class="player-wins">🏆 {{ displayMatchWinsForUid(p.uid) }}</div>
       </div>
     </div>
   </div>
@@ -197,7 +154,7 @@
             <div class="round-team">
               <div class="round-team-label">Team A</div>
               <div class="round-team-roster">
-                <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player">
+                <div v-for="uid in (r.teamA || [])" :key="uid" class="round-player" @click="openProfileModal(uid)" style="cursor: pointer;">
                   <div class="round-avatar">
                     <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
                     <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
@@ -213,7 +170,7 @@
             <div class="round-team">
               <div class="round-team-label">Team B</div>
               <div class="round-team-roster">
-                <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player">
+                <div v-for="uid in (r.teamB || [])" :key="uid" class="round-player" @click="openProfileModal(uid)" style="cursor: pointer;">
                   <div class="round-avatar">
                     <img v-if="displayAvatarFor(uid)" :src="displayAvatarFor(uid)" class="round-avatar-img" :alt="displayNameFor(uid)" />
                     <div v-else class="round-avatar-fallback">{{ initials(displayNameFor(uid)) }}</div>
@@ -256,21 +213,33 @@
       @post-to-forum="onPostMatchToForum"
       @cancel-navigate="onCancelSummary"
     />
+    <EndMatchSummary 
+      v-if="showSummary" 
+      :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" 
+      :matchData="matchData" 
+      compact 
+      @close="showSummary=false"
+    />
+    <ProfileModal v-if="showProfileModal" :uid="profileModalUid" :initialProfile="profileModalInitial" @close="closeProfileModal" />
   </Teleport>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch, Teleport } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, Teleport, inject } from 'vue'
 import { avatarForUser } from '../utils/avatar.js'
 import { useRoute, useRouter } from 'vue-router'
 import { getDataFromFirebase, setChildData, deleteChildData, onDataChange, incrementField, getUserName } from '../firebase/firebase'
 import ConfirmModal from './ConfirmModal.vue'
 import EndMatchSummary from './EndMatchSummary.vue'
+import ProfileModal from './ProfileModal.vue'
 import { onUserStateChanged } from '../firebase/auth'
 
 const route = useRoute()
 const router = useRouter()
 const matchId = computed(() => route.params.id)
+
+// Inject sidebar disable function from App.vue
+const setSidebarDisabled = inject('setSidebarDisabled', null)
 
 // detect player nested child route the same way MatchRoom does
 const isPlayerView = computed(() => String(route.name) === 'PlayerRoom' || String(route.path || '').endsWith('/player'))
@@ -322,15 +291,6 @@ const isMatchEnded = computed(() => {
   }
 })
 
-function closeFinalResults() {
-  // Navigate back to Matches so the card shows under Past Matches
-  try {
-    router.push('/matches')
-  } catch (e) {
-    console.warn('Navigation failed:', e)
-  }
-}
-
 function subscribeUsers() {
   if (usersUnsub) {
     try { usersUnsub() } catch (e) {}
@@ -359,6 +319,36 @@ const selectedWinner = ref(null)
 const roundFinished = ref(false)
 // teamsLocked mirrors MatchRoom behavior: when teams are confirmed, they are locked
 const teamsLocked = ref(false)
+const showSummary = ref(false)
+
+// ProfileModal state
+const showProfileModal = ref(false)
+const profileModalUid = ref(null)
+const profileModalInitial = ref(null)
+
+function openProfileModal(target) {
+  if (!target) return
+  // allow either a uid string or an enriched player object
+  if (typeof target === 'string') {
+    profileModalUid.value = target
+    profileModalInitial.value = null
+  } else if (typeof target === 'object' && target) {
+    const uid = target.uid || target.id || target.key || null
+    if (!uid) return
+    profileModalUid.value = uid
+    // keep the enriched object (name/avatar) so modal can render immediately
+    profileModalInitial.value = target
+  } else {
+    return
+  }
+  showProfileModal.value = true
+}
+
+function closeProfileModal() { 
+  showProfileModal.value = false
+  profileModalUid.value = null
+  profileModalInitial.value = null
+}
 
 // Timer state (same behavior as MatchRoom)
 const timerMinutes = ref(0)
@@ -369,6 +359,13 @@ const timerSet = ref(false)
 const timerInterval = ref(null)
 const timerPaused = ref(false)
 const roundActive = ref(false)
+
+// Watch roundActive and update sidebar disabled state
+watch(roundActive, (isActive) => {
+  if (setSidebarDisabled) {
+    setSidebarDisabled(isActive)
+  }
+})
 
 // modal state for End Round confirmation (use the same ConfirmModal as Matches.vue)
 const showEndConfirm = ref(false)
@@ -400,6 +397,8 @@ const remoteRoundDuration = ref(0)
 let roundActiveUnsub = null
 let lastStartedUnsub = null
 let roundDurationUnsub = null
+let timerPausedUnsub = null
+let timerRemainingUnsub = null
 // periodic resync to correct client drift (non-hosts only)
 const resyncInterval = ref(null)
 let teamsLockedUnsub = null
@@ -523,7 +522,7 @@ function applyPreset(seconds) {
   setTimer()
 }
 
-function setTimer() {
+async function setTimer() {
   const m = Number(timerMinutes.value) || 0
   const s = Number(timerSeconds.value) || 0
   const total = m * 60 + s
@@ -532,6 +531,20 @@ function setTimer() {
   timerRemaining.value = total
   timerSet.value = true
   timerPaused.value = false
+  
+  // Persist the set timer to Firebase so non-hosts can see it
+  if (isHost.value) {
+    try {
+      const dbPath = await resolveMatchDbPath()
+      if (dbPath) {
+        await setChildData(dbPath, 'roundDuration', total)
+        await setChildData(dbPath, 'timerRemaining', total)
+        console.log('Host set timer to', total, 'seconds, persisted to Firebase')
+      }
+    } catch (e) {
+      console.warn('Failed to persist timer set', e)
+    }
+  }
 }
 
 function startTimer() {
@@ -553,17 +566,72 @@ function startTimer() {
   }, 1000)
 }
 
-function pauseTimer() { timerPaused.value = true }
-function resumeTimer() { if (!timerSet.value) return; timerPaused.value = false }
+async function pauseTimer() { 
+  timerPaused.value = true 
+  // Persist pause state to Firebase so non-hosts see the pause
+  if (isHost.value) {
+    try {
+      const dbPath = await resolveMatchDbPath()
+      if (dbPath) {
+        await setChildData(dbPath, 'timerPaused', true)
+        // Also persist the current remaining time so non-hosts sync to exact time
+        await setChildData(dbPath, 'timerRemaining', timerRemaining.value)
+        console.log('Host paused timer, persisted to Firebase:', timerRemaining.value)
+      }
+    } catch (e) {
+      console.warn('Failed to persist timer pause', e)
+    }
+  }
+}
 
-function resetTimer() {
+async function resumeTimer() { 
+  if (!timerSet.value) return
+  timerPaused.value = false
+  // Persist resume state to Firebase so non-hosts see the resume
+  if (isHost.value) {
+    try {
+      const dbPath = await resolveMatchDbPath()
+      if (dbPath) {
+        await setChildData(dbPath, 'timerPaused', false)
+        // Calculate virtual start time: current time minus already elapsed time
+        // This ensures syncTimerFromServer calculates the correct remaining time
+        const alreadyElapsed = timerTotal.value - timerRemaining.value
+        const virtualStartTime = new Date(Date.now() - (alreadyElapsed * 1000)).toISOString()
+        await setChildData(dbPath, 'lastRoundStartedAt', virtualStartTime)
+        // Persist current remaining time for immediate sync
+        await setChildData(dbPath, 'timerRemaining', timerRemaining.value)
+        console.log('Host resumed timer, remaining:', timerRemaining.value, 'virtualStart:', virtualStartTime)
+      }
+    } catch (e) {
+      console.warn('Failed to persist timer resume', e)
+    }
+  }
+}
+
+async function resetTimer() {
   if (timerInterval.value) { clearInterval(timerInterval.value); timerInterval.value = null }
-  timerRemaining.value = timerTotal.value
+  timerRemaining.value = 0
   timerPaused.value = false
   timerSet.value = false
   timerMinutes.value = 0
   timerSeconds.value = 0
   timerTotal.value = 0
+  
+  // Persist timer reset to Firebase so non-hosts see it
+  if (isHost.value) {
+    try {
+      const dbPath = await resolveMatchDbPath()
+      if (dbPath) {
+        await setChildData(dbPath, 'timerRemaining', 0)
+        await setChildData(dbPath, 'roundDuration', 0)
+        await setChildData(dbPath, 'timerPaused', false)
+        await setChildData(dbPath, 'roundActive', false)
+        console.log('Host reset timer, persisted to Firebase')
+      }
+    } catch (e) {
+      console.warn('Failed to persist timer reset', e)
+    }
+  }
 }
 
 async function restartRound() {
@@ -579,11 +647,15 @@ async function restartRound() {
   timerMinutes.value = 0
   timerSeconds.value = 0
 
-  // persist that the round is no longer active so other clients reflect the stop
+  // persist that the round is no longer active AND reset timer fields so other clients reflect the restart
   try {
     const dbPath = await resolveMatchDbPath()
     if (dbPath) {
       try { await setChildData(dbPath, 'roundActive', false) } catch (e) {}
+      try { await setChildData(dbPath, 'timerRemaining', 0) } catch (e) {}
+      try { await setChildData(dbPath, 'roundDuration', 0) } catch (e) {}
+      try { await setChildData(dbPath, 'timerPaused', false) } catch (e) {}
+      console.log('Host restarted round, reset timer in Firebase')
     }
   } catch (e) { console.warn('restartRound persistence failed', e) }
 }
@@ -741,6 +813,13 @@ async function confirmWinnerNextRound() {
   // Clear roundActive and teamsLocked flags so teams are unlocked for next round
   try { await setChildData(dbPath, 'roundActive', false) } catch (e) { /* non-fatal */ }
   try { await setChildData(dbPath, 'teamsLocked', false) } catch (e) { /* non-fatal */ }
+  // Reset timer fields to 0 so non-hosts see timer at 0:00 until host sets new timer
+  try { 
+    await setChildData(dbPath, 'timerRemaining', 0)
+    await setChildData(dbPath, 'roundDuration', 0)
+    await setChildData(dbPath, 'timerPaused', false)
+    console.log('Timer reset to 0 for next round')
+  } catch (e) { console.warn('Failed to reset timer', e) }
   // increment wins (non-transactional existing behavior)
       const currentWins = await getDataFromFirebase(`${dbPath}/wins`) || { A: 0, B: 0 }
       const newWins = { A: Number(currentWins.A || 0), B: Number(currentWins.B || 0) }
@@ -845,9 +924,10 @@ async function confirmWinnerEndMatch() {
       await setChildData(dbPath, 'endedAt', nowIso)
       await setChildData(dbPath, 'endAtISO', nowIso)
       await setChildData(dbPath, 'status', 'ended')
+      await setChildData(dbPath, 'matchEnded', true) // Add this flag for non-hosts to detect
 
       // update local cache so UI reacts immediately
-      try { matchData.value = { ...(matchData.value || {}), started: false, roundActive: false, lastRoundEndedAt: nowIso, endedAt: nowIso, endAtISO: nowIso, status: 'ended' } } catch (_) {}
+      try { matchData.value = { ...(matchData.value || {}), started: false, roundActive: false, lastRoundEndedAt: nowIso, endedAt: nowIso, endAtISO: nowIso, status: 'ended', matchEnded: true } } catch (_) {}
     }
   } catch (e) { console.warn('confirmWinnerEndMatch error', e) }
 
@@ -1334,7 +1414,21 @@ onMounted(async () => {
     }
   } catch (e) { /* ignore */ }
 })
+
+// Watch for match end to show summary modal for all users
+watch(() => matchData.value?.matchEnded, (newVal, oldVal) => {
+  if (newVal === true && oldVal !== true) {
+    console.log('Match ended detected, showing summary modal')
+    showEndSummary.value = true
+  }
+})
+
 onBeforeUnmount(() => {
+  // Re-enable sidebar when leaving RoundStarted component
+  if (setSidebarDisabled) {
+    setSidebarDisabled(false)
+  }
+  
   if (timerInterval.value) clearInterval(timerInterval.value)
   if (winsUnsub) {
     try { winsUnsub() } catch (e) {}
@@ -1356,6 +1450,8 @@ onBeforeUnmount(() => {
   if (roundActiveUnsub) { try { roundActiveUnsub() } catch (e) {} ; roundActiveUnsub = null }
   if (lastStartedUnsub) { try { lastStartedUnsub() } catch (e) {} ; lastStartedUnsub = null }
   if (roundDurationUnsub) { try { roundDurationUnsub() } catch (e) {} ; roundDurationUnsub = null }
+  if (timerPausedUnsub) { try { timerPausedUnsub() } catch (e) {} ; timerPausedUnsub = null }
+  if (timerRemainingUnsub) { try { timerRemainingUnsub() } catch (e) {} ; timerRemainingUnsub = null }
   if (resyncInterval.value) { try { clearInterval(resyncInterval.value) } catch (e) {} ; resyncInterval.value = null }
   if (teamsLockedUnsub) { try { teamsLockedUnsub() } catch (e) {} ; teamsLockedUnsub = null }
   if (teamsUnsub) { try { teamsUnsub() } catch (e) {} ; teamsUnsub = null }
@@ -1368,11 +1464,41 @@ function subscribeRemoteTimer(dbPath) {
     if (roundActiveUnsub) { try { roundActiveUnsub() } catch (e) {} ; roundActiveUnsub = null }
     if (lastStartedUnsub) { try { lastStartedUnsub() } catch (e) {} ; lastStartedUnsub = null }
     if (roundDurationUnsub) { try { roundDurationUnsub() } catch (e) {} ; roundDurationUnsub = null }
+    if (timerPausedUnsub) { try { timerPausedUnsub() } catch (e) {} ; timerPausedUnsub = null }
+    if (timerRemainingUnsub) { try { timerRemainingUnsub() } catch (e) {} ; timerRemainingUnsub = null }
 
     roundActiveUnsub = onDataChange(`${dbPath}/roundActive`, (val) => {
       try {
         // boolean
+        const wasActive = roundActive.value
         roundActive.value = !!val
+        
+        // For HOST: Restore timer state when returning to this component
+        if (isHost.value && roundActive.value && !wasActive) {
+          console.log('Host: Restoring timer state from Firebase on component mount')
+          // Don't call syncTimerFromServer here - let the other subscriptions handle it
+          // Just ensure we have a running interval if round is active and not paused
+          setTimeout(() => {
+            if (roundActive.value && !timerPaused.value && !timerInterval.value && timerRemaining.value > 0) {
+              console.log('Host: Restarting timer interval from remaining:', timerRemaining.value)
+              // Restart the interval without resetting the remaining time
+              if (timerInterval.value) clearInterval(timerInterval.value)
+              timerInterval.value = setInterval(() => {
+                if (timerPaused.value) return
+                if (timerRemaining.value > 0) {
+                  timerRemaining.value -= 1
+                } else {
+                  clearInterval(timerInterval.value)
+                  timerInterval.value = null
+                  roundActive.value = false
+                  roundFinished.value = true
+                  timerSet.value = false
+                }
+              }, 1000)
+            }
+          }, 200) // Small delay to let other subscriptions sync first
+        }
+        
         // when round becomes active, ensure we sync timer from server
         if (roundActive.value && !isHost.value) {
           // if we already have last started and duration, start syncing
@@ -1395,8 +1521,11 @@ function subscribeRemoteTimer(dbPath) {
 
     lastStartedUnsub = onDataChange(`${dbPath}/lastRoundStartedAt`, (val) => {
       remoteLastStartedAt.value = val || null
-      if (!isHost.value) syncTimerFromServer()
-      // ensure resync loop is active if roundActive is already true
+      // Only sync for non-host - host uses direct timerRemaining sync
+      if (!isHost.value && remoteLastStartedAt.value && remoteRoundDuration.value) {
+        syncTimerFromServer()
+      }
+      // ensure resync loop is active if roundActive is already true (non-host only)
       try {
         if (roundActive.value && !isHost.value && !resyncInterval.value) {
           resyncInterval.value = setInterval(() => {
@@ -1408,7 +1537,18 @@ function subscribeRemoteTimer(dbPath) {
 
     roundDurationUnsub = onDataChange(`${dbPath}/roundDuration`, (val) => {
       remoteRoundDuration.value = Number(val) || 0
-      if (!isHost.value) syncTimerFromServer()
+      // Sync total for host but don't recalculate remaining
+      if (isHost.value) {
+        if (remoteRoundDuration.value > 0 && !timerTotal.value) {
+          timerTotal.value = remoteRoundDuration.value
+          timerSet.value = true
+        }
+      } else {
+        // Non-host: sync timer from server
+        if (remoteLastStartedAt.value && remoteRoundDuration.value) {
+          syncTimerFromServer()
+        }
+      }
       try {
         if (roundActive.value && !isHost.value && !resyncInterval.value) {
           resyncInterval.value = setInterval(() => {
@@ -1416,6 +1556,57 @@ function subscribeRemoteTimer(dbPath) {
           }, 15000)
         }
       } catch (e) {}
+    })
+
+    // Subscribe to timerPaused state for all users (host and non-host)
+    timerPausedUnsub = onDataChange(`${dbPath}/timerPaused`, (val) => {
+      const isPaused = !!val
+      const wasResumed = timerPaused.value === true && isPaused === false
+      
+      if (isHost.value) {
+        // Host: Only sync pause state when remounting component
+        console.log('Host: timerPaused synced to', isPaused)
+        timerPaused.value = isPaused
+      } else {
+        // Non-host: Always sync pause state
+        console.log('Non-host: timerPaused changed to', isPaused, 'wasResumed:', wasResumed)
+        timerPaused.value = isPaused
+        // When resuming, immediately sync from server to get the correct remaining time
+        if (wasResumed) {
+          console.log('Non-host: Detected resume, syncing timer from server')
+          setTimeout(() => {
+            try { syncTimerFromServer() } catch (e) { console.warn('Resume sync failed', e) }
+          }, 100) // Small delay to ensure lastRoundStartedAt is updated
+        }
+      }
+    })
+
+    // Subscribe to timerRemaining for all users to sync exact time when paused/resumed
+    timerRemainingUnsub = onDataChange(`${dbPath}/timerRemaining`, (val) => {
+      // Update remaining time to sync exact time
+      const remaining = Number(val) || 0
+      
+      if (isHost.value) {
+        // Host: Update remaining time from Firebase
+        // This is important for restoring state when returning to component
+        console.log('Host: timerRemaining synced to', remaining, 'from Firebase')
+        timerRemaining.value = remaining
+        
+        // Ensure timer is set if we have a remaining time
+        if (remaining > 0 && !timerTotal.value) {
+          timerTotal.value = remaining
+          timerSet.value = true
+        }
+      } else {
+        // Non-host: Always sync remaining time
+        console.log('Non-host: timerRemaining synced to', remaining, 'paused:', timerPaused.value)
+        timerRemaining.value = remaining
+        // Ensure timer is set if we have a remaining time
+        if (remaining > 0 && !timerTotal.value) {
+          timerTotal.value = remaining
+          timerSet.value = true
+        }
+      }
     })
   } catch (e) { console.warn('subscribeRemoteTimer failed', e) }
 }
@@ -1488,16 +1679,41 @@ function syncTimerFromServer() {
     if (!remoteLastStartedAt.value || !remoteRoundDuration.value) return
     const started = Date.parse(remoteLastStartedAt.value)
     if (isNaN(started)) return
+    
+    // If timer is paused, don't recalculate based on elapsed time
+    // Instead, use the persisted timerRemaining value
+    if (timerPaused.value) {
+      console.log('syncTimerFromServer: Timer is paused, skipping time calculation')
+      // Timer values are already synced via timerRemaining subscription
+      return
+    }
+    
     const elapsed = Math.floor((Date.now() - started) / 1000)
     const rem = Math.max(0, Number(remoteRoundDuration.value || 0) - elapsed)
     timerTotal.value = Number(remoteRoundDuration.value || 0)
     timerRemaining.value = rem
     timerSet.value = timerTotal.value > 0
-    timerPaused.value = false
-    roundActive.value = rem > 0
+    // DO NOT reset timerPaused here - it's controlled by Firebase subscription
+    // timerPaused.value = false  <-- REMOVED
+    
+    // Only set roundActive to true if there's remaining time AND round was already active
+    // Don't auto-start the round just because there's time remaining
+    const wasActive = roundActive.value
+    if (rem > 0 && wasActive) {
+      roundActive.value = true
+    } else if (rem <= 0) {
+      roundActive.value = false
+    }
 
-    // start a local ticking interval for non-hosts to mirror countdown
-    if (!isHost.value) {
+    // start a local ticking interval to mirror countdown
+    // ONLY if roundActive is true (round has been started by host)
+    // For HOST: Only restart interval if not already running and round is active
+    // For NON-HOST: Restart interval if round is active
+    const shouldStartInterval = isHost.value 
+      ? (!timerInterval.value && roundActive.value && !timerPaused.value) 
+      : (roundActive.value && !timerPaused.value)
+    
+    if (shouldStartInterval) {
       if (timerInterval.value) { clearInterval(timerInterval.value); timerInterval.value = null }
       timerInterval.value = setInterval(() => {
         if (timerPaused.value) return
@@ -1510,6 +1726,7 @@ function syncTimerFromServer() {
           timerSet.value = false
         }
       }, 1000)
+      console.log(isHost.value ? 'Host' : 'Non-host', 'timer interval started, remaining:', rem)
     }
   } catch (e) { console.warn('syncTimerFromServer failed', e) }
 }
@@ -1527,6 +1744,9 @@ function syncTimerFromServer() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.title-actions { margin:8px 0 16px; display:flex; gap:8px; justify-content:center; width:100%; align-items:center }
+.summary-btn { border:none; background:#2b6baf; color:#fff; border-radius:8px; padding:9px 14px; font-weight:700; margin:0 6px; cursor:pointer; }
 
 
 
@@ -1605,12 +1825,108 @@ header:has(.close-btn) h1 {
 }
 
 .players-row { display:flex; gap:18px; padding-top:12px; flex-wrap:wrap; align-items:center; }
-.player-tile { display:flex; align-items:center; gap:14px; padding:10px 0; }
+
+/* Player avatar styling matching MatchRoom.vue bench */
+.player-avatar { 
+  display:flex; 
+  align-items:center; 
+  justify-content:space-between; 
+  gap:12px; 
+  padding:8px 10px; 
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02)); 
+  border-radius:10px; 
+  border:1px solid rgba(255,255,255,0.02); 
+  position:relative; 
+  white-space:nowrap; 
+  cursor: pointer; 
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.player-avatar:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255,173,29,0.15);
+}
+.player-left { 
+  display:flex; 
+  align-items:center; 
+  gap:12px; 
+  min-width:0; 
+  overflow:hidden;
+  flex: 1;
+}
+.avatar-block { 
+  display:flex; 
+  flex-direction:column; 
+  align-items:center; 
+  gap:6px; 
+  margin-right:8px;
+  flex-shrink: 0;
+}
 .avatar-wrap { width:60px; height:60px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.avatar-img { width:60px; height:60px; border-radius:50%; border:3px solid #FFAD1D; object-fit:cover; }
-.avatar-fallback { width:60px; height:60px; border-radius:50%; border:3px solid #FFAD1D; display:flex; align-items:center; justify-content:center; background:#1f262b; color:#ffad1d; font-weight:700; font-size:1rem; }
+.avatar-img { 
+  width:48px; 
+  height:48px; 
+  border-radius:50%; 
+  border:3px solid #FFAD1D; 
+  object-fit:cover; 
+  flex-shrink:0;
+}
+.avatar-fallback { 
+  width:48px; 
+  height:48px; 
+  border-radius:50%; 
+  border:3px solid #FFAD1D; 
+  display:flex; 
+  align-items:center; 
+  justify-content:center; 
+  background:#1f262b; 
+  color:#ffad1d; 
+  font-weight:700; 
+  font-size:1rem; 
+  flex-shrink:0;
+}
 .player-username { color:#ffad1d; font-weight:700; font-size:1rem; }
-.player-name { margin-top:8px; color: #ffad1d; font-weight:700; font-size:0.95rem; text-align:center; }
+.player-name { 
+  color: #ffad1d; 
+  font-weight: 700; 
+  font-size: 0.98rem; 
+  white-space:nowrap; 
+  text-overflow:ellipsis; 
+  overflow:hidden; 
+  flex:1; 
+  min-width:0;
+}
+.player-sub { 
+  color: #cfc9b0; 
+  font-weight:600; 
+  font-size:0.78rem; 
+  margin-top:2px; 
+  white-space:nowrap; 
+  text-overflow:ellipsis; 
+  overflow:hidden;
+}
+.player-wins { 
+  margin-left:12px; 
+  color:#ffd98a; 
+  font-weight:900; 
+  font-size:1rem; 
+  display:flex; 
+  align-items:center; 
+  gap:8px; 
+  flex-shrink:0;
+}
+.team-drop-list { 
+  display:flex; 
+  flex-direction:column; 
+  gap:12px; 
+  align-items:stretch;
+}
+.team-drop-list .player-avatar { 
+  width:100%;
+}
+.team-drop-list .player-avatar, 
+.team-drop-list .player-avatar * { 
+  white-space:nowrap;
+}
 
 /* Timer card */
 .center-timer { display:flex; justify-content:center; margin: 18px 0 26px; }
