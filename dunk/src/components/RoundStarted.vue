@@ -229,7 +229,8 @@
       :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" 
       :matchData="matchData" 
       compact 
-      @close="showSummary=false"
+      @close="onCloseSummaryCompact"
+      @cancel-navigate="onCancelSummaryCompact"
     />
     <ProfileModal v-if="showProfileModal" :uid="profileModalUid" :initialProfile="profileModalInitial" @close="closeProfileModal" />
   </Teleport>
@@ -1318,8 +1319,31 @@ function onPostMatchToForum() {
 }
 
 function onCancelSummary() {
+  console.log('RoundStarted.vue: onCancelSummary called, closing modal and navigating to matches')
   showEndSummary.value = false
   // Navigate to Past Matches section
+  try {
+    router.push({ path: '/matches', query: { section: 'past' } })
+  } catch (e) {
+    try { router.push('/matches') } catch (err) { /* ignore */ }
+  }
+}
+
+function onCloseSummaryCompact() {
+  console.log('RoundStarted.vue: onCloseSummaryCompact called (X button on compact modal)')
+  showSummary.value = false
+  // Navigate to Matches page
+  try {
+    router.push({ path: '/matches', query: { section: 'past' } })
+  } catch (e) {
+    try { router.push('/matches') } catch (err) { /* ignore */ }
+  }
+}
+
+function onCancelSummaryCompact() {
+  console.log('RoundStarted.vue: onCancelSummaryCompact called (Cancel button on compact modal)')
+  showSummary.value = false
+  // Navigate to Matches page
   try {
     router.push({ path: '/matches', query: { section: 'past' } })
   } catch (e) {

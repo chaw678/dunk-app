@@ -360,6 +360,10 @@ function onPostToForum() {
 }
 
 function onCancelAndNavigate() {
+  console.log('EndMatchSummary: Cancel button clicked, emitting both close and cancel-navigate')
+  // Emit close first to ensure modal closes
+  emit('close')
+  // Then emit cancel-navigate for any additional navigation logic
   emit('cancel-navigate')
 }
 

@@ -278,7 +278,8 @@
     :dbPath="(matchData && matchData.__dbPath) || (matchId ? `matches/${matchId}` : null)" 
     :matchData="matchData" 
     compact 
-    @close="showSummary=false"
+    @close="onCloseSummaryCompact"
+    @cancel-navigate="onCancelSummaryCompact"
   />
   <ProfileModal v-if="showProfileModal" :uid="profileModalUid" :initialProfile="profileModalInitial" @close="closeProfileModal" />
   <ConfirmModal 
@@ -1412,6 +1413,12 @@ async function confirmEndMatch() {
 
 function onEndSummaryClose() {
   showStats.value = false
+  // Navigate to Matches page just like the Cancel button does
+  try {
+    router.push({ path: '/matches', query: { section: 'past' } })
+  } catch (e) {
+    try { router.push('/matches') } catch (err) { /* ignore */ }
+  }
 }
 
 function onPostMatchToForum() {
@@ -1437,8 +1444,31 @@ function onPostMatchToForum() {
 }
 
 function onCancelSummary() {
+  console.log('MatchRoom.vue: onCancelSummary called, closing modal and navigating to matches')
   showStats.value = false
   // Navigate to Past Matches section
+  try {
+    router.push({ path: '/matches', query: { section: 'past' } })
+  } catch (e) {
+    try { router.push('/matches') } catch (err) { /* ignore */ }
+  }
+}
+
+function onCloseSummaryCompact() {
+  console.log('MatchRoom.vue: onCloseSummaryCompact called (X button on compact modal)')
+  showSummary.value = false
+  // Navigate to Matches page
+  try {
+    router.push({ path: '/matches', query: { section: 'past' } })
+  } catch (e) {
+    try { router.push('/matches') } catch (err) { /* ignore */ }
+  }
+}
+
+function onCancelSummaryCompact() {
+  console.log('MatchRoom.vue: onCancelSummaryCompact called (Cancel button on compact modal)')
+  showSummary.value = false
+  // Navigate to Matches page
   try {
     router.push({ path: '/matches', query: { section: 'past' } })
   } catch (e) {

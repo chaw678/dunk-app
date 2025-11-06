@@ -1003,6 +1003,7 @@ function onPostMatchToForum() {
 }
 
 function onCancelSummary() {
+    console.log('Matches.vue: onCancelSummary called, closing modal')
     showMatchSummary.value = false
     // No need to navigate since we're already on the Matches page
     // Just close the modal
@@ -2455,18 +2456,9 @@ async function endMatchConfirmed(match) {
         const mid = match && match.id ? String(match.id) : (parts2.length ? parts2.pop() : '')
         if (mid) clearPlayingForId(String(mid))
     } catch (e) { /* ignore */ }
-    // After successfully ending the match, navigate to Forum and open the Create Post modal
-        try {
-            const courtName = (match && (match.court || match.location)) ? encodeURIComponent((match.court || match.location)) : ''
-            const matchId = match && match.id ? String(match.id) : ''
-            const matchTitle = (match && match.title) ? encodeURIComponent(match.title) : ''
-            const matchPath = match && match.__dbPath ? encodeURIComponent(match.__dbPath) : ''
-            // use query params `openCreate=1`, `tag=Matches`, and pass court/match info so forum can prefill and attach metadata
-            await router.push({ path: '/forum', query: { openCreate: '1', court: courtName, tag: 'Matches', matchId, matchTitle, matchPath } })
-        } catch (e) {
-        // ignore navigation failures
-    }
+    
     // After successfully ending the match, show the match summary modal
+    // (User can choose to post to forum from there if they want)
     openMatchSummary(match)
 }
 
