@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="modal-portal-overlay" @click.self="$emit('overlay')">
+    <div class="modal-portal-overlay" @click.self="$emit('overlay', $event)">
       <div class="modal-portal-content">
         <slot />
       </div>

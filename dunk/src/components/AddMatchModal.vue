@@ -151,8 +151,24 @@ watch(() => props.courtName, () => tryPrefillCourt())
 // listen for auth state so we can record the creating user's uid
 const currentUser = ref(null)
 // prefer `ranking` field; keep legacy `skill` for compatibility
-const currentUserProfile = ref({ ranking: 'Open', skill: 'Open', gender: '' })
+const currentUserProfile = ref({ ranking: 'Beginner', skill: 'Beginner', gender: '' })
 const minDate = ref('')
+
+// Function to reload user profile from Firebase
+async function reloadUserProfile() {
+  const u = currentUser.value
+  if (u && u.uid) {
+    try {
+      const p = await getDataFromFirebase(`users/${u.uid}`)
+      if (p) {
+        console.log('[AddMatchModal] Loaded user profile:', p)
+        currentUserProfile.value = p
+      }
+    } catch (e) {
+      console.error('[AddMatchModal] Failed to load profile:', e)
+    }
+  }
+}
 
 onMounted(() => {
   onUserStateChanged(async (u) => {
@@ -161,15 +177,21 @@ onMounted(() => {
       if (u && u.uid) {
         // try to fetch the user's profile from Realtime DB
         const p = await getDataFromFirebase(`users/${u.uid}`)
-        if (p) currentUserProfile.value = p
+        if (p) {
+          console.log('[AddMatchModal] Initial profile load:', p)
+          currentUserProfile.value = p
+        }
       } else {
-        currentUserProfile.value = { skill: 'Open', gender: '' }
+        currentUserProfile.value = { skill: 'Beginner', gender: '' }
       }
     } catch (e) {
       // fallback to defaults
-      currentUserProfile.value = { skill: 'Open', gender: '' }
+      currentUserProfile.value = { skill: 'Beginner', gender: '' }
     }
   })
+  
+  // Reload profile when modal opens (in case it was updated)
+  reloadUserProfile()
   // compute minDate (today) for the date picker and default matchDate if empty
   try {
     const d = new Date()
@@ -198,6 +220,7 @@ watch([selectedCourt, matchDate, startTime, endTime], () => {
 
 const handleOverlayClick = (event) => {
   // Only close if clicking the overlay itself, not its children
+  if (!event) return
   if (event.target === event.currentTarget) {
     closeModal()
   }
@@ -389,18 +412,57 @@ const availableGenders = computed(() => {
   return ['All']
 })
 
-// Canonical match types (match "levels") — include all skill levels for match creation
-const canonicalMatchTypes = ['Open', 'Beginner', 'Intermediate', 'Professional']
+// Canonical match types (match "levels") — exclude Beginner from available options
+const canonicalMatchTypes = ['Open', 'Intermediate', 'Professional']
 
-// Match type options: allow creating matches at any skill level
+// Match type options: filter based on user's skill level
+// Users can only create matches at or below their skill level (plus Open is always available)
 const availableMatchTypes = computed(() => {
-  // Users can create matches at any skill level, not just at or below their own level
-  // This allows for more flexibility in organizing games
-  return canonicalMatchTypes
+  // Check all possible field names for user skill - prioritize 'ranking' field
+  const userSkill = currentUserProfile.value?.ranking || 
+                    currentUserProfile.value?.skillLevel || 
+                    currentUserProfile.value?.skill || 
+                    'Beginner'
+  
+  const normalizedSkill = userSkill.toString().charAt(0).toUpperCase() + userSkill.toString().slice(1).toLowerCase()
+  
+  console.log('[AddMatchModal] Computing availableMatchTypes:', {
+    rawSkill: userSkill,
+    normalizedSkill,
+    profile: currentUserProfile.value
+  })
+  
+  // Beginner users can only create Open matches
+  if (normalizedSkill === 'Beginner') {
+    console.log('[AddMatchModal] User is Beginner, showing: [Open]')
+    return ['Open']
+  }
+  
+  // Intermediate users can create Open and Intermediate matches
+  if (normalizedSkill === 'Intermediate') {
+    console.log('[AddMatchModal] User is Intermediate, showing: [Open, Intermediate]')
+    return ['Open', 'Intermediate']
+  }
+  
+  // Professional users can create all match types
+  if (normalizedSkill === 'Professional') {
+    console.log('[AddMatchModal] User is Professional, showing: [Open, Intermediate, Professional]')
+    return ['Open', 'Intermediate', 'Professional']
+  }
+  
+  // Default fallback: if skill is unclear or 'Open', allow Open only
+  console.log('[AddMatchModal] User skill unclear, defaulting to: [Open]')
+  return ['Open']
 })
 
 // Ensure selected values remain valid when profile changes
 watch([currentUserProfile, availableGenders, availableMatchTypes], () => {
+  console.log('[AddMatchModal] Watch triggered - validating selections', {
+    currentMatchType: matchType.value,
+    availableMatchTypes: availableMatchTypes.value,
+    userProfile: currentUserProfile.value
+  })
+  
   // adjust gender if not allowed
   const g = gender.value
   if (g && availableGenders.value.indexOf(g) === -1) {
@@ -408,10 +470,14 @@ watch([currentUserProfile, availableGenders, availableMatchTypes], () => {
     gender.value = availableGenders.value.includes('All') ? 'All' : (availableGenders.value[0] || 'All')
   }
   // adjust matchType if not allowed
-  if (matchType.value && availableMatchTypes.value.indexOf(matchType.value) === -1) {
-    matchType.value = availableMatchTypes.value[0] || 'Open'
+  const currentMatchType = matchType.value
+  if (!currentMatchType || availableMatchTypes.value.indexOf(currentMatchType) === -1) {
+    // Reset to first available option (which will be 'Open' for all cases)
+    const newMatchType = availableMatchTypes.value[0] || 'Open'
+    console.log('[AddMatchModal] Resetting matchType from', currentMatchType, 'to', newMatchType)
+    matchType.value = newMatchType
   }
-})
+}, { deep: true })
 
 // Provide a human-friendly reason why the Create button is disabled
 const submitDisabledReason = computed(() => {

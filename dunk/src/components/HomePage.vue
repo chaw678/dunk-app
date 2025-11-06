@@ -297,8 +297,8 @@
           </div>
           <div class="feature-card" @click="navigateToLeaderboard">
             <div class="feature-icon">📊</div>
-            <h3>Track Progress</h3>
-            <p>Monitor your performance, climb the leaderboard, and improve your game</p>
+            <h3>View Leaderboard</h3>
+            <p>Compare your performance with other players, climb the leaderboard, and improve your game</p>
           </div>
           <div class="feature-card" @click="navigateToRecommendedMatches">
             <div class="feature-icon">🎯</div>
