@@ -738,14 +738,21 @@ watch(totalWins, async (newVal, oldVal) => {
 })
 
 function barHeight(value) {
-  // Compute proportional bar heights based on the maximum value
-  const basePx = 30
-  const maxVisiblePx = 160
-
+  // TRUE proportional scaling: the ENTIRE height is proportional to the value
+  // A value of 5 will be exactly half the height of 10, and 5/68 the height of 68
+  const minPx = 20 // minimum height for bars with value > 0, for visibility
+  const maxVisiblePx = 180 // maximum bar height
+  
   const maxVal = Math.max(1, statsFromProfile.value.open_wins, statsFromProfile.value.intermediate_wins, statsFromProfile.value.professional_wins)
+  
+  // For the max value, use full height; for others, scale proportionally
+  if (value === maxVal) {
+    return `${maxVisiblePx}px`
+  }
+  
+  // For non-max values, calculate proportional height with a small minimum
   const ratio = value / maxVal
-  // Use linear scaling for better visual proportions
-  const px = Math.round(basePx + ratio * (maxVisiblePx - basePx))
+  const px = Math.max(minPx, Math.round(ratio * maxVisiblePx))
   return `${px}px`
 }
 

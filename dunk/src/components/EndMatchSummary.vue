@@ -83,7 +83,7 @@
           <section class="rounds-history">
             <h3>Rounds history</h3>
             <div v-if="!rounds || rounds.length === 0" class="rounds-empty">
-              {{ isMatchEnded ? 'No rounds played' : 'No rounds history yet...' }}
+              {{ isMatchEnded ? 'No rounds played' : 'No rounds played yet...' }}
             </div>
             <ul v-else class="round-list">
               <li v-for="(r, idx) in rounds" :key="r.ts || idx" class="round-card">
@@ -133,10 +133,10 @@
 
           <!-- Action Buttons (only show when match has ended and actions are not hidden) -->
           <div v-if="isMatchEnded && !hideActions" class="summary-actions">
-            <button class="btn-post-forum" @click="onPostToForum">
+            <button type="button" class="btn-post-forum" @click.prevent="onPostToForum">
               Post Match on Forum
             </button>
-            <button class="btn-cancel-summary" @click="onCancelAndNavigate">
+            <button type="button" class="btn-cancel-summary" @click.prevent="onCancelAndNavigate">
               Cancel
             </button>
           </div>
@@ -347,7 +347,16 @@ const isMatchEnded = computed(() => {
 
 // Action handlers for forum posting and navigation
 function onPostToForum() {
-  emit('post-to-forum')
+  // Emit match data along with the event so parent can navigate with proper query params
+  const courtName = match.value?.court || match.value?.venue || match.value?.location || 'Unknown Court'
+  const matchTitle = match.value?.title || match.value?.name || 'Match'
+  const matchPath = match.value?.__dbPath || props.dbPath || ''
+  
+  emit('post-to-forum', {
+    courtName,
+    matchTitle,
+    matchPath
+  })
 }
 
 function onCancelAndNavigate() {
@@ -422,7 +431,7 @@ function onCancelAndNavigate() {
 .ranking-item.rank-2 { background: linear-gradient(135deg, rgba(192,192,192,0.12), rgba(169,169,169,0.06)); border:1px solid rgba(192,192,192,0.25); box-shadow: 0 4px 16px rgba(192,192,192,0.15); }
 .ranking-item.rank-3 { background: linear-gradient(135deg, rgba(205,127,50,0.12), rgba(184,115,51,0.06)); border:1px solid rgba(205,127,50,0.25); box-shadow: 0 4px 16px rgba(205,127,50,0.15); }
 .rank-number { width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg,#ffad1d,#ffd98a); color:#0b0b0b; font-weight:900; font-size:1.1rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow: 0 4px 12px rgba(255,173,29,0.25); }
-.pill-left { display:flex; align-items:center; gap:3px }
+.pill-left { display:flex; align-items:center; gap:16px }
 .member-avatar-wrapper { position:relative; display:flex; align-items:center; justify-content:center; }
 .member-avatar-small { width:44px; height:44px; border-radius:50%; overflow:hidden; border:3px solid #ffad1d }
 .member-avatar-small img { width:100%; height:100%; object-fit:cover }

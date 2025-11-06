@@ -84,24 +84,24 @@
               <div class="chart-bar"
                    @mouseenter="showBarTooltip($event, 'Open', stats.open_wins)"
                    @mouseleave="hideBarTooltip">
+                <div v-if="stats.open_wins > 0" class="bar-value-top">{{ stats.open_wins }}</div>
                 <div class="bar-fill" :style="{ height: (stats.open_wins > 0 ? (animateBars ? barHeight(stats.open_wins) : '8px') : '4px'), background: (stats.open_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (stats.open_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '0ms' }" aria-hidden="true"></div>
-                <div class="bar-value">{{ stats.open_wins > 0 ? displayOpen : '' }}</div>
                 <div class="bar-label">Open</div>
               </div>
 
               <div class="chart-bar"
                    @mouseenter="showBarTooltip($event, 'Intermediate', stats.intermediate_wins)"
                    @mouseleave="hideBarTooltip">
+                <div v-if="stats.intermediate_wins > 0" class="bar-value-top">{{ stats.intermediate_wins }}</div>
                 <div class="bar-fill" :style="{ height: (stats.intermediate_wins > 0 ? (animateBars ? barHeight(stats.intermediate_wins) : '8px') : '4px'), background: (stats.intermediate_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (stats.intermediate_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '90ms' }" aria-hidden="true"></div>
-                <div class="bar-value">{{ stats.intermediate_wins > 0 ? displayIntermediate : '' }}</div>
                 <div class="bar-label">Intermediate</div>
               </div>
 
               <div class="chart-bar"
                    @mouseenter="showBarTooltip($event, 'Professional', stats.professional_wins)"
                    @mouseleave="hideBarTooltip">
+                <div v-if="stats.professional_wins > 0" class="bar-value-top">{{ stats.professional_wins }}</div>
                 <div class="bar-fill" :style="{ height: (stats.professional_wins > 0 ? (animateBars ? barHeight(stats.professional_wins) : '8px') : '4px'), background: (stats.professional_wins > 0 ? 'linear-gradient(180deg,#ffca6a,#ffad1d)' : 'transparent'), boxShadow: (stats.professional_wins > 0 ? '0 6px 18px rgba(0,0,0,0.35)' : 'none'), transitionDelay: '180ms' }" aria-hidden="true"></div>
-                <div class="bar-value">{{ stats.professional_wins > 0 ? displayProfessional : '' }}</div>
                 <div class="bar-label">Professional</div>
               </div>
             </div>
@@ -504,12 +504,21 @@ function showBarTooltip(event, skillLevel, wins) {
 function hideBarTooltip() { showTooltip.value = false }
 
 function barHeight(value) {
-  const basePx = 30
-  const maxVisiblePx = 160
+  // TRUE proportional scaling: the ENTIRE height is proportional to the value
+  // A value of 5 will be exactly half the height of 10, and 5/68 the height of 68
+  const minPx = 20 // minimum height for bars with value > 0, for visibility
+  const maxVisiblePx = 180 // maximum bar height
+  
   const maxVal = Math.max(1, stats.value.open_wins, stats.value.intermediate_wins, stats.value.professional_wins)
+  
+  // For the max value, use full height; for others, scale proportionally
+  if (value === maxVal) {
+    return `${maxVisiblePx}px`
+  }
+  
+  // For non-max values, calculate proportional height with a small minimum
   const ratio = value / maxVal
-  const scaled = Math.sqrt(ratio)
-  const px = Math.round(basePx + scaled * (maxVisiblePx - basePx))
+  const px = Math.max(minPx, Math.round(ratio * maxVisiblePx))
   return `${px}px`
 }
 
