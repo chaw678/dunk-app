@@ -730,9 +730,11 @@ const animateB = ref(false)
 watch(winsA, (nv, ov) => { if (nv !== ov) { animateA.value = true; setTimeout(() => (animateA.value = false), 650) } })
 watch(winsB, (nv, ov) => { if (nv !== ov) { animateB.value = true; setTimeout(() => (animateB.value = false), 650) } })
 
-// Watch for match end to show summary modal for all users
+// Watch for match end - only show modal when match actually ends during session (not on page load)
 watch(() => matchData.value?.matchEnded, (newVal, oldVal) => {
-  if (newVal === true && oldVal !== true) {
+  // ONLY trigger if transitioning from false to true (actual match end during session)
+  // Do NOT trigger on page load where oldVal is undefined
+  if (newVal === true && oldVal === false) {
     console.log('MatchRoom: Match ended detected, showing summary modal')
     showStats.value = true
   }
@@ -1797,7 +1799,7 @@ header h1 {
   margin: 0 0 16px; 
   display: flex; 
   gap: 8px; 
-  justify-content: center; 
+  justify-content: flex-start; 
   width: 100%; 
   align-items: center;
   max-width: 900px;
@@ -2022,6 +2024,35 @@ header h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Allow wrapping on very small screens */
+  max-width: 100%;
+  padding: 0 8px;
+}
+
+/* Header layout fix for small screens */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  flex-wrap: nowrap;
+  position: relative;
+}
+
+header h1 {
+  flex: 1 1 0;
+  min-width: 0; /* Allow flex child to shrink below content size */
+  text-align: center;
+  overflow: hidden;
+}
+
+.back-btn,
+.end-match-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  padding: 8px 12px;
 }
 .details-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:12px; align-items:center }
 .detail-item { display:flex; gap:12px; align-items:center }
@@ -2051,7 +2082,16 @@ header h1 {
 
 @media (max-width: 1100px) {
   .matchroom-container { padding: 20px 16px; }
-  header h1 { font-size: 1.2rem; }
+  header { gap: 6px; padding: 8px; }
+  header h1 { font-size: 1.1rem; }
+  .matchroom-title {
+    font-size: 24px;
+    padding: 0 4px;
+  }
+  .back-btn, .end-match-btn {
+    font-size: 0.85rem;
+    padding: 6px 10px;
+  }
   .teams-grid { flex-direction: column; gap: 18px; align-items: stretch; }
   .team-card { min-width: 0 !important; width: 100%; }
   .bench-list, .team-drop-list { gap: 14px; }
@@ -2063,6 +2103,21 @@ header h1 {
     padding-left: 12px; 
     padding-right: 12px; 
   }
+}
+
+@media (max-width: 720px) {
+  .matchroom-container { padding: 14px 10px; }
+  header { gap: 4px; padding: 6px; }
+  .matchroom-title {
+    font-size: 18px;
+    padding: 0 2px;
+  }
+  .back-btn, .end-match-btn {
+    font-size: 0.8rem;
+    padding: 6px 8px;
+  }
+  .details-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  .player-name { font-size: 0.9rem; }
 }
 
 @media (max-width: 720px) {

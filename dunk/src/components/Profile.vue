@@ -89,7 +89,7 @@
           <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
             <Users :color="'#FFAD1D'" :size="32" class="mb-2" />
             <span class="fw-medium">Gender</span>
-            <span class="fw-semibold text-warning mt-1">{{ (profile && profile.gender) ? profile.gender : 'Not Set' }}</span>
+            <span class="fs-4 fw-semibold text-warning mt-1">{{ (profile && profile.gender) ? profile.gender : 'Not Set' }}</span>
           </div>
         </div>
 
@@ -97,7 +97,7 @@
           <div class="stat-card flex-fill d-flex flex-column align-items-center justify-content-center px-2 py-3 border rounded-3 border-gray-600">
             <Cake :color="'#FFAD1D'" :size="32" class="mb-2" />
             <span class="fw-medium">Age</span>
-            <span class="fs-4 fw-semibold text-warning mt-1">{{ (profile && profile.age !== undefined && profile.age !== null) ? profile.age : '—' }}</span>
+            <span class="fs-4 fw-semibold text-warning mt-1">{{ (profile && profile.age !== undefined && profile.age !== null) ? profile.age : 'Not Set' }}</span>
           </div>
         </div>
       </div>

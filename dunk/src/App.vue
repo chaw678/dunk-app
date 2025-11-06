@@ -1,7 +1,7 @@
 <template>
   <div id="app">
     <!-- Sidebar receives v-model:collapsed so App controls layout -->
-    <Sidebar v-model:collapsed="collapsed" :disabled="sidebarDisabled" />
+    <Sidebar v-model:collapsed="collapsed" />
 
     <!-- Topbar (logo + title + actions) aligned with main content -->
     <header class="topbar" :class="{ collapsed }"
@@ -27,217 +27,20 @@
          :style="{ '--sidebar-current-width': collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--sidebar-width)' }">
       <router-view />
     </div>
-
-    <!-- Global match end modal -->
-    <EndMatchSummary
-      v-if="showGlobalMatchEndModal"
-      :dbPath="globalMatchEndDbPath"
-      @close="closeGlobalMatchEndModal"
-      @post-to-forum="handlePostToForum"
-    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, provide } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import DunkLogo from './components/DunkLogo.vue'
-import EndMatchSummary from './components/EndMatchSummary.vue'
-import { onUserStateChanged } from './firebase/auth'
-import { onDataChange } from './firebase/firebase'
 
 const collapsed = ref(false)
 const router = useRouter()
 
-// Sidebar disabled state (for when round is active)
-const sidebarDisabled = ref(false)
-
-// Provide function to child components to control sidebar state
-provide('setSidebarDisabled', (disabled) => {
-  sidebarDisabled.value = disabled
-})
-
-// Global match end modal state
-const showGlobalMatchEndModal = ref(false)
-const globalMatchEndDbPath = ref(null)
-const currentUser = ref(null)
-const trackedMatches = ref({}) // Track which matches we've already shown modals for
-const trackedRoundStarts = ref({}) // Track which round starts we've already navigated for
-const initialLoadComplete = ref(false) // Track if initial load is done
-
-let matchesUnsub = null
-
 const navigateToHomePage = () => {
   router.push('/homepage')
-}
-
-const handlePostToForum = (matchData) => {
-  // Navigate to forum with prefilled data to open creation modal
-  const courtName = matchData?.courtName || 'Unknown Court'
-  const matchTitle = matchData?.matchTitle || 'Match'
-  const matchPath = matchData?.matchPath || globalMatchEndDbPath.value || ''
-  
-  try {
-    router.push({
-      path: '/forum',
-      query: {
-        openCreate: '1',
-        court: encodeURIComponent(courtName),
-        tag: 'Matches',
-        matchId: matchPath,
-        matchTitle: encodeURIComponent(matchTitle)
-      }
-    })
-    closeGlobalMatchEndModal()
-  } catch (e) {
-    console.error('Failed to navigate to forum:', e)
-  }
-}
-
-const closeGlobalMatchEndModal = () => {
-  showGlobalMatchEndModal.value = false
-  globalMatchEndDbPath.value = null
-}
-
-// Watch for user authentication
-onMounted(() => {
-  onUserStateChanged((user) => {
-    currentUser.value = user
-    if (user) {
-      // User is signed in, subscribe to matches
-      subscribeToMatches()
-    } else {
-      // User signed out, unsubscribe
-      if (matchesUnsub) {
-        matchesUnsub()
-        matchesUnsub = null
-      }
-      trackedMatches.value = {}
-      trackedRoundStarts.value = {}
-      initialLoadComplete.value = false
-    }
-  })
-})
-
-onBeforeUnmount(() => {
-  if (matchesUnsub) {
-    matchesUnsub()
-  }
-})
-
-function subscribeToMatches() {
-  if (matchesUnsub) return // Already subscribed
-  
-  // Reset initial load flag when subscribing
-  initialLoadComplete.value = false
-  
-  try {
-    matchesUnsub = onDataChange('matches', (data) => {
-      if (!data || !currentUser.value) return
-      
-      const uid = currentUser.value.uid
-      
-      // Check all matches for ones the user is involved in
-      // Matches can be nested like matches/{court}/{date}/{matchId}
-      function checkMatch(matchData, matchPath) {
-        if (!matchData) return
-        
-        // Check if user is involved in this match (host or joined player)
-        const isHost = matchData.host === uid || matchData.ownerId === uid || matchData.ownerUid === uid
-        const isJoined = matchData.playersMap && matchData.playersMap[uid]
-        
-        if (!isHost && !isJoined) return // User not involved in this match
-        
-        const matchId = matchPath.split('/').pop()
-        
-        // Check if round just started (for non-hosts only)
-        const roundActive = matchData.roundActive === true
-        const alreadyNavigated = trackedRoundStarts.value[matchId]
-        
-        // Auto-navigate non-hosts to RoundStarted when host starts a round
-        // This creates a "television screen" effect where non-hosts see the round live
-        if (!isHost && roundActive && !alreadyNavigated) {
-          // Check if user is not already on the RoundStarted page for this match
-          const currentRoute = router.currentRoute.value
-          const isAlreadyOnRoundStarted = currentRoute.name === 'RoundStarted' && currentRoute.params.id === matchId
-          
-          if (!isAlreadyOnRoundStarted) {
-            console.log('🎬 Round active detected! Auto-navigating non-host to television screen view for match:', matchId)
-            trackedRoundStarts.value[matchId] = true
-            
-            // Navigate to RoundStarted with match details - non-host will see synchronized timer and round #
-            router.push({
-              name: 'RoundStarted',
-              params: { id: matchId },
-              query: { path: matchPath }
-            })
-          } else {
-            // Already on the page, just mark as navigated
-            trackedRoundStarts.value[matchId] = true
-          }
-        } else if (!isHost && !roundActive && alreadyNavigated) {
-          // Round ended, clear the tracked state so we can navigate again if round starts again
-          delete trackedRoundStarts.value[matchId]
-        }
-        
-        // Check if match just ended
-        const matchEnded = matchData.matchEnded === true
-        const alreadyShown = trackedMatches.value[matchId]
-        
-        // Only show modal if:
-        // 1. Match has ended
-        // 2. We haven't shown it yet
-        // 3. Initial load is complete (don't show for old matches on login/refresh)
-        if (matchEnded && !alreadyShown && initialLoadComplete.value) {
-          // Match just ended and we haven't shown the modal yet
-          console.log('Global match end detected for match:', matchId, 'at path:', matchPath)
-          trackedMatches.value[matchId] = true
-          globalMatchEndDbPath.value = matchPath
-          showGlobalMatchEndModal.value = true
-        } else if (matchEnded && !alreadyShown && !initialLoadComplete.value) {
-          // Mark old ended matches as already shown during initial load
-          trackedMatches.value[matchId] = true
-        }
-      }
-      
-      // Traverse the nested structure
-      Object.entries(data).forEach(([key1, val1]) => {
-        if (!val1 || typeof val1 !== 'object') return
-        
-        // Check if this is directly a match object (has host or playersMap)
-        if (val1.host || val1.playersMap) {
-          checkMatch(val1, `matches/${key1}`)
-        } else {
-          // It's a nested level, traverse deeper
-          Object.entries(val1).forEach(([key2, val2]) => {
-            if (!val2 || typeof val2 !== 'object') return
-            
-            // Check if this level contains matches
-            if (val2.host || val2.playersMap) {
-              checkMatch(val2, `matches/${key1}/${key2}`)
-            } else {
-              // Another level of nesting
-              Object.entries(val2).forEach(([key3, val3]) => {
-                if (!val3 || typeof val3 !== 'object') return
-                checkMatch(val3, `matches/${key1}/${key2}/${key3}`)
-              })
-            }
-          })
-        }
-      })
-      
-      // Mark initial load as complete after first data load
-      if (!initialLoadComplete.value) {
-        setTimeout(() => {
-          initialLoadComplete.value = true
-          console.log('Initial match load complete, now monitoring for new match ends')
-        }, 500) // Small delay to ensure all initial data is processed
-      }
-    })
-  } catch (e) {
-    console.warn('Failed to subscribe to matches in App.vue', e)
-  }
 }
 </script>
 
@@ -262,9 +65,7 @@ function subscribeToMatches() {
 }
 
 .main-content.collapsed {
-  /* When sidebar is collapsed, reduce the margin-left to match the collapsed sidebar width */
   margin-left: var(--sidebar-collapsed-width);
-  padding-left: 24px; /* Keep consistent padding */
 }
 
 /* Ensure the router-view content stacks properly */
@@ -274,22 +75,20 @@ main {
 
 /* Topbar styling */
 .topbar {
+  
   position: fixed;
   left: calc(var(--sidebar-current-width, var(--sidebar-width)));
   right: 0;
   height: 72px;
   display: flex;
   align-items: center;
-  /* keep topbar above content but below sidebar when needed */
-  z-index: 210;
+  z-index: 70;
   padding: 0 32px;
-  /* slightly translucent topbar that matches the dark theme but keeps some background visible */
-  background: linear-gradient(90deg, rgba(15,20,24,0.78) 0%, rgba(13,17,20,0.78) 100%);
+  background: linear-gradient(90deg, rgba(11, 11, 11, 0.9) 70%, rgba(0,0,0,0.4) 100%);
   box-shadow: 0 2px 16px 0 rgba(12, 18, 28, 0.14);
-  -webkit-backdrop-filter: blur(6px) saturate(120%);
-  backdrop-filter: blur(6px) saturate(120%);
+  backdrop-filter: blur(8px);
   transition: left 0.25s cubic-bezier(0.4,0,0.2,1);
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
 .topbar-inner {
@@ -359,10 +158,7 @@ main {
   }
   
   .main-content.collapsed {
-    /* mirror the behavior above for smaller screens: don't offset the whole
-       main content when collapsed, use left padding so internal centering works */
-    margin-left: 0;
-    padding-left: var(--sidebar-collapsed-width);
+    margin-left: var(--sidebar-collapsed-width);
   }
   
   /* Optional: reduce padding on mobile/tablet */

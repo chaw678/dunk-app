@@ -339,7 +339,7 @@
         <div class="cta-content">
           <h2>Ready to Start Playing?</h2>
           <p>Join the Dunk+ community and elevate your basketball experience</p>
-          <button class="cta-button large" @click="getStarted">Get Started</button>
+          <button class="cta-button large" @click="navigateToLogin">Get Started</button>
         </div>
       </div>
     </section>
@@ -1353,6 +1353,15 @@ const resumeAutoPlay = () => {
 // Navigation functions
 const navigateToMatches = () => {
   router.push('/matches')
+}
+
+const navigateToLogin = () => {
+  // If user is signed in, go to matches; otherwise go to login
+  if (currentUser.value) {
+    router.push('/matches')
+  } else {
+    router.push('/login')
+  }
 }
 
 const navigateToRecommendedMatches = () => {

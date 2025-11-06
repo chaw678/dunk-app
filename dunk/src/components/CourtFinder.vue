@@ -1997,13 +1997,27 @@ text-decoration: underline;
 
 .court-card {
   padding: 16px;
-  margin-bottom: 12px
+  margin-bottom: 12px;
+  position: relative;
+  /* Ensure court card stays in normal document flow */
+  display: block !important;
+  overflow: visible;
 }
 
 .court-card-row {
-  display: flex;
+  display: flex !important;
   justify-content: space-between;
-  align-items: center
+  align-items: center;
+  /* Ensure court info bar stays visible always */
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative;
+  z-index: 2;
+  /* Prevent any animation artifacts */
+  background: transparent;
+  will-change: auto;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .court-info {
@@ -2061,9 +2075,26 @@ text-decoration: underline;
 }
 
 .mini-matches {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.03)
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  animation: slideDown 0.25s ease-out;
+  /* Prevent animation from affecting parent */
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+@keyframes slideDown {
+  from {
+    max-height: 0;
+    transform: translateY(-5px);
+    overflow: hidden;
+  }
+  to {
+    max-height: 2000px;
+    transform: translateY(0);
+    overflow: visible;
+  }
 }
 
 .mini-match {
@@ -2398,11 +2429,32 @@ text-decoration: underline;
 }
 
 /* Embedded Matches tweaks: make Matches component compact inside the expanded court card */
+.expanded-matches {
+  position: relative;
+  width: 100%;
+  /* Prevent any overlay behavior */
+  z-index: 1;
+  padding-right: 40px;
+}
+
+/* Prevent Matches component from rendering as overlay when embedded */
+.expanded-matches > *,
+.expanded-matches .large-card {
+  position: static !important;
+  /* Ensure it stays in document flow */
+}
+
 .expanded-matches .large-card {
   padding: 8px 6px;
   border: none;
   background: transparent;
   box-shadow: none;
+}
+
+/* Hide any overlay/backdrop elements that Matches might create */
+.expanded-matches .modal-overlay,
+.expanded-matches .backdrop {
+  display: none !important;
 }
 
 .expanded-matches .matches-header {
@@ -2413,8 +2465,61 @@ text-decoration: underline;
   margin-top: 8px
 }
 
+/* Prevent match cards from becoming too narrow when sidebar is maximized */
+.expanded-matches .matches-grid [class*="col-"] {
+  min-width: 500px;
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 700px;
+}
+
+@media (min-width: 2000px) {
+  .expanded-matches .matches-grid .col-xl-4 {
+    /* Allow 2 columns only on ultra-wide screens */
+    width: calc(50% - 12px);
+    min-width: 500px;
+    max-width: none;
+  }
+}
+
 .expanded-matches .match-card {
   min-height: 220px
+}
+
+/* Stack buttons vertically in embedded matches to prevent overflow */
+.expanded-matches .mt-auto > .d-flex {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 8px;
+}
+
+.expanded-matches .btn-group {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  gap: 8px !important;
+  align-items: stretch !important;
+}
+
+.expanded-matches .btn-group > * {
+  width: 100% !important;
+  flex: 0 0 auto !important;
+}
+
+.expanded-matches .btn-group button,
+.expanded-matches .btn-group .btn {
+  width: 100% !important;
+  margin: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  justify-content: center;
+  display: flex !important;
+}
+
+/* Make Match Summary button full width in embedded view */
+.expanded-matches .summary-btn {
+  width: 100% !important;
+  justify-content: center !important;
 }
 
 @media (max-width: 768px) {

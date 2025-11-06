@@ -41,9 +41,6 @@
                 <div class="embedded-title">Matches at {{ courtFilter || 'this court' }}</div>
                 <div class="embedded-header-actions">
                     <button class="btn-create-match small" :title="currentUser ? 'Create a match' : 'Sign in to create matches'" @click="handleCreateMatch"><span class="icon-circle"><i class="bi bi-plus-lg"></i></span> Create Match</button>
-                    <button class="embedded-close-btn" @click="$emit('close')" title="Close matches view">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
                 </div>
             </div>
 
@@ -179,7 +176,6 @@
             <template v-else-if="isJoined(match)">
                           <template v-if="match.started || match._started">
                               <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-invite btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
-                              <button type="button" class="btn btn-danger btn-sm ms-2 d-flex align-items-center" :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : 'Leave match'" @click.prevent.stop="leaveMatch(match)"><i class="bi bi-box-arrow-right me-2"></i>Leave</button>
                             </template>
                           <template v-else>
                               <button :disabled="isPast(match)" :title="isPast(match) ? 'Match is over' : ''" type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center" @click.prevent.stop="!isPast(match) && openInvite(match)"><i class="bi bi-person-plus me-2"></i>Invite</button>
@@ -2992,13 +2988,50 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     margin-top: 8px;
     margin-bottom: 6px;
     border-bottom: 1px solid rgba(255,255,255,0.02);
+    flex-wrap: wrap;
+    gap: 12px;
 }
-.embedded-title { font-size: 1.25rem; font-weight: 800; color: #fff }
+.embedded-title { 
+    font-size: 1.25rem; 
+    font-weight: 800; 
+    color: #fff;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
 .embedded-header-actions {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-shrink: 0;
+}
+
+/* Responsive adjustments for embedded header */
+@media (max-width: 600px) {
+    .embedded-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .embedded-title {
+        width: 100%;
+        white-space: normal;
+        word-break: break-word;
+    }
+    
+    .embedded-header-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+    
+    .btn-create-match.small {
+        width: 100%;
+        justify-content: center;
+    }
 }
 
 .embedded-close-btn {
@@ -3191,7 +3224,7 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 
 .invitations-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
     gap: 20px;
     width: 100%;
     align-items: stretch;
@@ -3200,6 +3233,8 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
 .invitation-card-wrapper {
     display: flex;
     justify-content: flex-start;
+    width: 100%;
+    max-width: 100%;
 }
 
 .invitation-card {
@@ -3208,7 +3243,7 @@ window.createTestRecommendationMatch = createTestRecommendationMatch
     border-radius: 10px;
     transition: transform 0.2s, box-shadow 0.2s;
     width: 100%;
-    max-width: 400px;
+    max-width: 100%;
 }
 
 .invitation-card .card-body {
